@@ -78,6 +78,7 @@ class NvmlProbe:
         self._nvml: ModuleType | None = None
         self._handle: object = None
         self._name = ""
+        self.driver_version: str | None = None
         self._total_mb = 0.0
         try:
             import pynvml  # nvidia-ml-py
@@ -87,6 +88,8 @@ class NvmlProbe:
             raw_name = pynvml.nvmlDeviceGetName(self._handle)
             self._name = raw_name.decode() if isinstance(raw_name, bytes) else str(raw_name)
             self._total_mb = pynvml.nvmlDeviceGetMemoryInfo(self._handle).total / BYTES_PER_MIB
+            driver = pynvml.nvmlSystemGetDriverVersion()
+            self.driver_version = driver.decode() if isinstance(driver, bytes) else str(driver)
             self._nvml = pynvml
         except ImportError:
             self.reason = "nvidia-ml-py is not installed (extra: onnx-gpu)"

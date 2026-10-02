@@ -40,6 +40,9 @@ class SourceConfig(ConfigModel):
     # synthetic test pattern
     frame_count: int | None = Field(default=None, ge=1)
     seed: int = 0
+    # produce frames at `fps` on the real clock with live (latest-frame) semantics, like a
+    # camera; used for benchmarking. Default is the reproducible, lossless replay mode.
+    realtime: bool = False
 
     @field_validator("url")
     @classmethod

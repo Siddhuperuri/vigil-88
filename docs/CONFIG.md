@@ -222,6 +222,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `cameras[].source.loop` | bool | `False` |  |
 | `cameras[].source.frame_count` | int | NoneType | `None` | ge=1 |
 | `cameras[].source.seed` | int | `0` |  |
+| `cameras[].source.realtime` | bool | `False` |  |
 | `cameras[].location` | str | NoneType | `None` |  |
 | `cameras[].priority` | int | `5` | ge=0, le=9 |
 | `cameras[].enabled` | bool | `True` |  |

@@ -289,3 +289,66 @@ def test_backend_order_respects_explicit_choice() -> None:
     assert backend_order("msmf") == [("msmf", cv2.CAP_MSMF)]
     assert backend_order("dshow") == [("dshow", cv2.CAP_DSHOW)]
     assert backend_order("auto")  # at least one backend on every platform
+
+
+# ------------------------------------------------------------------ synthetic, real-time mode
+
+
+def test_realtime_synthetic_is_live_with_real_capture_timestamps_not_media_pts() -> None:
+    src = synth(realtime=True, fps=200, frame_count=3)
+    assert src.timing is SourceTiming.LIVE
+    src.open()
+    raw = src.read()
+    assert raw is not None and raw.source_pts_ms is None  # None => latency metrics apply
+
+
+def test_realtime_synthetic_holds_the_configured_frame_rate() -> None:
+    import time as _time
+
+    src = synth(realtime=True, fps=100, frame_count=31)
+    src.open()
+    started = _time.monotonic()  # gate: allow measuring wall time in a test
+    while src.read() is not None:
+        pass
+    elapsed = _time.monotonic() - started  # gate: allow measuring wall time in a test
+    assert 0.25 <= elapsed <= 0.6  # 30 intervals of 10 ms, not "as fast as possible"
+
+
+def test_realtime_synthetic_does_not_burst_to_catch_up_after_falling_behind() -> None:
+    import time as _time
+
+    src = synth(realtime=True, fps=50, frame_count=20)
+    src.open()
+    src.read()
+    _time.sleep(0.2)  # a consumer stall of ten frame periods
+    t0 = _time.monotonic()
+    for _ in range(5):
+        src.read()
+    spent = _time.monotonic() - t0
+    assert spent >= 0.06  # still paced at ~20 ms per frame afterwards, not 5 instant frames
+
+
+def test_closing_a_realtime_source_unblocks_a_waiting_read() -> None:
+    import threading
+
+    src = synth(realtime=True, fps=0.5)  # one frame every 2 s
+    src.open()
+    src.read()  # frame 0 is due immediately
+    done = threading.Event()
+    result: list[object] = []
+
+    def reader() -> None:
+        result.append(src.read())
+        done.set()
+
+    threading.Thread(target=reader, daemon=True).start()
+    src.close()
+    assert done.wait(1.0) and result == [None]  # woke at once instead of sleeping 2 s
+
+
+def test_default_synthetic_is_unchanged_paced_with_media_timestamps() -> None:
+    src = synth(frame_count=2, fps=20)
+    assert src.timing is SourceTiming.PACED
+    src.open()
+    raw = src.read()
+    assert raw is not None and raw.source_pts_ms == 0.0

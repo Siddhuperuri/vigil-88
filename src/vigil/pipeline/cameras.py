@@ -27,6 +27,7 @@ def _options(src: SourceConfig) -> dict[str, SourceOption]:
                 "fps": src.fps,
                 "frame_count": src.frame_count,
                 "seed": src.seed,
+                "realtime": src.realtime,
             }
         case "rtsp":
             # Names of environment variables, never their values.

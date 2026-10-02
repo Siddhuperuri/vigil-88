@@ -152,7 +152,7 @@ name = "layers"
 type = "layers"
 layers = [
     "vigil.cli",
-    "vigil.api",
+    "vigil.api | vigil.bench",
     "vigil.pipeline",
     "vigil.ingest | vigil.vision",
     "vigil.domain",

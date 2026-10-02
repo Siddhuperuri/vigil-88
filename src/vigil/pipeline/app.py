@@ -84,10 +84,6 @@ def _default_detector_factory(ctx: DetectorContext) -> Detector:
     )
 
 
-def _default_source_factory(camera: Camera) -> FrameSource:
-    return build_source(camera.source)
-
-
 @dataclass
 class _CameraRuntime:
     camera: Camera
@@ -121,7 +117,9 @@ class Application:
         self.results = LatestDetections()
         self._log = logger or get_logger("pipeline.app")
         self._detector_factory = detector_factory or _default_detector_factory
-        self._source_factory = source_factory or _default_source_factory
+        self._source_factory = source_factory or (
+            lambda camera: build_source(camera.source, self.clock)
+        )
         self.stream_hub = stream_hub
 
         self._lock = threading.Lock()

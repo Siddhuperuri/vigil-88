@@ -3,6 +3,7 @@ nothing here pretends (README rule 1)."""
 
 from __future__ import annotations
 
+from vigil.core.clock import Clock
 from vigil.core.errors import CapabilityError
 from vigil.core.protocols.source import FrameSource
 from vigil.domain.camera import SourceSpec
@@ -18,7 +19,7 @@ _NOT_IMPLEMENTED = {
 _EXTRA_HINT = "install the capture extra: uv sync --extra capture"
 
 
-def build_source(spec: SourceSpec) -> FrameSource:
+def build_source(spec: SourceSpec, clock: Clock | None = None) -> FrameSource:
     if spec.kind in _NOT_IMPLEMENTED:
         raise CapabilityError(_NOT_IMPLEMENTED[spec.kind], context={"kind": spec.kind.value})
     try:
@@ -29,7 +30,7 @@ def build_source(spec: SourceSpec) -> FrameSource:
         if spec.kind is SourceKind.SYNTHETIC:
             from vigil.ingest.sources.synthetic import SyntheticSource
 
-            return SyntheticSource(spec)
+            return SyntheticSource(spec, clock)
     except ImportError as exc:
         raise CapabilityError(
             f"{spec.kind.value} source needs OpenCV/NumPy, which are not installed: {_EXTRA_HINT}"
