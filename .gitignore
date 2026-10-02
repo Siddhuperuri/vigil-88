@@ -17,3 +17,6 @@ dist/
 # console (later phases)
 ui/node_modules/
 ui/dist/
+# tool state
+.serena/
+.claude/
