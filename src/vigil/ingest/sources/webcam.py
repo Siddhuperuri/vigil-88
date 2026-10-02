@@ -136,7 +136,7 @@ class WebcamSource:
         granted_fps = cap.get(cv2.CAP_PROP_FPS)
         self._cap = cap
         self._pending = raw
-        detail = f"requested {self._width}x{self._height}@{self._fps} {self._fourcc}"
+        detail = self._describe_request()
         return SourceInfo(
             width_px=raw.pixels.width_px,
             height_px=raw.pixels.height_px,
@@ -144,6 +144,17 @@ class WebcamSource:
             backend=name,
             detail=detail,
         )
+
+    def _describe_request(self) -> str:
+        """What was asked for (the granted values are reported separately)."""
+        parts = []
+        if self._width and self._height:
+            parts.append(f"{self._width}x{self._height}")
+        if self._fps:
+            parts.append(f"{self._fps:g} fps")
+        if self._fourcc:
+            parts.append(self._fourcc)
+        return f"requested {' '.join(parts)}" if parts else "no format requested (driver default)"
 
     @staticmethod
     def _decode(result: tuple[bool, object]) -> RawFrame:

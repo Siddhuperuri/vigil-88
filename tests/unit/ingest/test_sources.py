@@ -172,6 +172,14 @@ def test_webcam_reports_the_granted_resolution_not_the_requested_one() -> None:
     assert info.fps == 30.0 and src.is_open and src.timing is SourceTiming.LIVE
 
 
+def test_open_detail_describes_only_what_was_actually_requested() -> None:
+    asked = webcam(lambda i, a: FakeCapture(), width_px=1280, height_px=720, fps=30).open()
+    assert asked.detail == "requested 1280x720 30 fps MJPG"
+    bare = webcam(lambda i, a: FakeCapture(), fourcc="").open()
+    assert bare.detail == "no format requested (driver default)"
+    assert "None" not in (asked.detail or "") + (bare.detail or "")
+
+
 def test_webcam_requests_the_codec_before_the_resolution() -> None:
     import cv2
 

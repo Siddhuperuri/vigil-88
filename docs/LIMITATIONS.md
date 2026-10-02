@@ -30,8 +30,13 @@ detector that detects nothing. It does not detect, track or reason about anythin
   the camera DEGRADED, but a read that never returns would leave its worker thread blocked.
   Shutdown still completes: it waits `pipeline.shutdown_timeout_ms`, then reports the
   straggler by name and returns. (ADR 0011.)
-- **Webcam open can be slow on Windows** (MSMF may take several seconds) and cannot be given
-  a timeout.
+- **Webcam open can be slow on Windows and cannot be given a timeout.** Measured on the
+  development machine (OpenCV 5.0.0.93, one USB webcam): the MSMF backend does not open the
+  device at all (`isOpened()` is false immediately), so the automatic fallback uses
+  DirectShow, which opens in about 0.5 s and delivers its first frame about 0.8 s later.
+  The driver reports no frame rate (`fps=None`), so the stall threshold falls back to
+  `ingest.stall_timeout_ms` rather than adapting to the camera. Measured delivery was 15.0
+  fps at 640x480; that is what this camera/driver combination produced, not a system limit.
 - **No automatic worker restart.** A crashed worker is logged, counted and makes the
   application report FAILED health; there is no supervisor yet.
 - **Capture→inference latency is only reported for live sources.** Replay cameras run on a
