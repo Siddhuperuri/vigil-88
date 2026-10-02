@@ -254,6 +254,53 @@ def _run_section(r: Json) -> list[str]:
 # ------------------------------------------------------------------ the document
 
 
+def _at_a_glance(runs: Sequence[Json]) -> list[str]:
+    head = _row(
+        "run",
+        [
+            "device",
+            "FPS mean (median)",
+            "inference p50 / p95 ms",
+            "capture to detections p50 / p95 ms",
+            "skipped / dropped",
+            "GPU util max %",
+            "temp max C",
+            "SM clock mean MHz",
+            "throttled s",
+        ],
+    )
+    rows = [
+        "## At a glance",
+        "",
+        "Sustained runs side by side. Details for each follow.",
+        "",
+        head,
+        "|" + "---|" * 10,
+    ]
+    for r in runs:
+        s, m = r["spec"], r["model"]
+        assert isinstance(s, Mapping)
+        assert isinstance(m, Mapping)
+        device = "CPU" if str(m["device"]).startswith("cpu") else "GPU"
+        rows.append(
+            _row(
+                f"`{s['name']}`",
+                [
+                    device,
+                    f"{_f(_get(r, 'whole', 'fps_mean'))} ({_f(_get(r, 'whole', 'fps_median'))})",
+                    _pair(r, "whole", "infer_ms"),
+                    _pair(r, "whole", "capture_to_result_ms"),
+                    f"{_get(r, 'whole', 'skipped')} / {_get(r, 'whole', 'dropped')}",
+                    _f(_get(r, "whole", "gpu_util_percent", "maximum"), 0),
+                    _f(_get(r, "whole", "gpu_temp_c", "maximum"), 0),
+                    _f(_get(r, "whole", "gpu_sm_clock_mhz", "mean"), 0),
+                    str(_get(r, "whole", "throttled_seconds")),
+                ],
+            )
+        )
+    return [*rows, ""]
+
+
 def render_markdown(results: Sequence[Json]) -> str:
     sustained = [r for r in results if r.get("sustained")]
     screening = [r for r in results if not r.get("sustained")]
@@ -275,12 +322,21 @@ def render_markdown(results: Sequence[Json]) -> str:
         "- **Skipped** frames were not analysed because inference is paced below the camera's "
         "frame rate (by design). **Dropped** frames were lost to a full queue and should be 0.",
         "- *Inference latency* is the detector's own time per frame. *Capture to detections* "
-        "adds queueing; *capture to annotated JPEG* adds drawing and encoding.",
+        "adds queueing. *Capture to annotated JPEG* also includes waiting for the next stream "
+        "tick (`api.stream_fps`, default 10, so up to 100 ms), so it reflects the stream "
+        "cadence as much as the cost of drawing and encoding.",
+        "- A laptop GPU runs slower at a **low duty cycle**: its clocks drop between sparse "
+        "frames. Compare the *model run* and *SM clock* rows across runs with different "
+        "inference rates before assuming a model's speed is a constant.",
+        "- **Process CPU near 100% means one core is saturated.** The pipeline's Python-side "
+        "work (pre/post-processing, scheduling, encoding) then limits throughput before the "
+        "GPU does; compare it with GPU utilisation.",
         "- Sources are synthetic test patterns unless stated, so post-processing cost reflects an "
         "empty scene. Latency on a real scene is covered by the webcam runs.",
         "",
     ]
     if sustained:
+        out += _at_a_glance(sustained)
         out += ["## Sustained benchmarks", ""]
         for r in sustained:
             out += _run_section(r)

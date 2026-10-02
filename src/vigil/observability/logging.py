@@ -69,7 +69,9 @@ def shutdown_logging() -> None:
     for handler in list(root.handlers):
         if getattr(handler, _HANDLER_TAG, False):
             root.removeHandler(handler)
-            handler.flush()
+            stream = getattr(handler, "stream", None)
+            if stream is None or not getattr(stream, "closed", False):
+                handler.flush()  # a stream the host already closed (a test runner) cannot flush
             handler.close()
 
 

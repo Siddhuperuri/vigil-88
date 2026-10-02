@@ -262,7 +262,10 @@ def test_a_sustained_result_renders_every_requested_measurement() -> None:
 
 def test_missing_gpu_data_renders_as_na_never_zero() -> None:
     md = render_markdown([result_to_dict(fake_result(gpu=False))])
-    gpu_lines = [ln for ln in md.splitlines() if "GPU utilisation" in ln or "SM clock" in ln]
+    # the per-run comparison rows (not the at-a-glance header, which only names the columns)
+    gpu_lines = [
+        ln for ln in md.splitlines() if ln.startswith(("| GPU utilisation", "| GPU SM clock"))
+    ]
     assert gpu_lines and all("n/a" in ln for ln in gpu_lines)
     assert "no NVIDIA GPU measured" in md
 
@@ -387,3 +390,17 @@ def test_a_benchmark_never_silently_measures_the_wrong_device(tmp_path: Path) ->
             ),
             config_dir=prepared_config(tmp_path),
         )
+
+
+def test_the_report_has_an_at_a_glance_table_with_one_row_per_sustained_run() -> None:
+    md = render_markdown(
+        [result_to_dict(fake_result()), result_to_dict(fake_result(sustained=False))]
+    )
+    glance = md.split("## At a glance")[1].split("## Sustained benchmarks")[0]
+    assert "`gpu-test`" in glance and glance.count("`gpu-test`") == 1  # screening run excluded
+    assert "inference p50 / p95 ms" in glance and "throttled s" in glance
+
+
+def test_the_report_explains_stream_cadence_and_the_low_duty_cycle_effect() -> None:
+    md = render_markdown([])
+    assert "stream tick" in md and "low duty cycle" in md and "one core is saturated" in md

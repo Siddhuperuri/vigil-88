@@ -18,7 +18,11 @@ $Floors = @(
     @{ Path = "src/vigil/domain/*";        Min = 90 },
     @{ Path = "src/vigil/core/*";          Min = 90 },
     @{ Path = "src/vigil/config/*";        Min = 85 },
-    @{ Path = "src/vigil/observability/*"; Min = 85 }
+    @{ Path = "src/vigil/observability/*"; Min = 85 },
+    @{ Path = "src/vigil/vision/*";        Min = 90 },
+    @{ Path = "src/vigil/pipeline/*";      Min = 90 },
+    @{ Path = "src/vigil/api/*";           Min = 90 },
+    @{ Path = "src/vigil/bench/*";         Min = 88 }
 )
 
 Step "ruff format --check" { uv run ruff format --check . }
@@ -35,6 +39,10 @@ foreach ($f in $Floors) {
 Step "generated config reference is current" {
     uv run vigil doctor --dump-config docs/CONFIG.md | Out-Null
     git diff --exit-code -- docs/CONFIG.md
+}
+Step "performance report is current" {
+    uv run vigil bench report | Out-Null
+    git diff --exit-code -- docs/PERFORMANCE.md
 }
 if (-not $SkipRun) {
     Step "vigil doctor"        { uv run vigil doctor }
