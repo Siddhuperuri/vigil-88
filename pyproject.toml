@@ -90,6 +90,7 @@ ignore_missing_imports = true
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra --strict-markers --timeout=60"
 markers = [
     "slow: long-running tests, excluded from the default gate",
