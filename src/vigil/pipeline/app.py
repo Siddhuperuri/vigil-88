@@ -43,6 +43,7 @@ from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
 from vigil.pipeline.results import LatestDetections
+from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.sampler import MetricsSampler
 from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
 from vigil.pipeline.workers import ThreadWorker
@@ -194,9 +195,21 @@ class Application:
             self._cameras[camera.camera_id] = self._build_camera(camera)
 
         channels = {cid: rt.channel for cid, rt in self._cameras.items() if rt.channel is not None}
+        plans = [
+            CameraPlan(cid, rt.camera.target_inference_fps, rt.camera.priority, rt.channel.lossless)
+            for cid, rt in self._cameras.items()
+            if rt.channel is not None
+        ]
+        scheduler = InferenceScheduler(
+            plans,
+            global_fps=cfg.pipeline.global_inference_fps,
+            global_burst=cfg.vision.max_batch_size,
+            clock=self.clock,
+        )
         inference = InferenceWorker(
             detector=detector,
             channels=channels,
+            scheduler=scheduler,
             results=self.results,
             clock=self.clock,
             metrics=self.metrics,

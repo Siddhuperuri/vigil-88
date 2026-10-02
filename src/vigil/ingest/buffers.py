@@ -27,6 +27,11 @@ class PutOutcome(StrEnum):
 
 
 class FrameChannel(Protocol):
+    @property
+    def lossless(self) -> bool:
+        """True if frames must never be skipped (replay), so admission control is bypassed."""
+        ...
+
     def put(self, frame: Frame, stop: threading.Event) -> PutOutcome: ...
 
     def take(self, timeout_s: float) -> Frame | None: ...
@@ -37,6 +42,8 @@ class FrameChannel(Protocol):
 
 
 class LatestFrameSlot:
+    lossless = False
+
     def __init__(self) -> None:
         self._cond = threading.Condition()
         self._frame: Frame | None = None
@@ -68,6 +75,8 @@ class LatestFrameSlot:
 
 
 class BlockingFrameQueue:
+    lossless = True
+
     def __init__(self, maxsize: int) -> None:
         if maxsize < 1:
             raise ValueError("maxsize must be >= 1")

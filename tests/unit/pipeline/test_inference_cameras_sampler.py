@@ -25,6 +25,7 @@ from vigil.observability.probes import SystemProbe
 from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.inference import InferenceWorker
 from vigil.pipeline.results import LatestDetections
+from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.sampler import MetricsSampler
 from vigil.vision.backends.null import NullDetector
 
@@ -58,6 +59,13 @@ def frame(camera: str, index: int = 0, *, pts: float | None = None, t: int = 0) 
     return Frame(meta, StubPixels())
 
 
+def scheduler_for(
+    cams: dict[str, LatestFrameSlot], clock: ManualClock, *, rate_fps: float = 1000.0
+) -> InferenceScheduler:
+    plans = [CameraPlan(c, rate_fps, 5, lossless=False) for c in cams]
+    return InferenceScheduler(plans, global_fps=1000.0, global_burst=4, clock=clock)
+
+
 def worker(
     det: RecordingDetector,
     cams: dict[str, LatestFrameSlot],
@@ -70,6 +78,7 @@ def worker(
     w = InferenceWorker(
         detector=det,
         channels=cams,
+        scheduler=scheduler_for(cams, clock),
         results=results,
         clock=clock,
         metrics=m,
@@ -106,6 +115,7 @@ def test_batch_size_is_capped_and_cameras_are_served_fairly(clock: ManualClock) 
     for _ in range(6):
         for c, s in slots.items():
             s.put(frame(c), STOP)
+        clock.advance_ms(10)
         w.step()
         served += det.batches[-1]
     assert all(len(b) <= 2 for b in det.batches)
@@ -159,6 +169,7 @@ def test_pipeline_fps_window_forgets_old_frames(clock: ManualClock) -> None:
     w, m, _ = worker(RecordingDetector(), {"cam-a": slot}, clock)
     for _ in range(10):
         slot.put(frame("cam-a"), STOP)
+        clock.advance_ms(10)
         w.step()
     assert m.gauge("vigil_pipeline_fps").value == pytest.approx(10 / 5.0)
     clock.advance_ms(60_000)
@@ -190,6 +201,7 @@ def test_it_works_with_the_real_null_detector(clock: ManualClock) -> None:
     w = InferenceWorker(
         detector=NullDetector(clock),
         channels={"cam-a": slot},
+        scheduler=scheduler_for({"cam-a": slot}, clock),
         results=results,
         clock=clock,
         metrics=m,

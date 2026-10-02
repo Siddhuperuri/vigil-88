@@ -1,8 +1,8 @@
 """Inference worker (04 §5): frames in, DetectionSets out.
 
-P0 scope: round-robin over cameras, batch of up to `max_batch_size`, no token-bucket
-scheduler and no degradation ladder (both arrive in P1). The worker is detector-agnostic: it
-speaks only the Detector protocol.
+Admission is decided by the InferenceScheduler (per-camera token buckets, a global ceiling,
+priority with starvation protection); the worker takes frames only from cameras the scheduler
+says may be served, batches up to `max_batch_size`, and speaks only the Detector protocol.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from vigil.domain.frame import Frame
 from vigil.ingest.buffers import FrameChannel
 from vigil.observability.metrics import MetricsRegistry
 from vigil.pipeline.results import LatestDetections
+from vigil.pipeline.scheduler import InferenceScheduler
 
 
 class InferenceWorker:
@@ -29,6 +30,7 @@ class InferenceWorker:
         *,
         detector: Detector,
         channels: Mapping[str, FrameChannel],
+        scheduler: InferenceScheduler,
         results: LatestDetections,
         clock: Clock,
         metrics: MetricsRegistry,
@@ -39,6 +41,7 @@ class InferenceWorker:
     ) -> None:
         self._detector = detector
         self._channels = dict(channels)
+        self._scheduler = scheduler
         self._results = results
         self._clock = clock
         self._metrics = metrics
@@ -47,21 +50,23 @@ class InferenceWorker:
         self._idle_s = idle_wait_ms / 1000.0
         self._fps_window_ns = int(fps_window_s * NS_PER_S)
         self._done_times: deque[int] = deque()
-        self._rr = 0
 
     def _collect(self) -> list[Frame]:
-        """One pass over the cameras, round-robin, taking at most one frame from each."""
-        ids = list(self._channels)
         batch: list[Frame] = []
-        for offset in range(len(ids)):
+        budget = self._scheduler.global_capacity()  # the global ceiling applies to live cameras
+        for cam in self._scheduler.order():
             if len(batch) >= self._max_batch:
                 break
-            cam = ids[(self._rr + offset) % len(ids)]
-            frame = self._channels[cam].take(0.0)
-            if frame is not None:
-                batch.append(frame)
-        if ids:
-            self._rr = (self._rr + 1) % len(ids)
+            channel = self._channels[cam]
+            if not channel.lossless and budget <= 0:
+                continue
+            frame = channel.take(0.0)
+            if frame is None:
+                continue
+            self._scheduler.consume(cam)
+            if not channel.lossless:
+                budget -= 1
+            batch.append(frame)
         return batch
 
     def step(self) -> int:
@@ -82,7 +87,7 @@ class InferenceWorker:
         now = self._clock.monotonic_ns()
         for frame, result in zip(batch, outputs, strict=True):
             cam = frame.meta.camera_id
-            self._results.update(result)
+            self._results.publish(frame, result, now)
             self._metrics.counter("vigil_frames_inferred_total", camera=cam).inc()
             self._metrics.counter("vigil_detections_total", camera=cam).inc(len(result.detections))
             self._metrics.histogram("vigil_inference_latency_ms").observe(
