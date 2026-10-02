@@ -18,8 +18,9 @@ from rich.table import Table
 from vigil.cli.config_doc import render_config_reference
 from vigil.config.loader import LoadedConfig, load_settings
 from vigil.core.capabilities import CapabilityLedger
+from vigil.core.clock import SystemClock
 from vigil.core.errors import ConfigError
-from vigil.vision.factory import IMPLEMENTED_BACKENDS
+from vigil.vision.factory import IMPLEMENTED_BACKENDS, build_detector
 
 MIN_PYTHON = (3, 11)
 NVIDIA_SMI_TIMEOUT_S = 5
@@ -174,15 +175,25 @@ def doctor(
         table.add_row(r.name, f"[{style[r.status]}]{r.status}[/]", r.detail)
     console.print(table)
 
-    caps = Table(title="capabilities (what this build can actually supply)")
-    for col in ("capability", "available", "how to provide"):
+    ledger = CapabilityLedger()
+    if loaded is not None and loaded.settings.vision.backend in IMPLEMENTED_BACKENDS:
+        detector = build_detector(loaded.settings.vision, SystemClock())
+        for capability in detector.provides:
+            ledger.grant(capability, detector.descriptor.name)
+        detector.close()
+    caps = Table(title="capabilities (what this configuration can actually supply)")
+    for col in ("capability", "available", "provider / how to provide"):
         caps.add_column(col)
-    for status in CapabilityLedger().table():  # nothing is granted until a component grants it
-        caps.add_row(status.capability.value, "no", status.how_to_provide or "")
+    for status in ledger.table():
+        caps.add_row(
+            status.capability.value,
+            "yes" if status.available else "no",
+            status.provider if status.available else (status.how_to_provide or ""),
+        )
     console.print(caps)
     console.print(
-        "[dim]Capabilities are granted at startup by the components that supply them; "
-        "with the null detector none are available.[/]"
+        "[dim]A capability is available only if a running component grants it. "
+        "Nothing is claimed because it is planned.[/]"
     )
 
     if dump_config is not None:

@@ -36,7 +36,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         return
     skip = pytest.mark.skip(reason="needs a physical webcam: run with --webcam")
     for item in items:
-        if "webcam" in item.keywords:
+        if item.get_closest_marker("webcam") is not None:
             item.add_marker(skip)
 
 
