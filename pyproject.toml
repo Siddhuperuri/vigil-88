@@ -125,6 +125,7 @@ addopts = "-ra --strict-markers --timeout=60"
 markers = [
     "slow: long-running tests, excluded from the default gate",
     "webcam: needs a physical webcam; run with --webcam",
+    "gpu: needs a working CUDA provider; skipped automatically when there is none",
 ]
 filterwarnings = ["error"]
 
