@@ -25,8 +25,8 @@ from vigil.observability.probes import SystemProbe
 from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.inference import InferenceWorker
 from vigil.pipeline.results import LatestDetections
-from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.sampler import MetricsSampler
+from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.vision.backends.null import NullDetector
 
 STOP = threading.Event()

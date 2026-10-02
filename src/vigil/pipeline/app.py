@@ -43,8 +43,8 @@ from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
 from vigil.pipeline.results import LatestDetections
-from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.sampler import MetricsSampler
+from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
 from vigil.pipeline.workers import ThreadWorker
 from vigil.vision.factory import build_detector
