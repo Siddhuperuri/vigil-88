@@ -44,7 +44,10 @@ class FrameChannel(Protocol):
 class LatestFrameSlot:
     lossless = False
 
-    def __init__(self) -> None:
+    def __init__(self, wake: threading.Event | None = None) -> None:
+        # `wake` is set on every put, so a consumer can sleep until a frame arrives instead of
+        # polling (a fixed poll interval silently costs throughput).
+        self._wake = wake
         self._cond = threading.Condition()
         self._frame: Frame | None = None
         self._closed = False
@@ -56,7 +59,9 @@ class LatestFrameSlot:
             outcome = PutOutcome.OVERWROTE if self._frame is not None else PutOutcome.STORED
             self._frame = frame
             self._cond.notify()
-            return outcome
+        if self._wake is not None:
+            self._wake.set()
+        return outcome
 
     def take(self, timeout_s: float) -> Frame | None:
         with self._cond:
@@ -77,7 +82,8 @@ class LatestFrameSlot:
 class BlockingFrameQueue:
     lossless = True
 
-    def __init__(self, maxsize: int) -> None:
+    def __init__(self, maxsize: int, wake: threading.Event | None = None) -> None:
+        self._wake = wake
         if maxsize < 1:
             raise ValueError("maxsize must be >= 1")
         self._maxsize = maxsize
@@ -97,7 +103,9 @@ class BlockingFrameQueue:
                 return PutOutcome.CLOSED
             self._items.append(frame)
             self._cond.notify()
-            return PutOutcome.STORED
+        if self._wake is not None:
+            self._wake.set()
+        return PutOutcome.STORED
 
     def take(self, timeout_s: float) -> Frame | None:
         with self._cond:

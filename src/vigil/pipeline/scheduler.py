@@ -13,6 +13,7 @@ reproducible.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -21,6 +22,8 @@ from vigil.core.units import NS_PER_S
 
 _FULL = 1.0
 _EPSILON = 1e-9
+DEFAULT_CAMERA_BURST = 2.0
+_MIN_WAIT_S = 0.0005
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,9 +42,16 @@ class InferenceScheduler:
         global_fps: float,
         global_burst: int,
         clock: Clock,
+        camera_burst: float = DEFAULT_CAMERA_BURST,
     ) -> None:
         if global_fps <= 0 or global_burst < 1:
             raise ValueError("global_fps must be > 0 and global_burst >= 1")
+        if camera_burst < _FULL:
+            raise ValueError("camera_burst must be >= 1")
+        # Burst > 1 lets a camera delivering exactly at its target rate be served every frame:
+        # with a cap of 1, a frame arriving a hair before its token matures waits a poll
+        # interval and can be overwritten by the next one. The AVERAGE rate stays capped.
+        self._burst = camera_burst
         self._clock = clock
         self._plans = {p.camera_id: p for p in plans}
         now = clock.monotonic_ns()
@@ -66,7 +76,7 @@ class InferenceScheduler:
             if plan.lossless:
                 continue
             elapsed = max(0, now_ns - self._refilled[cam]) / NS_PER_S
-            self._tokens[cam] = min(_FULL, self._tokens[cam] + elapsed * plan.rate_fps)
+            self._tokens[cam] = min(self._burst, self._tokens[cam] + elapsed * plan.rate_fps)
             self._refilled[cam] = now_ns
 
     def order(self) -> list[str]:
@@ -94,3 +104,21 @@ class InferenceScheduler:
             self._global_tokens = max(0.0, self._global_tokens - _FULL)
         self._last_served[camera_id] = self._serve_seq
         self._serve_seq += 1
+
+    def seconds_until_ready(self) -> float:
+        """How long until some camera or the global ceiling next has a token: how long a worker
+        with nothing to do may sleep without delaying a frame. Lossless cameras are always ready,
+        so only live cameras are considered. `inf` means no token is pending: the caller is
+        waiting for a FRAME, not a token, and the arrival wake-up covers that."""
+        now = self._clock.monotonic_ns()
+        self._refill(now)
+        waits: list[float] = []
+        for cam, plan in self._plans.items():
+            if plan.lossless:
+                continue
+            missing = _FULL - self._tokens[cam]
+            if missing > _EPSILON:
+                waits.append(missing / plan.rate_fps)
+        if self._global_tokens < _FULL - _EPSILON:
+            waits.append((_FULL - self._global_tokens) / self._global_fps)
+        return max(min(waits), _MIN_WAIT_S) if waits else math.inf

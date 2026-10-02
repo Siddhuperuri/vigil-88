@@ -26,7 +26,7 @@ from vigil.core.clock import Clock, SystemClock
 from vigil.core.errors import ConfigError, VigilError
 from vigil.core.protocols.transport import StreamKey
 from vigil.core.units import NS_PER_S
-from vigil.observability.logging import get_logger
+from vigil.observability.logging import configure_logging, get_logger, shutdown_logging
 from vigil.observability.metrics import Histogram
 from vigil.observability.probes import NvmlProbe, SystemProbe
 from vigil.pipeline.app import Application
@@ -189,6 +189,7 @@ def run_benchmark(
     except ConfigError as exc:
         raise BenchError(f"benchmark configuration is invalid: {exc}") from exc
 
+    configure_logging(loaded.settings.logging, log_file=None)  # WARNING and above only
     baseline_probe = NvmlProbe()
     baseline = baseline_probe.read()
     vram_baseline = baseline.used_mb if baseline is not None else None
@@ -238,6 +239,7 @@ def run_benchmark(
         for t in threads:
             t.join(5)
         app.stop()
+        shutdown_logging()
 
     if model is None:
         raise BenchError("the detector disappeared during the run")

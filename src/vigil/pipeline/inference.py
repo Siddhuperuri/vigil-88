@@ -31,6 +31,7 @@ class InferenceWorker:
         detector: Detector,
         channels: Mapping[str, FrameChannel],
         scheduler: InferenceScheduler,
+        wake: threading.Event,
         results: LatestDetections,
         clock: Clock,
         metrics: MetricsRegistry,
@@ -42,6 +43,7 @@ class InferenceWorker:
         self._detector = detector
         self._channels = dict(channels)
         self._scheduler = scheduler
+        self._wake = wake
         self._results = results
         self._clock = clock
         self._metrics = metrics
@@ -111,7 +113,13 @@ class InferenceWorker:
             self._metrics.gauge("vigil_queue_depth", queue=f"capture:{cam}").set(channel.depth())
 
     def run(self, stop: threading.Event, beat: Callable[[], None]) -> None:
+        """Sleep until a frame arrives or a token is due; never poll on a fixed interval.
+
+        A fixed idle sleep after an empty poll silently caps throughput: service time plus the
+        sleep can exceed the frame period, so every other frame is overwritten unseen."""
         while not stop.is_set():
             beat()
+            self._wake.clear()  # before collecting, so a frame arriving during it is not lost
             if self.step() == 0:
-                stop.wait(self._idle_s)
+                due_s = self._scheduler.seconds_until_ready()
+                self._wake.wait(min(self._idle_s, due_s))

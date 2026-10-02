@@ -121,6 +121,7 @@ class Application:
             lambda camera: build_source(camera.source, self.clock)
         )
         self.stream_hub = stream_hub
+        self._wake = threading.Event()  # set by every channel put; wakes the inference worker
 
         self._lock = threading.Lock()
         self._state = AppState.CREATED
@@ -214,6 +215,7 @@ class Application:
             detector=detector,
             channels=channels,
             scheduler=scheduler,
+            wake=self._wake,
             results=self.results,
             clock=self.clock,
             metrics=self.metrics,
@@ -318,7 +320,9 @@ class Application:
             watch_stall=not paced,
         )
         channel: FrameChannel = (
-            BlockingFrameQueue(cfg.pipeline.paced_queue_size) if paced else LatestFrameSlot()
+            BlockingFrameQueue(cfg.pipeline.paced_queue_size, self._wake)
+            if paced
+            else LatestFrameSlot(self._wake)
         )
         capture = CaptureWorker(
             camera_id=camera.camera_id,
