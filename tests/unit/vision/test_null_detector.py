@@ -97,4 +97,4 @@ def test_unimplemented_backends_fail_loudly_never_falling_back(
 def test_error_names_what_is_implemented(clock: ManualClock) -> None:
     with pytest.raises(CapabilityError, match="null"):
         build_detector(VisionConfig(backend="ultralytics"), clock)
-    assert IMPLEMENTED_BACKENDS == {"null"}
+    assert {"null"} == IMPLEMENTED_BACKENDS

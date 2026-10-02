@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
+from itertools import pairwise
 
 import pytest
 
@@ -54,7 +55,7 @@ def test_replay_clock_is_independent_of_how_fast_it_is_driven() -> None:
     for i in range(5):
         c.seek_pts_ms(i * 1000 / 30)
         stamps.append(c.monotonic_ns())
-    gaps = {b - a for a, b in zip(stamps, stamps[1:], strict=False)}
+    gaps = {b - a for a, b in pairwise(stamps)}
     assert max(gaps) - min(gaps) <= 1  # equal up to nanosecond rounding
 
 

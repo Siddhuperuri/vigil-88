@@ -110,8 +110,10 @@ def test_unimplemented_kinds_fail_loudly_with_an_explanation(kind: SourceKind) -
 
 
 def test_implemented_kinds_build() -> None:
-    assert IMPLEMENTED_KINDS == {SourceKind.WEBCAM, SourceKind.SYNTHETIC}
-    assert isinstance(build_source(SourceSpec(SourceKind.SYNTHETIC, "synthetic", {})), SyntheticSource)
+    assert {SourceKind.WEBCAM, SourceKind.SYNTHETIC} == IMPLEMENTED_KINDS
+    assert isinstance(
+        build_source(SourceSpec(SourceKind.SYNTHETIC, "synthetic", {})), SyntheticSource
+    )
     web = build_source(SourceSpec(SourceKind.WEBCAM, "webcam:0", {"device_index": 0}))
     assert isinstance(web, WebcamSource) and not web.is_open  # building never touches a device
 
@@ -122,15 +124,20 @@ def test_implemented_kinds_build() -> None:
 class FakeCapture:
     """A cv2.VideoCapture stand-in recording how it was configured."""
 
-    def __init__(self, *, opened: bool = True, frames: list[object] | None = None,
-                 size: tuple[int, int] = (640, 480)) -> None:
+    def __init__(
+        self,
+        *,
+        opened: bool = True,
+        frames: list[object] | None = None,
+        size: tuple[int, int] = (640, 480),
+    ) -> None:
         self.opened = opened
         self.frames = list(frames) if frames is not None else None
         self.size = size
         self.sets: list[tuple[int, float]] = []
         self.released = 0
 
-    def isOpened(self) -> bool:  # noqa: N802
+    def isOpened(self) -> bool:
         return self.opened
 
     def read(self) -> tuple[bool, object]:

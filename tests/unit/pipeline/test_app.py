@@ -181,8 +181,16 @@ def test_replay_is_deterministic(make_config: MakeConfig) -> None:
         finally:
             app.stop()
         return [
-            (m.camera_id, m.stream_epoch, m.frame_index, m.t_monotonic_ns, m.wall_utc,
-             m.source_pts_ms, m.width_px, m.height_px)
+            (
+                m.camera_id,
+                m.stream_epoch,
+                m.frame_index,
+                m.t_monotonic_ns,
+                m.wall_utc,
+                m.source_pts_ms,
+                m.width_px,
+                m.height_px,
+            )
             for m in det.metas
         ]
 
@@ -215,7 +223,10 @@ def test_an_unimplemented_source_fails_that_camera_not_the_application(
     make_config: MakeConfig,
 ) -> None:
     streaming = {"camera_id": "synth", "source": {"kind": "synthetic"}}  # never ends
-    cams = [{"camera_id": "lobby", "source": {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}}, streaming]
+    cams = [
+        {"camera_id": "lobby", "source": {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}},
+        streaming,
+    ]
     app = app_for(make_config({"cameras": cams}))
     app.start()
     try:
@@ -277,7 +288,9 @@ def test_a_missing_capture_extra_is_reported_as_an_actionable_camera_failure(
         raise CapabilityError("webcam source needs OpenCV/NumPy: uv sync --extra capture")
 
     app = app_for(
-        make_config({"cameras": [{"camera_id": "cam-w", "source": {"kind": "webcam", "device_index": 0}}]}),
+        make_config(
+            {"cameras": [{"camera_id": "cam-w", "source": {"kind": "webcam", "device_index": 0}}]}
+        ),
         source_factory=no_cv2,
     )
     app.start()
@@ -317,7 +330,9 @@ def test_a_flaky_camera_reconnects_and_keeps_serving(make_config: MakeConfig) ->
         return src
 
     app = app_for(
-        make_config({"cameras": [{"camera_id": "cam-w", "source": {"kind": "webcam", "device_index": 0}}]}),
+        make_config(
+            {"cameras": [{"camera_id": "cam-w", "source": {"kind": "webcam", "device_index": 0}}]}
+        ),
         source_factory=factory,
     )
     app.start()
@@ -337,7 +352,9 @@ def test_a_worker_that_will_not_stop_is_reported_by_name(make_config: MakeConfig
     app = app_for(
         make_config(
             {
-                "cameras": [{"camera_id": "stuck", "source": {"kind": "webcam", "device_index": 0}}],
+                "cameras": [
+                    {"camera_id": "stuck", "source": {"kind": "webcam", "device_index": 0}}
+                ],
                 "pipeline.shutdown_timeout_ms": 100,
             }
         ),
@@ -381,8 +398,18 @@ def test_camera_state_changes_are_logged_and_counted(make_config: MakeConfig) ->
         assert app.wait_until_drained(30)
     finally:
         app.stop()
-    assert app.metrics.counter("vigil_camera_state_changes_total", camera="synth", state="online").value == 1
-    assert app.metrics.counter("vigil_camera_state_changes_total", camera="synth", state="offline").value == 1
+    assert (
+        app.metrics.counter(
+            "vigil_camera_state_changes_total", camera="synth", state="online"
+        ).value
+        == 1
+    )
+    assert (
+        app.metrics.counter(
+            "vigil_camera_state_changes_total", camera="synth", state="offline"
+        ).value
+        == 1
+    )
 
 
 def test_detection_results_are_published_for_readers(make_config: MakeConfig) -> None:

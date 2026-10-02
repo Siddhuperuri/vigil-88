@@ -106,7 +106,9 @@ def test_exceptions_are_rendered() -> None:
 
 def test_reconfiguring_replaces_handlers_instead_of_stacking_them() -> None:
     def ours() -> int:
-        return sum(hasattr(h, "_vigil_handler") for h in logging.getLogger(ROOT_LOGGER_NAME).handlers)
+        return sum(
+            hasattr(h, "_vigil_handler") for h in logging.getLogger(ROOT_LOGGER_NAME).handlers
+        )
 
     setup()
     first = ours()
@@ -135,7 +137,9 @@ def test_file_handler_writes_json_lines_and_creates_parent_dirs(tmp_path: Path) 
 
 def test_console_can_be_disabled(tmp_path: Path) -> None:
     out = io.StringIO()
-    configure_logging(LoggingConfig(console=False, file_enabled=False), log_file=None, console_stream=out)
+    configure_logging(
+        LoggingConfig(console=False, file_enabled=False), log_file=None, console_stream=out
+    )
     get_logger("t").error("silent")
     assert out.getvalue() == ""
 

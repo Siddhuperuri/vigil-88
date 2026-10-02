@@ -53,13 +53,20 @@ MODEL = ModelDescriptor("null", "1", "null", None, None, "none", "none", None)
 
 def meta(**kw: object) -> FrameMeta:
     base: dict[str, object] = dict(
-        camera_id="cam-a", stream_epoch=1, frame_index=0, t_monotonic_ns=0, wall_utc=T0,
-        width_px=64, height_px=48, source_pts_ms=None, is_keyframe=None,
+        camera_id="cam-a",
+        stream_epoch=1,
+        frame_index=0,
+        t_monotonic_ns=0,
+        wall_utc=T0,
+        width_px=64,
+        height_px=48,
+        source_pts_ms=None,
+        is_keyframe=None,
     )
     return FrameMeta(**{**base, **kw})  # type: ignore[arg-type]
 
 
-# --------------------------------------------------------------------------- frame
+# -------- frame
 
 
 def test_frame_identity_key() -> None:
@@ -97,7 +104,7 @@ def test_frozen_dataclasses_cannot_be_mutated() -> None:
         m.frame_index = 5  # type: ignore[misc]
 
 
-# --------------------------------------------------------------------------- detection
+# -------- detection
 
 
 def test_detection_confidence_must_be_a_ratio() -> None:
@@ -122,7 +129,7 @@ def test_model_descriptor_requires_name_and_backend() -> None:
         ModelDescriptor("n", "1", " ", None, None, "none", "none", None)
 
 
-# --------------------------------------------------------------------------- tracks
+# -------- tracks
 
 
 def tp(t: int) -> TrackPoint:
@@ -150,11 +157,22 @@ def test_trajectory_validates_order_and_bound() -> None:
 
 def track(**kw: object) -> TrackedObject:
     base: dict[str, object] = dict(
-        track_id=1, camera_id="cam-a", tracker_epoch=1, object_class=ObjectClass.PERSON,
-        bbox=BBox(0, 0, 10, 10), confidence_ratio=0.9, first_seen_monotonic_ns=0,
-        last_seen_monotonic_ns=10, age_frames=10, hits=8, time_since_update_frames=0,
-        trajectory=Trajectory((), 5), velocity_px_s=None, velocity_m_s=None,
-        zone_dwell_ms={}, flags=frozenset(),
+        track_id=1,
+        camera_id="cam-a",
+        tracker_epoch=1,
+        object_class=ObjectClass.PERSON,
+        bbox=BBox(0, 0, 10, 10),
+        confidence_ratio=0.9,
+        first_seen_monotonic_ns=0,
+        last_seen_monotonic_ns=10,
+        age_frames=10,
+        hits=8,
+        time_since_update_frames=0,
+        trajectory=Trajectory((), 5),
+        velocity_px_s=None,
+        velocity_m_s=None,
+        zone_dwell_ms={},
+        flags=frozenset(),
     )
     return TrackedObject(**{**base, **kw})  # type: ignore[arg-type]
 
@@ -177,7 +195,7 @@ def test_track_mappings_are_read_only_copies() -> None:
         t.zone_dwell_ms["x"] = 1.0  # type: ignore[index]
 
 
-# --------------------------------------------------------------------------- scene
+# -------- scene
 
 
 @pytest.mark.parametrize(
@@ -189,7 +207,9 @@ def test_overnight_schedule_wraps_midnight(hour: int, expected: bool) -> None:
 
 
 def test_schedule_respects_offset_and_weekdays() -> None:
-    s = Schedule(9 * 60, 17 * 60, utc_offset_minutes=120, weekdays=frozenset({0}))  # Mon 09-17 UTC+2
+    s = Schedule(
+        9 * 60, 17 * 60, utc_offset_minutes=120, weekdays=frozenset({0})
+    )  # Mon 09-17 UTC+2
     assert s.is_active_at(datetime(2026, 1, 5, 8, 0, tzinfo=UTC))  # Monday 10:00 local
     assert not s.is_active_at(datetime(2026, 1, 5, 16, 0, tzinfo=UTC))  # 18:00 local
     assert not s.is_active_at(datetime(2026, 1, 6, 8, 0, tzinfo=UTC))  # Tuesday
@@ -213,16 +233,28 @@ def test_zone_uses_normalised_coordinates_and_schedule() -> None:
     timed = dataclasses.replace(z, active_schedule=Schedule(18 * 60, 6 * 60))
     assert not timed.is_active_at(datetime(2026, 1, 1, 12, tzinfo=UTC))
     with pytest.raises(ValueError, match="normalized"):
-        Zone("z", "cam-a", ZoneKind.RESTRICTED, Polygon([Point(0, 0), Point(5, 0), Point(5, 5)]),
-             1, None, "x")
+        Zone(
+            "z",
+            "cam-a",
+            ZoneKind.RESTRICTED,
+            Polygon([Point(0, 0), Point(5, 0), Point(5, 5)]),
+            1,
+            None,
+            "x",
+        )
     with pytest.raises(ValueError, match="criticality"):
         Zone("z", "cam-a", ZoneKind.RESTRICTED, SQUARE, 9, None, "x")
 
 
 def scene(**kw: object) -> SceneState:
     base: dict[str, object] = dict(
-        frame_meta=meta(), tracks=(track(track_id=7),), zones=(), occupancy={}, relations=(),
-        stability_ratio=1.0, capabilities=frozenset({Capability.DETECTION}),
+        frame_meta=meta(),
+        tracks=(track(track_id=7),),
+        zones=(),
+        occupancy={},
+        relations=(),
+        stability_ratio=1.0,
+        capabilities=frozenset({Capability.DETECTION}),
         degraded_facts=frozenset(),
     )
     return SceneState(**{**base, **kw})  # type: ignore[arg-type]
@@ -244,7 +276,7 @@ def test_zone_occupancy_freezes_collections() -> None:
         occ.counts_by_class[ObjectClass.PERSON] = 2  # type: ignore[index]
 
 
-# --------------------------------------------------------------------------- observation / events
+# -------- observation / events
 
 
 def test_observation_is_a_ratio_signal_not_a_probability_of_an_incident() -> None:
@@ -262,8 +294,9 @@ def test_subject_key_forms() -> None:
 
 
 def acc() -> AccumulatorState:
-    return AccumulatorState("cam-a", "intrusion", SubjectKey("track", "1"), 2.4, 0.92, 9, 0.9,
-                            100, 200, True)
+    return AccumulatorState(
+        "cam-a", "intrusion", SubjectKey("track", "1"), 2.4, 0.92, 9, 0.9, 100, 200, True
+    )
 
 
 def test_accumulator_state_validation() -> None:
@@ -275,8 +308,19 @@ def test_accumulator_state_validation() -> None:
 
 
 def candidate() -> CandidateEvent:
-    return CandidateEvent(ULID, "cam-a", "intrusion", EventType.INTRUSION, SubjectKey("track", "1"),
-                          acc(), [], {1}, {"yard"}, 5, T0)  # type: ignore[arg-type]
+    return CandidateEvent(
+        ULID,
+        "cam-a",
+        "intrusion",
+        EventType.INTRUSION,
+        SubjectKey("track", "1"),
+        acc(),
+        [],
+        {1},
+        {"yard"},
+        5,
+        T0,
+    )  # type: ignore[arg-type]
 
 
 def test_candidate_requires_ulid_and_freezes_collections() -> None:
@@ -299,7 +343,7 @@ def test_every_verdict_needs_a_reason() -> None:
         ValidatorVerdict("v", ValidatorOutcome.PASS, "  ")
 
 
-# --------------------------------------------------------------------------- camera / source
+# -------- camera / source
 
 
 def spec(locator: str = "webcam:0") -> SourceSpec:
@@ -319,25 +363,46 @@ def test_source_spec_options_are_read_only() -> None:
 
 def cam(**kw: object) -> Camera:
     base: dict[str, object] = dict(
-        camera_id="cam-a", name="A", source=spec(), location=None, priority=5, enabled=True,
-        zones_ref=None, target_inference_fps=5.0, tags=(),
+        camera_id="cam-a",
+        name="A",
+        source=spec(),
+        location=None,
+        priority=5,
+        enabled=True,
+        zones_ref=None,
+        target_inference_fps=5.0,
+        tags=(),
     )
     return Camera(**{**base, **kw})  # type: ignore[arg-type]
 
 
 def test_camera_validation() -> None:
     assert cam().priority == 5
-    for bad in ({"priority": 10}, {"priority": -1}, {"target_inference_fps": 0}, {"name": " "},
-                {"camera_id": "Bad"}):
+    for bad in (
+        {"priority": 10},
+        {"priority": -1},
+        {"target_inference_fps": 0},
+        {"name": " "},
+        {"camera_id": "Bad"},
+    ):
         with pytest.raises(ValueError):
             cam(**bad)
 
 
 def health(**kw: object) -> CameraHealth:
     base: dict[str, object] = dict(
-        camera_id="cam-a", state=CameraState.ONLINE, since_wall_utc=T0, stream_epoch=1,
-        reconnect_attempts=0, last_frame_wall_utc=None, measured_fps=None, frames_received=0,
-        frames_skipped=0, frames_dropped=0, decode_errors=0, detail=None,
+        camera_id="cam-a",
+        state=CameraState.ONLINE,
+        since_wall_utc=T0,
+        stream_epoch=1,
+        reconnect_attempts=0,
+        last_frame_wall_utc=None,
+        measured_fps=None,
+        frames_received=0,
+        frames_skipped=0,
+        frames_dropped=0,
+        decode_errors=0,
+        detail=None,
     )
     return CameraHealth(**{**base, **kw})  # type: ignore[arg-type]
 
@@ -351,14 +416,21 @@ def test_camera_health_distinguishes_skipped_from_dropped() -> None:
         health(measured_fps=-1.0)
 
 
-# --------------------------------------------------------------------------- evidence / alert / metric
+# -------- evidence / alert / metric
 
 
 def evidence(**kw: object) -> Evidence:
     base: dict[str, object] = dict(
-        evidence_id=ULID, incident_id=ULID2, kind=EvidenceKind.SNAPSHOT_RAW,
-        relative_path="cam-a/2026/01/01/x/snapshot_raw.jpg", sha256="a" * 64, size_bytes=10,
-        media_type="image/jpeg", captured_wall_utc=T0, span_ms=None, expires_wall_utc=None,
+        evidence_id=ULID,
+        incident_id=ULID2,
+        kind=EvidenceKind.SNAPSHOT_RAW,
+        relative_path="cam-a/2026/01/01/x/snapshot_raw.jpg",
+        sha256="a" * 64,
+        size_bytes=10,
+        media_type="image/jpeg",
+        captured_wall_utc=T0,
+        span_ms=None,
+        expires_wall_utc=None,
     )
     return Evidence(**{**base, **kw})  # type: ignore[arg-type]
 
@@ -373,8 +445,13 @@ def test_evidence_paths_must_be_relative_and_contained(path: str) -> None:
 
 def test_evidence_integrity_fields() -> None:
     evidence()
-    for bad in ({"sha256": "XYZ"}, {"sha256": "A" * 64}, {"size_bytes": -1},
-                {"span_ms": (5.0, 1.0)}, {"evidence_id": "nope"}):
+    for bad in (
+        {"sha256": "XYZ"},
+        {"sha256": "A" * 64},
+        {"size_bytes": -1},
+        {"span_ms": (5.0, 1.0)},
+        {"evidence_id": "nope"},
+    ):
         with pytest.raises(ValueError):
             evidence(**bad)
 
@@ -392,10 +469,18 @@ def test_severity_is_ordered() -> None:
 
 def test_system_metric_accepts_missing_gpu_but_not_nonsense() -> None:
     kw: dict[str, object] = dict(
-        t_wall_utc=T0, cpu_percent=10.0, memory_used_mb=100.0, process_rss_mb=50.0,
-        gpu_utilization_percent=None, gpu_memory_used_mb=None, gpu_temperature_c=None,
-        pipeline_fps=None, inference_latency_p50_ms=None, inference_latency_p95_ms=None,
-        queue_depths={"capture:cam-a": 1}, frames_dropped_total=0,
+        t_wall_utc=T0,
+        cpu_percent=10.0,
+        memory_used_mb=100.0,
+        process_rss_mb=50.0,
+        gpu_utilization_percent=None,
+        gpu_memory_used_mb=None,
+        gpu_temperature_c=None,
+        pipeline_fps=None,
+        inference_latency_p50_ms=None,
+        inference_latency_p95_ms=None,
+        queue_depths={"capture:cam-a": 1},
+        frames_dropped_total=0,
     )
     m = SystemMetric(**kw)  # type: ignore[arg-type]
     assert m.gpu_utilization_percent is None  # unmeasured is None, never 0

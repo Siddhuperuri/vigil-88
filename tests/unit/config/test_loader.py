@@ -40,7 +40,9 @@ def test_full_precedence_defaults_main_local_env_overrides(tmp_path: Path) -> No
     write(tmp_path / "config/vigil.local.yaml", "logging: {level: WARNING}\n")
     assert load(tmp_path).settings.logging.level == "WARNING"
     assert load(tmp_path, env={"VIGIL_LOGGING__LEVEL": "ERROR"}).settings.logging.level == "ERROR"
-    both = load(tmp_path, env={"VIGIL_LOGGING__LEVEL": "ERROR"}, overrides={"logging.level": "INFO"})
+    both = load(
+        tmp_path, env={"VIGIL_LOGGING__LEVEL": "ERROR"}, overrides={"logging.level": "INFO"}
+    )
     assert both.settings.logging.level == "INFO"
     assert both.sources[-2:] == ("environment", "overrides")
 
@@ -93,11 +95,11 @@ def test_unresolvable_and_circular_references_fail(tmp_path: Path) -> None:
     write(tmp_path / "config/vigil.yaml", "vision: {weights: '${nowhere.at.all}'}\n")
     with pytest.raises(ConfigError, match="does not resolve"):
         load(tmp_path)
-    write(tmp_path / "config/vigil.yaml",
-          "vision: {weights: '${vision.device}'}\n")  # resolves, but then loops below
-    write(tmp_path / "config/vigil.local.yaml",
-          "vision: {device: '${vision.weights}'}\n")
-    with pytest.raises(ConfigError, match="circular|deep"):
+    write(
+        tmp_path / "config/vigil.yaml", "vision: {weights: '${vision.device}'}\n"
+    )  # resolves, but then loops below
+    write(tmp_path / "config/vigil.local.yaml", "vision: {device: '${vision.weights}'}\n")
+    with pytest.raises(ConfigError, match=r"circular|deep"):
         load(tmp_path)
 
 
@@ -146,7 +148,10 @@ def test_all_problems_are_reported_together(tmp_path: Path) -> None:
 
 
 def test_rejected_secret_values_are_never_echoed(tmp_path: Path) -> None:
-    write(tmp_path / "config/vigil.yaml", "api: {bind_host: 0.0.0.0, auth: {enabled: true, token: short-secret-xyz}}\n")
+    write(
+        tmp_path / "config/vigil.yaml",
+        "api: {bind_host: 0.0.0.0, auth: {enabled: true, token: short-secret-xyz}}\n",
+    )
     with pytest.raises(ConfigError) as e:
         load(tmp_path)
     assert "short-secret-xyz" not in str(e.value)
@@ -171,7 +176,8 @@ def test_empty_yaml_file_is_fine(tmp_path: Path) -> None:
 
 def test_parse_dotenv() -> None:
     parsed = parse_dotenv(
-        "# comment\n\nA=1\nexport B = two \nC=\"quoted value\"\nD='single'\nE=x # trailing\nbad line\n"
+        "# comment\n\nA=1\nexport B = two \n"
+        "C=\"quoted value\"\nD='single'\nE=x # trailing\nbad line\n"
     )
     assert parsed == {"A": "1", "B": "two", "C": "quoted value", "D": "single", "E": "x"}
 
@@ -207,7 +213,11 @@ def test_config_hash_never_contains_a_secret(tmp_path: Path) -> None:
     assert token not in repr(s) and token not in s.model_dump_json()
     s2 = load(
         tmp_path,
-        overrides={"api.bind_host": "0.0.0.0", "api.auth.enabled": True, "api.auth.token": "u" * 40},  # noqa: S104
+        overrides={
+            "api.bind_host": "0.0.0.0",  # noqa: S104 - exercising the non-loopback rule
+            "api.auth.enabled": True,
+            "api.auth.token": "u" * 40,
+        },
     ).settings
     assert s.config_hash() == s2.config_hash()  # the secret is not part of the identity
 

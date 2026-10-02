@@ -49,6 +49,8 @@ packages = ["src/vigil"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# The design docs contain illustrative code blocks; they are not linted or reformatted.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = [
@@ -63,7 +65,9 @@ select = [
 ignore = ["S101"]  # assert is fine in tests; src is checked by mypy instead
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106", "S108", "S311", "T20", "BLE001", "PT011"]
+# PT018: compound asserts read as one fact and pytest still reports each sub-expression.
+# C408: dict(...) kwargs builders keep fixture defaults readable.
+"tests/**" = ["S105", "S106", "S108", "S311", "T20", "BLE001", "PT011", "PT018", "C408"]
 "scripts/**" = ["T20"]
 "src/vigil/cli/**" = ["T20"]
 

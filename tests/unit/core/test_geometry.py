@@ -98,9 +98,7 @@ def test_polygon_area_and_bounds() -> None:
     assert L_SHAPE.bounds() == BBox(0, 0, 10, 10)
 
 
-@given(
-    st.floats(0.1, 10), st.floats(0.1, 10), st.floats(0, 10), st.floats(0, 10)
-)
+@given(st.floats(0.1, 10), st.floats(0.1, 10), st.floats(0, 10), st.floats(0, 10))
 def test_containment_survives_scaling(sx: float, sy: float, px: float, py: float) -> None:
     p = Point(px, py)
     scaled = SQUARE.scaled(sx, sy)

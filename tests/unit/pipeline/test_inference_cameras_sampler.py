@@ -59,13 +59,24 @@ def frame(camera: str, index: int = 0, *, pts: float | None = None, t: int = 0) 
 
 
 def worker(
-    det: RecordingDetector, cams: dict[str, LatestFrameSlot], clock: ManualClock,
-    *, batch: int = 4, metrics: MetricsRegistry | None = None,
+    det: RecordingDetector,
+    cams: dict[str, LatestFrameSlot],
+    clock: ManualClock,
+    *,
+    batch: int = 4,
+    metrics: MetricsRegistry | None = None,
 ) -> tuple[InferenceWorker, MetricsRegistry, LatestDetections]:
     m, results = metrics or MetricsRegistry(), LatestDetections()
     w = InferenceWorker(
-        detector=det, channels=cams, results=results, clock=clock, metrics=m,
-        logger=get_logger("t"), max_batch_size=batch, idle_wait_ms=1, fps_window_s=5.0,
+        detector=det,
+        channels=cams,
+        results=results,
+        clock=clock,
+        metrics=m,
+        logger=get_logger("t"),
+        max_batch_size=batch,
+        idle_wait_ms=1,
+        fps_window_s=5.0,
     )
     return w, m, results
 
@@ -177,8 +188,15 @@ def test_it_works_with_the_real_null_detector(clock: ManualClock) -> None:
     slot.put(frame("cam-a"), STOP)
     m, results = MetricsRegistry(), LatestDetections()
     w = InferenceWorker(
-        detector=NullDetector(clock), channels={"cam-a": slot}, results=results, clock=clock,
-        metrics=m, logger=get_logger("t"), max_batch_size=4, idle_wait_ms=1, fps_window_s=5.0,
+        detector=NullDetector(clock),
+        channels={"cam-a": slot},
+        results=results,
+        clock=clock,
+        metrics=m,
+        logger=get_logger("t"),
+        max_batch_size=4,
+        idle_wait_ms=1,
+        fps_window_s=5.0,
     )
     assert w.step() == 1
     got = results.get("cam-a")

@@ -19,7 +19,10 @@ runner = CliRunner()
 
 def test_webcam_source() -> None:
     cam = parse_source("webcam:3", 0)
-    assert cam["camera_id"] == "cli-webcam-3" and cam["source"] == {"kind": "webcam", "device_index": 3}
+    assert cam["camera_id"] == "cli-webcam-3" and cam["source"] == {
+        "kind": "webcam",
+        "device_index": 3,
+    }
 
 
 def test_synthetic_source_with_and_without_a_frame_count() -> None:
@@ -33,7 +36,9 @@ def test_rtsp_source_is_accepted_by_the_grammar() -> None:
     assert cam["source"] == {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}
 
 
-@pytest.mark.parametrize("bad", ["", "webcam", "webcam:x", "webcam:-1", "usb:0", "file.mp4", "synthetic:x"])
+@pytest.mark.parametrize(
+    "bad", ["", "webcam", "webcam:x", "webcam:-1", "usb:0", "file.mp4", "synthetic:x"]
+)
 def test_bad_sources_are_rejected_with_the_valid_forms(bad: str) -> None:
     with pytest.raises(SourceSpecError, match="webcam:<index>"):
         parse_source(bad, 0)
@@ -89,8 +94,19 @@ def test_invalid_configuration_is_reported_and_exits_2(tmp_path: Path) -> None:
 def test_run_a_synthetic_camera_for_a_moment_then_shut_down_cleanly(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
-        ["run", "--source", "synthetic:30", "--duration", "1", "--status-interval", "0.5",
-         "--config-dir", str(tmp_path / "config"), "--log-level", "WARNING"],
+        [
+            "run",
+            "--source",
+            "synthetic:30",
+            "--duration",
+            "1",
+            "--status-interval",
+            "0.5",
+            "--config-dir",
+            str(tmp_path / "config"),
+            "--log-level",
+            "WARNING",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "state=running" in result.output and "inferred=30" in result.output
@@ -100,8 +116,19 @@ def test_run_a_synthetic_camera_for_a_moment_then_shut_down_cleanly(tmp_path: Pa
 def test_run_with_only_an_rtsp_source_reports_not_implemented_and_exits_1(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
-        ["run", "--source", "rtsp://10.0.0.5/s", "--duration", "0.3", "--status-interval", "0.2",
-         "--config-dir", str(tmp_path / "config"), "--log-level", "ERROR"],
+        [
+            "run",
+            "--source",
+            "rtsp://10.0.0.5/s",
+            "--duration",
+            "0.3",
+            "--status-interval",
+            "0.2",
+            "--config-dir",
+            str(tmp_path / "config"),
+            "--log-level",
+            "ERROR",
+        ],
     )
     assert result.exit_code == 1
     assert "not implemented" in result.output
@@ -112,18 +139,39 @@ def test_unimplemented_backend_fails_startup_with_a_clear_message(tmp_path: Path
     cfg.mkdir()
     (cfg / "vigil.yaml").write_text("vision: {backend: ultralytics}\n", encoding="utf-8")
     result = runner.invoke(
-        app, ["run", "--source", "synthetic", "--duration", "0.2", "--config-dir", str(cfg),
-              "--log-level", "ERROR"]
+        app,
+        [
+            "run",
+            "--source",
+            "synthetic",
+            "--duration",
+            "0.2",
+            "--config-dir",
+            str(cfg),
+            "--log-level",
+            "ERROR",
+        ],
     )
-    assert result.exit_code == 1 and "startup failed" in result.output and "ultralytics" in result.output
+    assert (
+        result.exit_code == 1
+        and "startup failed" in result.output
+        and "ultralytics" in result.output
+    )
 
 
 def test_doctor_reports_environment_config_and_capabilities() -> None:
     result = runner.invoke(app, ["doctor", "--config-dir", str(REPO_ROOT / "config")])
     assert result.exit_code == 0, result.output
     out = result.output
-    for expected in ("Python", "capture extra", "torch", "vision.backend", "capabilities",
-                     "detection", "tracking"):
+    for expected in (
+        "Python",
+        "capture extra",
+        "torch",
+        "vision.backend",
+        "capabilities",
+        "detection",
+        "tracking",
+    ):
         assert expected in out
     assert "none registered" in out  # no modules exist: say so rather than imply otherwise
 
@@ -149,7 +197,9 @@ def test_doctor_dump_config_writes_the_reference(tmp_path: Path) -> None:
     result = runner.invoke(
         app, ["doctor", "--config-dir", str(REPO_ROOT / "config"), "--dump-config", str(target)]
     )
-    assert result.exit_code == 0 and target.read_text(encoding="utf-8").startswith("# Configuration")
+    assert result.exit_code == 0 and target.read_text(encoding="utf-8").startswith(
+        "# Configuration"
+    )
 
 
 # ------------------------------------------------------------------ generated reference
@@ -157,12 +207,20 @@ def test_doctor_dump_config_writes_the_reference(tmp_path: Path) -> None:
 
 def test_config_reference_covers_every_section_and_nested_keys() -> None:
     doc = render_config_reference()
-    for key in ("`temporal.l_activate`", "`vision.max_batch_size`", "`api.auth.token`",
-                "`cameras[].source.kind`", "`severity.weights.base`", "`ingest.reconnect_base_ms`"):
+    for key in (
+        "`temporal.l_activate`",
+        "`vision.max_batch_size`",
+        "`api.auth.token`",
+        "`cameras[].source.kind`",
+        "`severity.weights.base`",
+        "`ingest.reconnect_base_ms`",
+    ):
         assert key in doc
     assert "ge=1" in doc  # constraints are documented
 
 
 def test_the_committed_config_reference_is_up_to_date() -> None:
     committed = (REPO_ROOT / "docs" / "CONFIG.md").read_text(encoding="utf-8")
-    assert committed == render_config_reference(), "run: uv run vigil doctor --dump-config docs/CONFIG.md"
+    assert committed == render_config_reference(), (
+        "run: uv run vigil doctor --dump-config docs/CONFIG.md"
+    )

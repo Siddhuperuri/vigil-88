@@ -125,7 +125,9 @@ def test_rtsp_urls_with_inline_credentials_are_rejected_and_the_fix_is_named() -
 
 
 def test_rtsp_credentials_are_referenced_by_variable_name() -> None:
-    s = src(kind="rtsp", url="rtsp://10.0.0.5/s", username_env="CAM_N_USER", password_env="CAM_N_PASS")
+    s = src(
+        kind="rtsp", url="rtsp://10.0.0.5/s", username_env="CAM_N_USER", password_env="CAM_N_PASS"
+    )
     assert s.password_env == "CAM_N_PASS"  # a name, never a value
 
 

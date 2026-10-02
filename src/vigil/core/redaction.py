@@ -23,7 +23,7 @@ def is_sensitive_key(key: str) -> bool:
 
 
 def contains_inline_credentials(url: str) -> bool:
-    """True for `scheme://user:pass@host` and `scheme://token@host` forms."""
+    """True when a URL carries userinfo: a username, optionally with a password."""
     return bool(_URL_USERINFO_RE.search(url))
 
 

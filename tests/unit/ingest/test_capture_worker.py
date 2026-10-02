@@ -5,8 +5,6 @@ from __future__ import annotations
 import threading
 from datetime import timedelta
 
-import pytest
-
 from tests.support.fakes import BlockUntil, ScriptedSource, raw_frame
 from vigil.config.schema.pipeline import HealthConfig, IngestConfig
 from vigil.core.clock import ManualClock
@@ -112,7 +110,9 @@ def test_slot_overwrites_are_counted_as_skipped_not_dropped(clock: ManualClock) 
 
 def test_paced_sources_never_skip(clock: ManualClock) -> None:
     q = BlockingFrameQueue(8)
-    r = Rig(ScriptedSource([raw_frame() for _ in range(5)], timing=SourceTiming.PACED), clock, channel=q)
+    r = Rig(
+        ScriptedSource([raw_frame() for _ in range(5)], timing=SourceTiming.PACED), clock, channel=q
+    )
     r.steps(6)
     assert q.depth() == 5 and r.health.snapshot().frames_skipped == 0
 
@@ -172,7 +172,10 @@ def test_open_recovers_after_transient_failures(clock: ManualClock) -> None:
     src = ScriptedSource([raw_frame()], open_results=[SourceError("a"), SourceError("b")])
     r = Rig(src, clock, max_initial_open_attempts=5)
     assert r.steps(4) == [
-        StepKind.OPEN_FAILED, StepKind.OPEN_FAILED, StepKind.OPENED, StepKind.FRAME,
+        StepKind.OPEN_FAILED,
+        StepKind.OPEN_FAILED,
+        StepKind.OPENED,
+        StepKind.FRAME,
     ]
     assert r.health.state is S.ONLINE and r.health.snapshot().reconnect_attempts == 0
 
@@ -183,7 +186,10 @@ def test_reconnect_limit_applies_only_after_the_camera_has_been_online(clock: Ma
     )
     r = Rig(src, clock, max_reconnect_attempts=2)
     assert r.steps(4) == [
-        StepKind.OPENED, StepKind.READ_FAILED, StepKind.OPEN_FAILED, StepKind.FAILED,
+        StepKind.OPENED,
+        StepKind.READ_FAILED,
+        StepKind.OPEN_FAILED,
+        StepKind.FAILED,
     ]
     assert r.health.state is S.FAILED
 
@@ -219,9 +225,7 @@ def test_non_retryable_read_failure_is_terminal(clock: ManualClock) -> None:
 
 
 def test_isolated_glitches_are_tolerated_and_counted(clock: ManualClock) -> None:
-    src = ScriptedSource(
-        [TransientSourceError("bad"), TransientSourceError("bad"), raw_frame()]
-    )
+    src = ScriptedSource([TransientSourceError("bad"), TransientSourceError("bad"), raw_frame()])
     r = Rig(src, clock, max_consecutive_read_failures=3)
     assert r.steps(4) == [StepKind.OPENED, StepKind.GLITCH, StepKind.GLITCH, StepKind.FRAME]
     snap = r.health.snapshot()
@@ -233,8 +237,13 @@ def test_a_run_of_glitches_escalates_to_a_reconnect(clock: ManualClock) -> None:
     src = ScriptedSource([TransientSourceError("bad")] * 10)
     r = Rig(src, clock, max_consecutive_read_failures=3)
     kinds = r.steps(5)
-    assert kinds == [StepKind.OPENED, StepKind.GLITCH, StepKind.GLITCH, StepKind.GLITCH,
-                     StepKind.READ_FAILED]
+    assert kinds == [
+        StepKind.OPENED,
+        StepKind.GLITCH,
+        StepKind.GLITCH,
+        StepKind.GLITCH,
+        StepKind.READ_FAILED,
+    ]
     assert r.health.state is S.RECONNECTING
 
 

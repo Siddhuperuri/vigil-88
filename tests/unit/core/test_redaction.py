@@ -28,8 +28,18 @@ def test_clean_urls_are_not_flagged(url: str) -> None:
 
 @pytest.mark.parametrize(
     "key",
-    ["password", "PASSWORD", "api_key", "apiKey", "x-api-key", "token", "Authorization",
-     "client_secret", "db_passwd", "private_key"],
+    [
+        "password",
+        "PASSWORD",
+        "api_key",
+        "apiKey",
+        "x-api-key",
+        "token",
+        "Authorization",
+        "client_secret",
+        "db_passwd",
+        "private_key",
+    ],
 )
 def test_sensitive_keys(key: str) -> None:
     assert is_sensitive_key(key)
@@ -53,8 +63,14 @@ def test_redact_text_strips_bearer_and_assignments() -> None:
 
 
 def test_redact_value_recurses_and_masks_by_key() -> None:
-    out = redact_value({"user": "bob", "password": "x", "nested": {"api_key": "k", "n": 1},
-                        "urls": ["rtsp://a:b@h/x"]})
+    out = redact_value(
+        {
+            "user": "bob",
+            "password": "x",
+            "nested": {"api_key": "k", "n": 1},
+            "urls": ["rtsp://a:b@h/x"],
+        }
+    )
     assert out == {
         "user": "bob",
         "password": REDACTED,
