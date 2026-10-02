@@ -253,7 +253,35 @@ def test_core_and_domain_import_nothing_from_higher_layers() -> None:
             assert not bad, f"{module} imports upward: {bad}"
 
 
-def test_the_ui_never_performs_inference() -> None:
-    """The core stays headless and nothing in it depends on a UI or a model runtime yet."""
-    g = _runtime_graph()
-    assert not any(m.startswith(("vigil.ui", "vigil.api")) for m in g.modules)
+INFERENCE_LIBRARIES = ("onnxruntime", "onnx", "torch", "tensorflow", "ultralytics")
+
+
+def test_the_api_never_performs_inference() -> None:
+    """The UI and API read results; they never run a model. No API module may import the vision
+    engine or any inference runtime, directly or as an external package (08 §5 rule 2)."""
+    g = grimp.build_graph(
+        "vigil", include_external_packages=True, exclude_type_checking_imports=True
+    )
+    api_modules = list(g.find_descendants("vigil.api"))
+    assert len(api_modules) >= 5  # the check must actually look at something
+    forbidden = ("vigil.vision", *INFERENCE_LIBRARIES)
+    for module in api_modules:
+        for imported in g.find_modules_directly_imported_by(module):
+            assert not any(imported == f or imported.startswith(f + ".") for f in forbidden), (
+                f"{module} imports {imported}"
+            )
+
+
+def test_the_core_stays_headless() -> None:
+    """Nothing outside the api package may import the web framework."""
+    g = grimp.build_graph(
+        "vigil", include_external_packages=True, exclude_type_checking_imports=True
+    )
+    web = ("fastapi", "uvicorn", "starlette")
+    for module in g.modules:
+        if module.startswith("vigil.api") or module in {"fastapi", "uvicorn", "starlette"}:
+            continue
+        for imported in g.find_modules_directly_imported_by(module):
+            assert not any(imported == w or imported.startswith(w + ".") for w in web), (
+                f"{module} imports the web framework: {imported}"
+            )

@@ -96,6 +96,7 @@ ignore = ["S101"]  # assert is fine in tests; src is checked by mypy instead
 "tests/**" = ["S105", "S106", "S108", "S311", "T20", "BLE001", "PT011", "PT018", "C408"]
 "scripts/**" = ["T20"]
 "src/vigil/cli/**" = ["T20"]
+"src/vigil/api/viewer.py" = ["E501"]  # embedded HTML/JS
 
 [tool.ruff.lint.isort]
 known-first-party = ["vigil"]
@@ -151,6 +152,7 @@ name = "layers"
 type = "layers"
 layers = [
     "vigil.cli",
+    "vigil.api",
     "vigil.pipeline",
     "vigil.ingest | vigil.vision",
     "vigil.domain",

@@ -17,6 +17,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from vigil.config.paths import ResolvedPaths
 from vigil.config.settings import Settings
@@ -48,6 +49,9 @@ from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
 from vigil.pipeline.workers import ThreadWorker
 from vigil.vision.factory import build_detector
+
+if TYPE_CHECKING:
+    from vigil.pipeline.streaming import StreamHub
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +105,7 @@ class Application:
         clock: Clock | None = None,
         detector_factory: DetectorFactory | None = None,
         source_factory: SourceFactory | None = None,
+        stream_hub: StreamHub | None = None,
         bus: EventBus | None = None,
         metrics: MetricsRegistry | None = None,
         logger: LoggerLike | None = None,
@@ -117,6 +122,7 @@ class Application:
         self._log = logger or get_logger("pipeline.app")
         self._detector_factory = detector_factory or _default_detector_factory
         self._source_factory = source_factory or _default_source_factory
+        self.stream_hub = stream_hub
 
         self._lock = threading.Lock()
         self._state = AppState.CREATED
@@ -229,6 +235,19 @@ class Application:
             interval_ms=cfg.observability.sample_interval_ms,
             history_len=history_len,
         )
+        if self.stream_hub is not None:
+            from vigil.pipeline.streaming import StreamWorker  # imports OpenCV: only when streaming
+
+            stream = StreamWorker(
+                hub=self.stream_hub,
+                results=self.results,
+                clock=self.clock,
+                metrics=self.metrics,
+                logger=self._log,
+                fps=cfg.api.stream_fps,
+                jpeg_quality=cfg.api.stream_jpeg_quality,
+            )
+            self._system_workers.append(self._worker("stream", stream.run))
         for name, target in (
             ("inference", inference.run),
             ("watchdog", watchdog.run),
@@ -350,6 +369,8 @@ class Application:
         for rt in self._cameras.values():
             if rt.channel is not None:
                 rt.channel.close()  # unblocks a capture worker waiting to hand off
+        if self.stream_hub is not None:
+            self.stream_hub.close()  # wakes any connected viewer so it can disconnect
 
         timeout_s = self.settings.pipeline.shutdown_timeout_ms / _MS_PER_S
         deadline_ns = self.clock.monotonic_ns() + int(timeout_s * NS_PER_S)
