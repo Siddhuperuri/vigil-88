@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from vigil.cli.commands.doctor import doctor
+from vigil.cli.commands.models import models_app
 from vigil.cli.commands.run import run
 from vigil.version import __version__
 
@@ -16,6 +17,7 @@ app = typer.Typer(
 )
 app.command("run", help="Run the headless pipeline.")(run)
 app.command("doctor", help="Diagnose the environment, configuration and capabilities.")(doctor)
+app.add_typer(models_app, name="models")
 
 
 @app.command("version", help="Print the version.")

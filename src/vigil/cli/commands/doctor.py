@@ -19,8 +19,12 @@ from vigil.cli.config_doc import render_config_reference
 from vigil.config.loader import LoadedConfig, load_settings
 from vigil.core.capabilities import CapabilityLedger
 from vigil.core.clock import SystemClock
-from vigil.core.errors import ConfigError
+from vigil.core.errors import CapabilityError, ConfigError
+from vigil.observability.logging import get_logger
+from vigil.observability.probes import NvmlProbe
+from vigil.vision.device import available_providers
 from vigil.vision.factory import IMPLEMENTED_BACKENDS, build_detector
+from vigil.vision.models import load_manifest, verify_model
 
 MIN_PYTHON = (3, 11)
 NVIDIA_SMI_TIMEOUT_S = 5
@@ -80,17 +84,73 @@ def _environment_rows() -> list[Row]:
                 "not installed: webcam capture unavailable. Fix: uv sync --extra capture",
             )
         )
-    torch_v = _version("torch")
     rows.append(
-        Row(
-            "torch",
-            "info",
-            torch_v or "not installed (not required before P1; no neural inference yet)",
-        )
+        Row("torch", "info", _version("torch") or "not installed (not used: inference is ONNX)")
     )
-    ort = _version("onnxruntime-gpu") or _version("onnxruntime")
-    rows.append(Row("onnxruntime", "info", ort or "not installed (arrives with P1)"))
+    gpu_build = _version("onnxruntime-gpu")
+    ort = gpu_build or _version("onnxruntime")
+    if ort:
+        providers = ", ".join(available_providers())
+        build = "GPU build" if gpu_build else "CPU build"
+        rows.append(Row("onnxruntime", "ok", f"{ort} ({build}); providers: {providers}"))
+    else:
+        rows.append(
+            Row(
+                "onnxruntime",
+                "warn",
+                "not installed: real detection unavailable. "
+                "Fix: uv sync --extra onnx-gpu (or onnx-cpu)",
+            )
+        )
     return [*rows, *_gpu_rows()]
+
+
+def _model_row(loaded: LoadedConfig) -> Row:
+    models_dir = loaded.paths.models_dir
+    manifest = load_manifest(models_dir)
+    if not manifest:
+        return Row("models", "info", f"none in {models_dir}. Fix: vigil models fetch yolox_s")
+    parts = []
+    for filename in sorted(manifest):
+        try:
+            verify_model(models_dir, filename)
+            parts.append(f"{filename} verified")
+        except CapabilityError as exc:
+            parts.append(f"{filename} PROBLEM ({exc.message})")
+    bad = any("PROBLEM" in p for p in parts)
+    return Row("models", "fail" if bad else "ok", "; ".join(parts))
+
+
+def _detector_check(loaded: LoadedConfig | None) -> tuple[list[Row], CapabilityLedger]:
+    """Actually build the configured detector: the only honest way to say what it can do."""
+    ledger = CapabilityLedger()
+    if loaded is None or loaded.settings.vision.backend not in IMPLEMENTED_BACKENDS:
+        return [], ledger
+    probe = NvmlProbe()
+    try:
+        detector = build_detector(
+            loaded.settings.vision,
+            SystemClock(),
+            models_dir=loaded.paths.models_dir,
+            logger=get_logger("doctor"),
+            nvml=probe if probe.available else None,
+        )
+    except CapabilityError as exc:
+        return [Row("detector", "fail", exc.message)], ledger
+    finally:
+        probe.shutdown()
+    d = detector.descriptor
+    for capability in detector.provides:
+        ledger.grant(capability, d.name)
+    detector.close()
+    if d.backend == "null":
+        return [
+            Row("detector", "info", "null detector: detects nothing; DETECTION not granted")
+        ], ledger
+    size = f" {d.input_size_px}px" if d.input_size_px else ""
+    return [
+        Row("detector", "ok", f"{d.name}{size} on {d.device} ({d.precision}), {d.backend}")
+    ], ledger
 
 
 def _config_rows(loaded: LoadedConfig) -> list[Row]:
@@ -162,8 +222,12 @@ def doctor(
     try:
         loaded = load_settings(config_dir=config_dir)
         rows += _config_rows(loaded)
+        if loaded.settings.vision.backend != "null" or load_manifest(loaded.paths.models_dir):
+            rows.append(_model_row(loaded))
     except ConfigError as exc:
         rows.append(Row("config", "fail", str(exc)))
+    detector_rows, ledger = _detector_check(loaded)
+    rows += detector_rows
     if probe_webcam is not None:
         rows += _probe_webcam(probe_webcam)
 
@@ -175,12 +239,6 @@ def doctor(
         table.add_row(r.name, f"[{style[r.status]}]{r.status}[/]", r.detail)
     console.print(table)
 
-    ledger = CapabilityLedger()
-    if loaded is not None and loaded.settings.vision.backend in IMPLEMENTED_BACKENDS:
-        detector = build_detector(loaded.settings.vision, SystemClock())
-        for capability in detector.provides:
-            ledger.grant(capability, detector.descriptor.name)
-        detector.close()
     caps = Table(title="capabilities (what this configuration can actually supply)")
     for col in ("capability", "available", "provider / how to provide"):
         caps.add_column(col)

@@ -114,7 +114,7 @@ module = ["vigil.core.*", "vigil.domain.*"]
 disallow_any_explicit = true  # 01 §12: domain/ and core/ forbid Any
 
 [[tool.mypy.overrides]]
-module = ["cv2", "cv2.*"]
+module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------- pytest

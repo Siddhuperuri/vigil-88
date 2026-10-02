@@ -187,7 +187,7 @@ def test_doctor_fails_on_broken_config(tmp_path: Path) -> None:
 def test_doctor_flags_an_unimplemented_backend(tmp_path: Path) -> None:
     cfg = tmp_path / "config"
     cfg.mkdir()
-    (cfg / "vigil.yaml").write_text("vision: {backend: onnxruntime}\n", encoding="utf-8")
+    (cfg / "vigil.yaml").write_text("vision: {backend: mock}\n", encoding="utf-8")
     result = runner.invoke(app, ["doctor", "--config-dir", str(cfg)])
     assert result.exit_code == 1 and "not implemented" in result.output
 

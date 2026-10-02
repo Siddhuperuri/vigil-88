@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.support.fakes import StubPixels
@@ -9,6 +11,7 @@ from vigil.core.clock import ManualClock
 from vigil.core.errors import CapabilityError, InferenceError
 from vigil.core.protocols.detector import Detector
 from vigil.domain import Frame, FrameMeta, PreparedFrame
+from vigil.observability.logging import get_logger
 from vigil.vision.backends.null import NullDetector
 from vigil.vision.factory import IMPLEMENTED_BACKENDS, build_detector
 
@@ -82,19 +85,23 @@ def test_descriptor_is_stable(clock: ManualClock) -> None:
 # ------------------------------------------------------------------ factory
 
 
-def test_factory_builds_the_null_backend(clock: ManualClock) -> None:
-    assert isinstance(build_detector(VisionConfig(backend="null"), clock), NullDetector)
+def build(cfg: VisionConfig, clock: ManualClock, tmp_path: Path) -> Detector:
+    return build_detector(cfg, clock, models_dir=tmp_path, logger=get_logger("t"))
 
 
-@pytest.mark.parametrize("backend", ["ultralytics", "onnxruntime", "mock"])
+def test_factory_builds_the_null_backend(clock: ManualClock, tmp_path: Path) -> None:
+    assert isinstance(build(VisionConfig(backend="null"), clock, tmp_path), NullDetector)
+
+
+@pytest.mark.parametrize("backend", ["ultralytics", "mock"])
 def test_unimplemented_backends_fail_loudly_never_falling_back(
-    backend: str, clock: ManualClock
+    backend: str, clock: ManualClock, tmp_path: Path
 ) -> None:
     with pytest.raises(CapabilityError, match=f"{backend}.*not implemented"):
-        build_detector(VisionConfig(backend=backend), clock)  # type: ignore[arg-type]
+        build(VisionConfig(backend=backend), clock, tmp_path)  # type: ignore[arg-type]
 
 
-def test_error_names_what_is_implemented(clock: ManualClock) -> None:
-    with pytest.raises(CapabilityError, match="null"):
-        build_detector(VisionConfig(backend="ultralytics"), clock)
-    assert {"null"} == IMPLEMENTED_BACKENDS
+def test_error_names_what_is_implemented(clock: ManualClock, tmp_path: Path) -> None:
+    with pytest.raises(CapabilityError, match="null, onnxruntime"):
+        build(VisionConfig(backend="ultralytics"), clock, tmp_path)
+    assert {"null", "onnxruntime"} == IMPLEMENTED_BACKENDS

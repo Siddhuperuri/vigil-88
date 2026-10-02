@@ -473,9 +473,13 @@ def test_system_metric_accepts_missing_gpu_but_not_nonsense() -> None:
         cpu_percent=10.0,
         memory_used_mb=100.0,
         process_rss_mb=50.0,
+        process_cpu_percent=12.5,
         gpu_utilization_percent=None,
         gpu_memory_used_mb=None,
         gpu_temperature_c=None,
+        gpu_sm_clock_mhz=None,
+        gpu_power_w=None,
+        gpu_throttle_reasons=(),
         pipeline_fps=None,
         inference_latency_p50_ms=None,
         inference_latency_p95_ms=None,
@@ -484,6 +488,7 @@ def test_system_metric_accepts_missing_gpu_but_not_nonsense() -> None:
     )
     m = SystemMetric(**kw)  # type: ignore[arg-type]
     assert m.gpu_utilization_percent is None  # unmeasured is None, never 0
+    assert m.gpu_throttle_reasons == ()
     with pytest.raises(ValueError):
         SystemMetric(**{**kw, "cpu_percent": 101.0})  # type: ignore[arg-type]
     with pytest.raises(ValueError):

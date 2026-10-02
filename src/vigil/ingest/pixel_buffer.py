@@ -46,6 +46,9 @@ class NumpyPixelBuffer:
     def tobytes(self) -> bytes:
         return self._array.tobytes()
 
+    def buffer(self) -> memoryview:
+        return self._array.data  # already a (read-only) memoryview: zero-copy
+
     def as_ndarray(self) -> npt.NDArray[np.uint8]:
         """A read-only view. Callers that need to modify pixels must copy."""
         return self._array

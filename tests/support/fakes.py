@@ -27,6 +27,9 @@ class StubPixels:
     def tobytes(self) -> bytes:
         return bytes(self.nbytes)
 
+    def buffer(self) -> memoryview:
+        return memoryview(bytes(self.nbytes))
+
 
 def raw_frame(width: int = 64, height: int = 48, pts_ms: float | None = None) -> RawFrame:
     return RawFrame(StubPixels(width, height), source_pts_ms=pts_ms)

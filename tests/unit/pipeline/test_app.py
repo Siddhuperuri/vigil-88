@@ -158,7 +158,7 @@ def test_a_detector_that_provides_capabilities_grants_them(make_config: MakeConf
         def provides(self) -> frozenset[Capability]:
             return frozenset({Capability.DETECTION})
 
-    app = app_for(make_config(), detector_factory=lambda s, c: Capable(c))
+    app = app_for(make_config(), detector_factory=lambda ctx: Capable(ctx.clock))
     app.start()
     try:
         status = app.capabilities.status(Capability.DETECTION)
@@ -174,7 +174,7 @@ def test_replay_is_deterministic(make_config: MakeConfig) -> None:
         clock = ManualClock()
         det = RecordingDetector(clock)
         cfg = make_config({"cameras": [SYNTH]})
-        app = app_for(cfg, clock=clock, detector_factory=lambda s, c: det)
+        app = app_for(cfg, clock=clock, detector_factory=lambda ctx: det)
         app.start()
         try:
             assert app.wait_until_drained(30)
@@ -386,7 +386,9 @@ def test_snapshot_reports_uptime_workers_and_system_metrics(make_config: MakeCon
         names = {w.name for w in snap.workers}
         assert {"inference", "watchdog", "sampler", "capture:synth"} <= names
         assert snap.uptime_ms == pytest.approx(1500.0)
-        assert snap.system is not None and snap.system.gpu_utilization_percent is None
+        assert snap.system is not None
+        gpu = snap.system.gpu_utilization_percent  # None without NVML, a real % with it
+        assert gpu is None or 0.0 <= gpu <= 100.0
     finally:
         app.stop()
 
@@ -426,6 +428,6 @@ def test_detection_results_are_published_for_readers(make_config: MakeConfig) ->
 def test_detector_type_is_only_the_protocol(make_config: MakeConfig) -> None:
     """The application depends on the Detector protocol, not on a concrete class."""
     det: Detector = NullDetector(ManualClock())
-    app = app_for(make_config(), detector_factory=lambda s, c: det)
+    app = app_for(make_config(), detector_factory=lambda ctx: det)
     app.start()
     app.stop()

@@ -38,9 +38,13 @@ class SystemMetric:
     cpu_percent: float
     memory_used_mb: float
     process_rss_mb: float
+    process_cpu_percent: float  # share of ONE core; a multi-threaded process can exceed 100
     gpu_utilization_percent: float | None
     gpu_memory_used_mb: float | None
     gpu_temperature_c: float | None
+    gpu_sm_clock_mhz: float | None
+    gpu_power_w: float | None
+    gpu_throttle_reasons: tuple[str, ...]  # limiting reasons only; empty means not throttled
     pipeline_fps: float | None
     inference_latency_p50_ms: float | None
     inference_latency_p95_ms: float | None
@@ -53,7 +57,9 @@ class SystemMetric:
             raise ValueError("cpu_percent must be in [0, 100]")
         require_non_negative("memory_used_mb", self.memory_used_mb)
         require_non_negative("process_rss_mb", self.process_rss_mb)
+        require_non_negative("process_cpu_percent", self.process_cpu_percent)
         require_non_negative("frames_dropped_total", self.frames_dropped_total)
+        object.__setattr__(self, "gpu_throttle_reasons", tuple(self.gpu_throttle_reasons))
         if self.gpu_utilization_percent is not None and not (
             0.0 <= self.gpu_utilization_percent <= PERCENT_MAX
         ):

@@ -50,17 +50,20 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 
 | key | type | default | constraints |
 |-----|------|---------|-------------|
-| `vision.device` | one of 'auto', 'cuda', 'cpu' | `'auto'` |  |
-| `vision.precision` | one of 'auto', 'fp16', 'fp32' | `'auto'` |  |
 | `vision.backend` | one of 'null', 'ultralytics', 'onnxruntime', 'mock' | `'null'` |  |
 | `vision.weights` | str | NoneType | `None` |  |
-| `vision.input_size_px` | int | `640` | ge=32 |
+| `vision.model_family` | one of 'yolox' | `'yolox'` |  |
+| `vision.device` | one of 'auto', 'cuda', 'cpu' | `'auto'` |  |
+| `vision.allow_cpu_fallback` | bool | `True` |  |
+| `vision.precision` | one of 'auto', 'fp16', 'fp32' | `'auto'` |  |
+| `vision.input_size_px` | int | NoneType | `None` | ge=32 |
 | `vision.resolution_tiers_px` | tuple[int, ...] | `(640, 512, 416)` |  |
 | `vision.max_batch_size` | int | `4` | ge=1, le=64 |
 | `vision.vram_budget_mb` | int | `4000` | ge=256 |
-| `vision.allow_cpu_fallback` | bool | `True` |  |
+| `vision.cpu_threads` | int | NoneType | `None` | ge=1 |
 | `vision.min_detection_confidence_ratio` | float | `0.25` | ge=0.0, le=1.0 |
 | `vision.nms_iou_ratio` | float | `0.45` | ge=0.0, le=1.0 |
+| `vision.max_detections` | int | `300` | ge=1 |
 | `vision.label_map` | dict[str, str] | `{}` |  |
 
 ## `tracking`

@@ -38,7 +38,7 @@ from vigil.ingest.sources.factory import build_source
 from vigil.ingest.watchdog import Watchdog
 from vigil.observability.logging import get_logger
 from vigil.observability.metrics import MetricsRegistry
-from vigil.observability.probes import SystemProbe
+from vigil.observability.probes import NvmlProbe, SystemProbe
 from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
@@ -48,14 +48,35 @@ from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
 from vigil.pipeline.workers import ThreadWorker
 from vigil.vision.factory import build_detector
 
-DetectorFactory = Callable[[Settings, Clock], Detector]
+
+@dataclass(frozen=True, slots=True)
+class DetectorContext:
+    """Everything a detector may need from the application, passed as one value so a factory
+    (production or test) never needs the application itself."""
+
+    settings: Settings
+    paths: ResolvedPaths
+    clock: Clock
+    metrics: MetricsRegistry
+    logger: LoggerLike
+    nvml: NvmlProbe | None
+
+
+DetectorFactory = Callable[[DetectorContext], Detector]
 SourceFactory = Callable[[Camera], FrameSource]
 
 _MS_PER_S = 1000.0
 
 
-def _default_detector_factory(settings: Settings, clock: Clock) -> Detector:
-    return build_detector(settings.vision, clock)
+def _default_detector_factory(ctx: DetectorContext) -> Detector:
+    return build_detector(
+        ctx.settings.vision,
+        ctx.clock,
+        models_dir=ctx.paths.models_dir,
+        logger=ctx.logger,
+        metrics=ctx.metrics,
+        nvml=ctx.nvml,
+    )
 
 
 def _default_source_factory(camera: Camera) -> FrameSource:
@@ -101,6 +122,7 @@ class Application:
         self._started_ns: int | None = None
         self._started_wall: datetime | None = None
         self._detector: Detector | None = None
+        self.nvml: NvmlProbe | None = None
         self._cameras: dict[str, _CameraRuntime] = {}
         self._system_workers: list[ThreadWorker] = []
         self._sampler: MetricsSampler | None = None
@@ -155,7 +177,13 @@ class Application:
         self.paths.ensure_directories()
         self.bus.subscribe(CameraStateChanged, self._on_camera_state)
 
-        detector = self._detector_factory(cfg, self.clock)
+        probe = NvmlProbe()
+        self.nvml = probe if probe.available else None
+        if self.nvml is None:
+            self._log.info("GPU metrics unavailable", reason=probe.reason)
+        detector = self._detector_factory(
+            DetectorContext(cfg, self.paths, self.clock, self.metrics, self._log, self.nvml)
+        )
         self._detector = detector
         detector.warmup()
         for capability in detector.provides:
@@ -182,7 +210,7 @@ class Application:
         obs = cfg.observability
         history_len = max(1, round(obs.series_window_s * _MS_PER_S / obs.sample_interval_ms))
         self._sampler = MetricsSampler(
-            probe=SystemProbe(),
+            probe=SystemProbe(gpu=self.nvml),
             metrics=self.metrics,
             clock=self.clock,
             interval_ms=cfg.observability.sample_interval_ms,
@@ -283,6 +311,8 @@ class Application:
                 rt.channel.close()
         if self._detector is not None:
             self._detector.close()
+        if self.nvml is not None:
+            self.nvml.shutdown()
 
     # ------------------------------------------------------------------ shutdown
 
@@ -317,6 +347,8 @@ class Application:
                 stragglers.append(w.name)
         if self._detector is not None:
             self._detector.close()
+        if self.nvml is not None and not stragglers:
+            self.nvml.shutdown()  # only once no worker can still be reading it
 
         report = ShutdownReport(
             clean=not stragglers,

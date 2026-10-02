@@ -31,6 +31,7 @@ class MetricsSampler:
 
     def sample(self) -> SystemMetric:
         reading = self._probe.read()
+        gpu = reading.gpu
         m = self._metrics
         latency = m.histogram("vigil_inference_latency_ms").summary()
         fps_gauge = m.gauge("vigil_pipeline_fps").value
@@ -43,9 +44,14 @@ class MetricsSampler:
             cpu_percent=reading.cpu_percent,
             memory_used_mb=reading.memory_used_mb,
             process_rss_mb=reading.process_rss_mb,
-            gpu_utilization_percent=None,  # GPU probing arrives with the GPU path (P1)
-            gpu_memory_used_mb=None,
-            gpu_temperature_c=None,
+            process_cpu_percent=reading.process_cpu_percent,
+            # None whenever NVML is absent or a field is unsupported: never reported as zero.
+            gpu_utilization_percent=gpu.utilization_percent if gpu else None,
+            gpu_memory_used_mb=gpu.used_mb if gpu else None,
+            gpu_temperature_c=gpu.temperature_c if gpu else None,
+            gpu_sm_clock_mhz=gpu.sm_clock_mhz if gpu else None,
+            gpu_power_w=gpu.power_w if gpu else None,
+            gpu_throttle_reasons=gpu.throttle_reasons if gpu else (),
             pipeline_fps=fps_gauge,
             inference_latency_p50_ms=latency.p50,
             inference_latency_p95_ms=latency.p95,

@@ -33,10 +33,15 @@ class SeekableClock(Clock, Protocol):
 
 
 class SystemClock:
-    """Production clock."""
+    """Production clock.
+
+    `perf_counter_ns` rather than `monotonic_ns`: on Windows the latter ticks at about 15.6 ms,
+    which quantises every latency measurement (stage times came out as 0 or 16 ms). The
+    performance counter is monotonic and has sub-microsecond resolution.
+    """
 
     def monotonic_ns(self) -> int:
-        return time.monotonic_ns()
+        return time.perf_counter_ns()
 
     def wall_utc(self) -> datetime:
         return datetime.now(UTC)

@@ -24,3 +24,11 @@ class PixelBuffer(Protocol):
     def nbytes(self) -> int: ...
 
     def tobytes(self) -> bytes: ...
+
+    def buffer(self) -> memoryview:
+        """A read-only, zero-copy view of the (H, W, C) uint8 pixels, row-major.
+
+        This is how an engine reads pixels without importing the engine that produced them
+        and without copying: `numpy.frombuffer(buf.buffer(), numpy.uint8)` shares memory.
+        """
+        ...
