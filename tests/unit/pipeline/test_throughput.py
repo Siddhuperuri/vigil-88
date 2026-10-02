@@ -35,8 +35,8 @@ class SleepyDetector(NullDetector):
         return super().detect_batch(frames)
 
 
-# The default global ceiling is 20 fps (design: pipeline.global_inference_fps). These tests are about
-# per-camera behaviour, so they lift it out of the way; the ceiling has its own tests.
+# The default global ceiling is 20 fps (pipeline.global_inference_fps). These tests are about
+# per-camera behaviour, so they lift it out of the way; the ceiling has its own test.
 NO_GLOBAL_CAP = {"pipeline.global_inference_fps": 500.0}
 
 
