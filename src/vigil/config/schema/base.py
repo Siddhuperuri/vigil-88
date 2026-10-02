@@ -15,4 +15,6 @@ class ConfigModel(BaseModel):
         frozen=True,
         validate_default=True,
         str_strip_whitespace=True,
+        # A rejected value may be a credential: never echo it, even from a raw ValidationError.
+        hide_input_in_errors=True,
     )
