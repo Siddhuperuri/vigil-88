@@ -24,6 +24,27 @@ capture = [
     "numpy>=1.26,<3",
     "opencv-python-headless>=4.10",
 ]
+# Detector backends. The CPU and GPU builds of onnxruntime both provide the `onnxruntime`
+# module and cannot coexist, so they are conflicting extras (see [tool.uv] below).
+# The inference stack is pinned exactly (03 §1 rule 3): a silent minor bump can change
+# kernel selection, numerics and VRAM behaviour. The GPU build's CUDA libraries come from
+# pip wheels (extras `cuda`, `cudnn`), so no CUDA toolkit install is needed.
+onnx-cpu = [
+    "numpy>=1.26,<3",
+    "opencv-python-headless>=4.10",
+    "onnxruntime==1.26.0",
+]
+onnx-gpu = [
+    "numpy>=1.26,<3",
+    "opencv-python-headless>=4.10",
+    "onnxruntime-gpu[cuda,cudnn]==1.26.0",
+    "nvidia-ml-py>=12",
+]
+# Live annotated stream and metrics over HTTP (loopback by default).
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.scripts]
 vigil = "vigil.cli.main:app"
@@ -39,7 +60,12 @@ dev = [
     "import-linter>=2.0",
     "types-pyyaml",
     "types-psutil",
+    "onnx>=1.17",   # builds tiny real ONNX graphs for backend tests; never shipped
+    "httpx>=0.27",  # FastAPI TestClient
 ]
+
+[tool.uv]
+conflicts = [[{ extra = "onnx-cpu" }, { extra = "onnx-gpu" }]]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vigil"]
