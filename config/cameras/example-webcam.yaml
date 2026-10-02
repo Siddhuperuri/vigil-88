@@ -1,0 +1,16 @@
+# Example webcam. DISABLED on purpose: VIGIL-88 never opens a camera you did not enable.
+# Set `enabled: true`, or use `vigil run --source webcam:0` for a one-off run.
+camera_id: example-webcam
+name: Example webcam
+enabled: false
+location: Desk
+priority: 5
+target_inference_fps: 10
+source:
+  kind: webcam
+  device_index: 0
+  backend: auto # auto | msmf | dshow
+  width_px: 1280
+  height_px: 720
+  fps: 30
+  fourcc: MJPG

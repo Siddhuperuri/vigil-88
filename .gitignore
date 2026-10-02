@@ -1,0 +1,19 @@
+# runtime state: nothing under var/ is source
+var/
+.env
+config/vigil.local.yaml
+# python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+dist/
+# console (later phases)
+ui/node_modules/
+ui/dist/

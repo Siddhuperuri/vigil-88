@@ -1,0 +1,131 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vigil-88"
+version = "0.1.0"
+description = "VIGIL-88: real-time computer-vision incident detection and situational awareness (P0 foundation)."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9",
+    "structlog>=24.4",
+    "typer>=0.12",
+    "rich>=13.8",
+    "pyyaml>=6.0",
+    "psutil>=6.0",
+]
+
+[project.optional-dependencies]
+# Webcam / image capture. Deliberately separate from the future `vision` extra so that
+# capturing frames never requires torch (see docs/adr/0011).
+capture = [
+    "numpy>=1.26,<3",
+    "opencv-python-headless>=4.10",
+]
+
+[project.scripts]
+vigil = "vigil.cli.main:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "pytest-timeout>=2.3",
+    "hypothesis>=6.112",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "import-linter>=2.0",
+    "types-pyyaml",
+    "types-psutil",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vigil"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "UP", "B", "SIM", "RUF", "C4", "PIE", "PT",
+    "S",    # bandit: hard-coded passwords, try/except/pass, subprocess
+    "BLE",  # blind except
+    "PTH",  # pathlib over os.path
+    "T20",  # no print() in library code
+    "DTZ",  # naive datetimes
+    "TID",  # banned imports
+]
+ignore = ["S101"]  # assert is fine in tests; src is checked by mypy instead
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S108", "S311", "T20", "BLE001", "PT011"]
+"scripts/**" = ["T20"]
+"src/vigil/cli/**" = ["T20"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vigil"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["vigil"]
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["vigil.core.*", "vigil.domain.*"]
+disallow_any_explicit = true  # 01 §12: domain/ and core/ forbid Any
+
+[[tool.mypy.overrides]]
+module = ["cv2", "cv2.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --timeout=60"
+markers = [
+    "slow: long-running tests, excluded from the default gate",
+    "webcam: needs a physical webcam; run with --webcam",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src/vigil"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = ['pragma: no cover', 'if TYPE_CHECKING:', '^\s*\.\.\.$', 'raise NotImplementedError']
+
+# ---------------------------------------------------------------- import-linter
+# Layer contracts from docs/architecture/01 §5 and 02 §5. Only packages that exist are
+# listed; each phase adds its engines here. TYPE_CHECKING imports are excluded because
+# core/protocols must name domain types in annotations (docs/adr/0011).
+[tool.importlinter]
+root_package = "vigil"
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "layers"
+type = "layers"
+layers = [
+    "vigil.cli",
+    "vigil.pipeline",
+    "vigil.ingest | vigil.vision",
+    "vigil.domain",
+    "vigil.config : vigil.observability",
+    "vigil.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "domain-purity"
+type = "forbidden"
+source_modules = ["vigil.domain", "vigil.core"]
+forbidden_modules = ["numpy", "cv2", "torch", "pydantic", "sqlalchemy", "structlog", "yaml", "psutil", "typer", "rich"]
