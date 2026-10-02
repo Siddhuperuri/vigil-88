@@ -207,7 +207,7 @@ def test_a_missing_model_is_a_capability_error_naming_the_fix(
 
 def test_an_unlisted_model_file_is_refused(tmp_path: Path, clock: ManualClock) -> None:
     write_model(tmp_path, register=False)
-    with pytest.raises(CapabilityError, match="not listed in MANIFEST.json"):
+    with pytest.raises(CapabilityError, match=r"not listed in MANIFEST.json"):
         OnnxDetector(
             cfg=cfg(), models_dir=tmp_path, clock=clock, logger=get_logger("t"), providers=CPU_ONLY
         )
@@ -239,7 +239,7 @@ def test_a_file_that_is_not_an_onnx_model_fails_cleanly(tmp_path: Path, clock: M
     junk = tmp_path / "fake_yolox.onnx"
     junk.write_bytes(b"this is not a model" * 50)
     record(tmp_path, junk)  # integrity is fine; the CONTENT is garbage
-    with pytest.raises(CapabilityError, match="failed to load fake_yolox.onnx on CPU"):
+    with pytest.raises(CapabilityError, match=r"failed to load fake_yolox.onnx on CPU"):
         OnnxDetector(
             cfg=cfg(), models_dir=tmp_path, clock=clock, logger=get_logger("t"), providers=CPU_ONLY
         )
@@ -284,7 +284,7 @@ def test_weights_must_be_a_bare_name_not_a_path(tmp_path: Path, clock: ManualClo
 
 
 def test_the_onnx_backend_requires_weights() -> None:
-    with pytest.raises(ValueError, match="requires vision.weights"):
+    with pytest.raises(ValueError, match=r"requires vision.weights"):
         VisionConfig(backend="onnxruntime")
 
 

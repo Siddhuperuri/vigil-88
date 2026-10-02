@@ -101,7 +101,7 @@ def test_fetch_is_idempotent_and_does_not_redownload(tmp_path: Path, clock: Manu
 def test_a_short_download_is_rejected_and_leaves_nothing_behind(
     tmp_path: Path, clock: ManualClock
 ) -> None:
-    with pytest.raises(CapabilityError, match="expected .* bytes, received"):
+    with pytest.raises(CapabilityError, match=r"expected .* bytes, received"):
         fetch_model(SPEC, tmp_path, clock=clock, opener=opener_for(PAYLOAD[:-5]))
     assert not (tmp_path / "toy.onnx").exists() and not list(tmp_path.glob("*.part"))
     assert load_manifest(tmp_path) == {}
@@ -150,7 +150,7 @@ def test_tampering_is_caught_even_when_the_size_is_unchanged(
 def test_a_deleted_file_names_the_fix(tmp_path: Path) -> None:
     with pytest.raises(CapabilityError, match="vigil models fetch yolox_nano"):
         verify_model(tmp_path, "yolox_nano")
-    with pytest.raises(CapabilityError, match="vigil models register mine.onnx"):
+    with pytest.raises(CapabilityError, match=r"vigil models register mine.onnx"):
         verify_model(tmp_path, "mine.onnx")
 
 
