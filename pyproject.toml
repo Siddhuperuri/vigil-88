@@ -107,7 +107,8 @@ source = ["src/vigil"]
 branch = true
 
 [tool.coverage.report]
-exclude_lines = ['pragma: no cover', 'if TYPE_CHECKING:', '^\s*\.\.\.$', 'raise NotImplementedError']
+# Lines ending in `...` are protocol/stub declarations, not executable behaviour.
+exclude_lines = ['pragma: no cover', 'if TYPE_CHECKING:', '\.\.\.$', 'raise NotImplementedError']
 
 # ---------------------------------------------------------------- import-linter
 # Layer contracts from docs/architecture/01 §5 and 02 §5. Only packages that exist are
