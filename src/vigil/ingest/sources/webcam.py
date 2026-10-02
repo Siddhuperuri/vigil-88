@@ -27,13 +27,14 @@ from vigil.domain.camera import SourceSpec
 from vigil.ingest.pixel_buffer import NumpyPixelBuffer
 
 _COLOR_NDIM = 3
+_IS_WINDOWS = sys.platform == "win32"  # not inlined: keeps mypy from pruning the fallback
 _GRAY_NDIM = 2
 
 
 class CaptureLike(Protocol):
     """The slice of cv2.VideoCapture used here; lets tests substitute a fake device."""
 
-    def isOpened(self) -> bool: ...  # noqa: N802 - mirrors OpenCV
+    def isOpened(self) -> bool: ...  # mirrors the OpenCV method name
     def read(self) -> tuple[bool, object]: ...
     def set(self, prop: int, value: float) -> bool: ...
     def get(self, prop: int) -> float: ...
@@ -44,7 +45,7 @@ CaptureFactory = Callable[[int, int], CaptureLike]
 
 
 def _default_factory(index: int, api: int) -> CaptureLike:
-    return cv2.VideoCapture(index, api)  # type: ignore[no-any-return]
+    return cv2.VideoCapture(index, api)
 
 
 def backend_order(name: str) -> list[tuple[str, int]]:
@@ -52,7 +53,7 @@ def backend_order(name: str) -> list[tuple[str, int]]:
         return [("msmf", cv2.CAP_MSMF)]
     if name == "dshow":
         return [("dshow", cv2.CAP_DSHOW)]
-    if sys.platform == "win32":
+    if _IS_WINDOWS:
         return [("msmf", cv2.CAP_MSMF), ("dshow", cv2.CAP_DSHOW)]
     return [("any", cv2.CAP_ANY)]
 
@@ -66,7 +67,7 @@ class WebcamSource:
         self._spec = spec
         opts = spec.options
         index = opts.get("device_index")
-        if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise SourceError("webcam source requires an integer device_index", retryable=False)
         self._index = index
         self._backend = str(opts.get("backend", "auto"))

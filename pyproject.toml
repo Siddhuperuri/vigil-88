@@ -110,6 +110,7 @@ exclude_lines = ['pragma: no cover', 'if TYPE_CHECKING:', '^\s*\.\.\.$', 'raise 
 # core/protocols must name domain types in annotations (docs/adr/0011).
 [tool.importlinter]
 root_package = "vigil"
+include_external_packages = true
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]

@@ -24,11 +24,9 @@ from vigil.config.schema.severity import SeverityConfig
 from vigil.config.schema.system import LoggingConfig, ObservabilityConfig, PathsConfig
 from vigil.config.schema.vision import VisionConfig
 
-CONFIG_SCHEMA_VERSION = 1
-
 
 class Settings(ConfigModel):
-    version: Literal[1] = CONFIG_SCHEMA_VERSION
+    version: Literal[1] = 1
     paths: PathsConfig = Field(default_factory=PathsConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)

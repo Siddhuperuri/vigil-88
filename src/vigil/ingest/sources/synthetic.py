@@ -35,8 +35,9 @@ class SyntheticSource:
         count = opts.get("frame_count")
         self._frame_count = int(count) if count is not None else None
         if min(self._width, self._height) < _MIN_DIM_PX or self._fps <= 0:
-            raise SourceError("synthetic source: dimensions too small or fps not positive",
-                              retryable=False)
+            raise SourceError(
+                "synthetic source: dimensions too small or fps not positive", retryable=False
+            )
         rng = seeded_rng(int(opts.get("seed", 0)), "synthetic")
         self._phase = rng.randrange(0, 200)
         self._colour = tuple(rng.randrange(120, 256) for _ in range(3))

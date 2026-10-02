@@ -3,6 +3,7 @@ retry in lockstep and hammer it after a network blip."""
 
 from __future__ import annotations
 
+import math
 import random
 
 
@@ -17,6 +18,6 @@ def reconnect_delay_ms(
     """`attempt` is 0-based. Result is jittered by +/- `jitter_ratio` and never exceeds `max_ms`."""
     if attempt < 0:
         raise ValueError("attempt must be >= 0")
-    capped = min(base_ms * (2 ** min(attempt, 62)), max_ms)
+    capped = min(math.ldexp(base_ms, min(attempt, 62)), max_ms)
     jittered = capped * (1.0 + rng.uniform(-jitter_ratio, jitter_ratio))
     return max(0.0, min(jittered, max_ms))

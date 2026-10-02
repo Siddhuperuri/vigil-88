@@ -60,7 +60,9 @@ class SourceConfig(ConfigModel):
                     raise ValueError("a webcam source requires device_index")
             case "rtsp":
                 if not self.url or not self.url.startswith(_RTSP_SCHEMES):
-                    raise ValueError("an rtsp source requires url starting with rtsp:// or rtsps://")
+                    raise ValueError(
+                        "an rtsp source requires url starting with rtsp:// or rtsps://"
+                    )
             case "video_file" | "image":
                 if self.path is None:
                     raise ValueError(f"a {self.kind} source requires path")

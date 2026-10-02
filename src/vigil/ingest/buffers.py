@@ -42,7 +42,7 @@ class LatestFrameSlot:
         self._frame: Frame | None = None
         self._closed = False
 
-    def put(self, frame: Frame, stop: threading.Event) -> PutOutcome:  # noqa: ARG002
+    def put(self, frame: Frame, stop: threading.Event) -> PutOutcome:
         with self._cond:
             if self._closed:
                 return PutOutcome.CLOSED

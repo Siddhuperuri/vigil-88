@@ -23,7 +23,7 @@ T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
-class _Entry(Generic[T]):  # noqa: UP046 - kept simple for mypy --strict across 3.11
+class _Entry(Generic[T]):
     plugin: T
     requires: frozenset[Capability]
     optional: frozenset[Capability]
@@ -54,9 +54,7 @@ class PluginRegistry(Generic[T]):
         except KeyError:
             raise CapabilityError(f"unknown plugin {plugin_id!r}") from None
 
-    def availability(
-        self, plugin_id: str, available: frozenset[Capability]
-    ) -> AvailabilityReport:
+    def availability(self, plugin_id: str, available: frozenset[Capability]) -> AvailabilityReport:
         if plugin_id not in self._entries:
             raise CapabilityError(f"unknown plugin {plugin_id!r}")
         e = self._entries[plugin_id]

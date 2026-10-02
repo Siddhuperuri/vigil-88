@@ -20,7 +20,7 @@ from vigil.config.schema.pipeline import IngestConfig
 from vigil.core.clock import Clock
 from vigil.core.errors import SourceError, TransientSourceError
 from vigil.core.protocols.logger import LoggerLike
-from vigil.core.protocols.source import FrameSource, SourceTiming
+from vigil.core.protocols.source import FrameSource
 from vigil.domain.enums import CameraState
 from vigil.domain.frame import Frame, FrameMeta
 from vigil.ingest.backoff import reconnect_delay_ms
@@ -234,5 +234,6 @@ class CaptureWorker:
 
     def close(self) -> None:
         self._source.close()
-        if self._health.state not in (CameraState.FAILED, CameraState.OFFLINE, CameraState.DISABLED):
+        terminal = (CameraState.FAILED, CameraState.OFFLINE, CameraState.DISABLED)
+        if self._health.state not in terminal:
             self._health.mark_offline("stopped")

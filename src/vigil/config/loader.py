@@ -209,9 +209,7 @@ def _interpolate_string(
             if value is None:
                 if sep:
                     return default
-                raise ConfigError(
-                    f"environment variable {name!r} referenced at {where} is not set"
-                )
+                raise ConfigError(f"environment variable {name!r} referenced at {where} is not set")
             return value
         target = _lookup(root, expr)
         if target is None:

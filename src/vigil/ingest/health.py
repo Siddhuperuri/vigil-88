@@ -191,7 +191,8 @@ class CameraHealthTracker:
     def _degraded_reasons(self, now_ns: int) -> list[str]:
         reasons: list[str] = []
         if self._watch_stall:
-            baseline = self._last_frame_mono if self._last_frame_mono is not None else self._online_mono
+            last = self._last_frame_mono
+            baseline = last if last is not None else self._online_mono
             if baseline is not None:
                 interval_ms = MS_PER_S / self._expected_fps if self._expected_fps else 0.0
                 threshold_ms = max(
@@ -207,9 +208,7 @@ class CameraHealthTracker:
                 and self._expected_fps is not None
                 and fps < self._cfg.min_fps_ratio * self._expected_fps
             ):
-                reasons.append(
-                    f"low fps: {fps:.1f} measured vs {self._expected_fps:.1f} expected"
-                )
+                reasons.append(f"low fps: {fps:.1f} measured vs {self._expected_fps:.1f} expected")
         window_ns = ms_to_ns(self._cfg.decode_error_window_ms)
         while self._error_times and now_ns - self._error_times[0] > window_ns:
             self._error_times.popleft()
