@@ -27,6 +27,7 @@ from vigil.core.clock import Clock
 from vigil.core.protocols.logger import LoggerLike
 from vigil.core.units import ns_to_ms
 from vigil.domain.camera import CameraHealth
+from vigil.domain.mute import Mute
 from vigil.events.binding import BindingReport
 from vigil.observability.metrics import MetricsRegistry
 from vigil.pipeline.analysis import AnalysisPipeline, AnalysisTick
@@ -34,7 +35,6 @@ from vigil.pipeline.queues import RoundRobinDropQueue
 from vigil.pipeline.results import AnalysedFrame
 from vigil.scene.analyzer import SceneAnalyzer
 from vigil.tracking.bytetrack import ByteTracker
-from vigil.verification.validators.context import Mute
 
 HealthLookup = Callable[[str], CameraHealth | None]
 MuteLookup = Callable[[str], Sequence[Mute]]
@@ -141,7 +141,7 @@ class AnalysisWorker:
 
         runtime.frames_analysed += 1
         self._record(runtime, tick, started_ns, analysed)
-        if tick.scored or tick.records or tick.released:
+        if tick.has_work:
             self._sink(tick)
 
     def _record(

@@ -9,6 +9,7 @@ from typing import Self
 from pydantic import Field, field_validator, model_validator
 
 from vigil.config.schema.base import ConfigModel
+from vigil.config.schema.taxonomy import EVENT_TYPE_NAMES
 from vigil.config.schema.zones import parse_clock
 
 WEIGHT_SUM_TOLERANCE = 1e-6
@@ -116,10 +117,9 @@ class SeverityConfig(ConfigModel):
 
     @model_validator(mode="after")
     def _known_types(self) -> Self:
-        from vigil.domain.enums import EventType
-
-        known = {e.value for e in EventType}
-        unknown = sorted(set(self.base_by_type) - known)
+        # The names come from `schema/taxonomy.py` rather than from `domain.enums`, because
+        # config (L1) must not import domain (L2). A test proves the mirror is exact.
+        unknown = sorted(set(self.base_by_type) - EVENT_TYPE_NAMES)
         if unknown:
             raise ValueError(
                 f"severity.base_by_type names unknown event types: {', '.join(unknown)}"

@@ -133,6 +133,14 @@ class SpillQueue(Generic[T]):
     def spilled_total(self) -> int:
         return self._spilled
 
+    def set_spill(self, spill: Callable[[T], None]) -> None:
+        """Replace the spill sink after construction.
+
+        The response worker is its own spill sink and needs the queue to exist first; the sink
+        only logs and counts, so there is no runtime cycle (see `pipeline/response_stack.py`).
+        """
+        self._spill = spill
+
     def put(self, item: T, *, timeout_s: float, stop: threading.Event | None = None) -> bool:
         """True when the item entered the queue, False when it was spilled instead.
 

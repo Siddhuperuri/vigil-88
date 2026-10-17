@@ -24,6 +24,8 @@ class ResolvedPaths:
     db_dir: Path
     bench_dir: Path
     log_file: Path
+    database_file: Path
+    alerts_file: Path
 
     def directories(self) -> tuple[Path, ...]:
         return (
@@ -61,6 +63,9 @@ def resolve_paths(settings: Settings, *, config_dir: Path) -> ResolvedPaths:
     data_dir = absolute(cfg.data_dir)
     logs_dir = absolute(cfg.logs_dir) if cfg.logs_dir else data_dir / "logs"
     json_file = settings.logging.json_file
+    db_dir = absolute(cfg.db_dir) if cfg.db_dir else data_dir / "db"
+    storage_file = settings.storage.database_file
+    alerts_file = settings.alerts.jsonl_file
     return ResolvedPaths(
         base_dir=base_dir,
         config_dir=config_dir.resolve(),
@@ -68,7 +73,9 @@ def resolve_paths(settings: Settings, *, config_dir: Path) -> ResolvedPaths:
         models_dir=absolute(cfg.models_dir) if cfg.models_dir else data_dir / "models",
         logs_dir=logs_dir,
         evidence_dir=absolute(cfg.evidence_dir) if cfg.evidence_dir else data_dir / "evidence",
-        db_dir=absolute(cfg.db_dir) if cfg.db_dir else data_dir / "db",
+        db_dir=db_dir,
         bench_dir=absolute(cfg.bench_dir) if cfg.bench_dir else data_dir / "bench",
         log_file=absolute(json_file) if json_file else logs_dir / "vigil.jsonl",
+        database_file=absolute(storage_file) if storage_file else db_dir / "vigil.sqlite3",
+        alerts_file=absolute(alerts_file) if alerts_file else logs_dir / "alerts.jsonl",
     )

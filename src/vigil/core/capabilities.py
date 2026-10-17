@@ -40,13 +40,22 @@ HOW_TO_PROVIDE: Mapping[Capability, str] = MappingProxyType(
         Capability.DETECTION: "a detector backend that produces detections (not the null detector)",
         Capability.CLASSIFICATION: "a classifier model and engine (planned: P6)",
         Capability.SEGMENTATION: "a segmentation model and engine (not planned)",
-        Capability.TRACKING: "the tracking engine (planned: P2)",
-        Capability.VELOCITY: "the tracking engine with enough history (planned: P2)",
+        Capability.TRACKING: "the tracking engine, enabled by tracking.enabled",
+        Capability.VELOCITY: (
+            "the tracking engine; a velocity is reported once a track has "
+            "tracking.min_history_for_velocity matched points"
+        ),
         Capability.POSE: "a pose model (not planned)",
-        Capability.ZONES: "zone definitions loaded for this camera (planned: P2)",
+        Capability.ZONES: (
+            "a zone file for this camera: set cameras.<id>.zones_ref and create "
+            "config/zones/<ref>.zones.yaml with at least one zone"
+        ),
         Capability.GROUND_PLANE: "a calibrated homography for this camera (planned: P5)",
         Capability.OPTICAL_FLOW: "an optical-flow stage (not planned)",
-        Capability.SCENE_STABILITY: "the scene analyzer (planned: P2)",
+        Capability.SCENE_STABILITY: (
+            "the scene analyzer with an array backend installed (the capture extra), "
+            "and scene.stability_enabled"
+        ),
     }
 )
 

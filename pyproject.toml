@@ -162,7 +162,8 @@ layers = [
     "vigil.cli",
     "vigil.api | vigil.bench",
     "vigil.pipeline",
-    "vigil.ingest | vigil.vision | vigil.tracking | vigil.scene | vigil.temporal | vigil.events | vigil.verification | vigil.severity",
+    "vigil.ingest | vigil.vision | vigil.tracking | vigil.scene | vigil.temporal | vigil.events | vigil.verification | vigil.severity | vigil.response",
+    "vigil.persistence",
     "vigil.domain",
     "vigil.config : vigil.observability",
     "vigil.core",
@@ -185,6 +186,7 @@ modules = [
     "vigil.events",
     "vigil.verification",
     "vigil.severity",
+    "vigil.response",
 ]
 
 [[tool.importlinter.contracts]]

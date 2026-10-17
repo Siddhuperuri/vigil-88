@@ -3,41 +3,60 @@
 The honest gap between the architecture and the implementation. Updated at every phase.
 Nothing here is hidden behind a control that appears to work (README rule 1).
 
-**Current phase: P3 (event intelligence), on an incomplete P2.** The event chain is built and
-verified: observations accumulate as log-odds with half-life decay, cross dual thresholds with
-hysteresis, pass eleven validators, and are scored into a severity band. The first production
-module (`intrusion`) is implemented and passes the module contract suite.
+**Current phase: P4 (incidents, persistence, evidence), on a now-complete P2.**
 
-**P3 runs from `SceneState` onward, and nothing yet produces a `SceneState` from a camera.**
-P2 is partially implemented in this tree: zone configuration and a Kalman filter exist, but the
-tracker's association and lifecycle, and the whole `scene/` engine (occupancy, relations,
-stability, `SceneState` assembly) do not. So the chain is exercised by scripted scenes in tests
-and is **not wired into the live pipeline**. On a running camera, `TRACKING`, `ZONES`,
-`VELOCITY` and `SCENE_STABILITY` are ungranted, which means `intrusion` reports UNAVAILABLE with
-the missing capability named — the capability system working as designed, not a defect. No
-incident is created by anything, in any phase so far: P4 owns that.
+The chain runs end to end on a live camera. Frames are captured, inferred, tracked and assembled
+into a `SceneState`; modules observe it; observations accumulate as log-odds with half-life decay,
+cross dual thresholds with hysteresis, pass eleven validators, and are scored into a severity
+band. A verified event becomes a durable incident with its explanation, its evidence and its
+audit trail, and an operator can acknowledge, dismiss, annotate or escalate it.
+
+`tests/integration/test_incident_workflow.py` drives that whole path through a real
+`Application` on real threads against a real SQLite file, and asserts that one sustained
+intrusion produces **exactly one** incident, that its evidence is hashed and self-describing,
+and that both survive a restart.
+
+**P5 and P6 are not started.** `person_down`, `abandoned_object`, analytics, reporting and
+fire/smoke do not exist. The sections below say what else does not.
 
 ## What does not exist
 
 | Area | State | Planned |
 |------|-------|---------|
-| Tracker association and lifecycle | A Kalman box filter exists (`tracking/kalman.py`). Detection-to-track association, track lifecycle, epoch reset and velocity estimation do not. `TRACKING` and `VELOCITY` stay ungranted | P2 |
-| Scene engine | Zone *configuration* loads and validates (`config/zones.py`). The analyzer that turns tracks plus zones into a `SceneState` — occupancy, enter/exit diffing, spatial relations, the stability signal — does not exist, so `ZONES` and `SCENE_STABILITY` stay ungranted | P2 |
-| Event chain wired to live cameras | Built and tested from `SceneState` onward, but nothing produces a `SceneState` from frames, so the chain does not run on a live camera. Driven by scripted scenes in tests | P2, then wiring |
-| Arbitration: merge and spatial coalesce | The **subsume** and **escalate** rules of 06 §7 are implemented. **Merge** needs `FIRE`/`SMOKE` and **spatial coalesce** needs `region:` subjects; neither event type has a module, so both rules would be written against events that cannot occur. `arbitration.merge_window_ms` exists as a key | P6 |
+| Ground-plane calibration, velocity in m/s | Not built. `scene/calibration.py` does not exist, `GROUND_PLANE` is never granted, and every reported velocity is in **px/s and labelled as such** — in the API, in `tracks.json`, and in the UI. 10-roadmap lists this under P5; the P4 brief did not ask for it | P5 |
+| Post-roll clip on a build with no MP4 encoder | Clips are muxed with OpenCV's `VideoWriter` using `mp4v`, and availability depends on what the local OpenCV build was compiled with. When no writer can be opened the clip is **absent and the failure is named** in the incident's manifest, with `evidence_status = partial`. There is no silent fallback format and no zero-byte placeholder | as needed |
+| Arbitration: merge and spatial coalesce | The **subsume** and **escalate** rules of 06 §7 are implemented. **Merge** needs `FIRE`/`SMOKE` and **spatial coalesce** needs `region:` subjects; neither event type has a module | P6 |
 | Sequence patterns in a shipped module | `temporal/sequence.py` implements the ordered-pattern matcher of 04 §6.4 and is unit-tested, but no shipped module uses it yet | P5 (`abandoned_object`) |
-| Candidate persistence | `CandidateRecord` is produced for every verified, rejected and expired candidate, including the accumulator trace. Nothing writes it to `candidate_events`; it is returned from the analysis tick and discarded | P4 |
-| Rejection feed in the API and console | Records exist in memory per tick. No API route and no console view consume them | P4 |
-| Threshold tuning against real footage | **Not done.** Every value in `temporal`, `verification` and `severity` is the architecture's starting default. Tuning needs a live pipeline and 30 minutes of real footage, which needs P2 | after P2 |
-| Incidents, operator actions | `IncidentStatus`, transitions and `Incident` exist as domain types. Nothing constructs an incident, and no operator action is implemented. Mutes are honoured by a validator but there is no way to create one | P4 |
-| Alert channels | Protocol only | after P4 |
-| Web operations console | Not built. A **provisional viewer** at `/` shows the live streams and metrics; it is not the console | later |
+| Threshold tuning against real footage | **Not done.** Every value in `temporal`, `verification` and `severity` is the architecture's starting default. The tuning observations recorded below still stand, and the dismissal rate the console now records is the measurement that should drive it | next |
+| Event modules beyond `intrusion` | `person_down`, `abandoned_object`, `fire`, `smoke` and the rest have entries in `EventType` and no code. `EventType` is the taxonomy, not a promise of functionality (05 §3) | P5, P6 |
+| Analytics and reporting | Not built. No `analytics/` package, no aggregations, no CSV/JSON export, no Analytics view | P5 |
+| Degradation ladder, supervisor/restart | Not built. The scheduler bounds load, but nothing lowers resolution or demotes cameras under overload, and a crashed worker is reported rather than restarted | P6 |
+| Web operations console | Not built. The **provisional viewer** at `/` now shows the live streams, the metrics, the incident list, an incident's full explanation and evidence, the real operator actions and the mute countdown. It follows the console's honesty rules (a disabled control says why) but it is not the seven-view console of 08 | later |
 | RTSP / IP cameras | Config validates (and rejects inline credentials). Such a camera is reported **FAILED: not implemented** | later |
 | Video-file replay, image input | Not built | later |
 | Ultralytics backend | Deliberately not built (AGPL, drags in PyTorch); see ADR 0012 | only if needed |
-| Degradation ladder, supervisor/restart | Not built. The scheduler bounds load, but nothing lowers resolution or demotes cameras under overload, and a crashed worker is reported, not restarted | later |
 | Windows Credential Manager (`keyring`) | Not implemented; secrets come from environment variables or `.env` | when needed |
-| Ground-plane calibration, m/s velocity | Not built | P5 |
+| Alert channels beyond console, jsonl and webhook | Email, SMS and MQTT are not implemented and are **absent from the channel list**, not stubbed. A configured channel that cannot deliver reports `is_available()` false with its reason | on demand |
+| Incident export bundles | `POST`-able operator actions, the evidence manifest and per-file download exist. The single-file **report bundle** of 06 §10 (`analytics/export.py`) does not | P5 |
+| Soak testing | **Not run.** P4's exit criteria call for an 8-hour synthetic soak with bounded RSS and handle count. Not executed in this environment; the evidence ring's byte ceiling is asserted by a test over a short run only | P6 |
+
+## Incidents and evidence: what P4 proves and what it does not
+
+1. **The wiring is proven, end to end.** One running `Application`, real threads, real SQLite:
+   frames become exactly one incident, with its explanation, its hashed evidence and its audit
+   trail, surviving a restart and a clean shutdown with `PRAGMA integrity_check` returning `ok`
+   and no evidence row orphaned from its incident.
+2. **The failure paths are proven in isolation.** A full disk, an unwritable directory, an
+   encoder that produces nothing, a write interrupted mid-flight, a tampered evidence path, a
+   hash mismatch on read, a retention sweep that cannot delete a file — each is tested, and each
+   produces a named failure rather than a placeholder. Evidence is never fabricated.
+3. **Real-world detection performance is still unknown, and still not claimed.** P4 changes
+   nothing about perception. What it adds is the *measurement*: the dismissal rate is now
+   recorded per incident, which is the only honest signal about false positives (06 §9), and
+   `candidate_events` keeps every rejection with the validator that caused it.
+4. **The evidence memory ceiling is asserted over seconds, not hours.** `preroll_max_mb` is
+   enforced by the buffer and checked by a test during a short run. The 8-hour soak that P4's
+   exit criteria ask for has **not** been run.
 
 ## Event intelligence: what the P3 tests do and do not prove
 
@@ -195,5 +214,13 @@ assumes when it says the narrow stages can afford to be careful.
 - **The synthetic source is a test pattern**, not a scene simulator.
 - **Hardware coverage.** The real-webcam test is opt-in (`pytest --webcam`) because it lights the
   camera. Behaviour on other cameras and drivers is unverified.
-- **Real-world false-positive rate is unknowable from here.** It needs real footage and, from P4,
-  the measured dismissal rate.
+- **Real-world false-positive rate is unknowable from here.** It needs real footage and the
+  measured dismissal rate, which is now recorded but has no data behind it yet.
+- **Storage failure is visible, not survivable in every form.** A write that fails is counted,
+  logged and surfaced; the incident is still persisted where it can be (fail open, 01 §6). A
+  database file that cannot be opened at all fails startup with the path and the reason, which
+  is deliberate: running a detection system that cannot record what it finds is worse than not
+  starting.
+- **`storage.enabled = false` is supported and visibly different.** Events are analysed and
+  nothing is stored; `GET /api/v1/system/health` reports `persists_incidents: false` and the
+  viewer says so rather than showing an empty incident list as if it were good news.

@@ -23,6 +23,13 @@ $Floors = @(
     @{ Path = "src/vigil/pipeline/*";      Min = 90 },
     @{ Path = "src/vigil/api/*";           Min = 90 },
     @{ Path = "src/vigil/bench/*";         Min = 88 },
+    @{ Path = "src/vigil/tracking/*";      Min = 95 },
+    @{ Path = "src/vigil/scene/*";         Min = 90 },
+    # Storage and response are I/O-heavy, so the floors are lower than the decision engines'
+    # -- but the parts that must not be wrong (the query builders, the lifecycle machine, the
+    # evidence failure paths) are covered well above these numbers.
+    @{ Path = "src/vigil/persistence/*";   Min = 85 },
+    @{ Path = "src/vigil/response/*";      Min = 90 },
     # The logic that decides whether to alarm. Highest floors in the project (09 section 3):
     # a bug in temporal/ makes every event's confidence wrong, and one in verification/
     # decides what an operator never sees.

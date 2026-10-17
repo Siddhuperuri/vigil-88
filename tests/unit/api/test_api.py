@@ -94,7 +94,14 @@ def test_health_reports_the_real_detector_and_grants_detection(running) -> None:
     body = client.get("/api/v1/system/health").json()
     assert body["state"] == "running" and body["detector"]["backend"] == "onnxruntime"
     available = {c["capability"] for c in body["capabilities"] if c["available"]}
-    assert available == {"detection"}  # and nothing else: tracking, zones, ... stay unavailable
+    # DETECTION from the detector; TRACKING, VELOCITY and SCENE_STABILITY from the engines that
+    # supply them. ZONES is per camera and this fixture defines no zone file, so it stays
+    # unavailable -- which is what a module requiring it will be told.
+    assert available == {"detection", "tracking", "velocity", "scene_stability"}
+    unavailable = {
+        c["capability"]: c["how_to_provide"] for c in body["capabilities"] if not c["available"]
+    }
+    assert unavailable["zones"]  # an unavailable capability always says what would provide it
     assert body["detector"]["weights_sha256"]
 
 

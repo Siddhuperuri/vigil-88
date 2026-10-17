@@ -132,6 +132,11 @@ class HealthOut(_Out):
     uptime_ms: float | None
     detector: ModelOut | None
     capabilities: list[CapabilityOut]
+    # Whether verified events are being stored. False is a legitimate configuration, and the
+    # console must be able to say so rather than showing an empty incident list as if it were
+    # good news (08 §8).
+    persists_incidents: bool = False
+    schema_version: int | None = None
 
 
 class LatencyOut(_Out):

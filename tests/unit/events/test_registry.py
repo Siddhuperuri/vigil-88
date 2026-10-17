@@ -164,7 +164,10 @@ def test_an_unavailable_module_s_reason_names_the_fix() -> None:
     )
     assert entry.reason is not None
     assert "zones" in entry.reason
-    assert "zone definitions loaded for this camera" in entry.reason
+    # The reason has to be actionable, not merely accurate: it names the config key and the
+    # file an operator has to create (04 §4).
+    assert "zones_ref" in entry.reason
+    assert "config/zones/" in entry.reason
 
 
 def test_a_module_missing_only_an_optional_capability_is_degraded() -> None:

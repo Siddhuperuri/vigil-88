@@ -38,3 +38,7 @@ class StorageConfig(ConfigModel):
     # Pagination ceiling for incident and candidate listings, so one API call cannot ask for
     # the whole table.
     max_page_size: int = Field(default=200, ge=1, le=1000)
+    # An open incident's `last_observed` grows while evidence keeps arriving (06 §9), but it is
+    # not worth an UPDATE per analysed frame: at 20 fps that is 20 writes a second per open
+    # situation, to move a timestamp by 50 ms. This throttles it to one write per interval.
+    incident_extend_interval_ms: int = Field(default=1000, ge=0)

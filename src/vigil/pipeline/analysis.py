@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from vigil.config.schema.modules import ArbitrationConfig, TemporalConfig, VerificationConfig
 from vigil.core.capabilities import Availability
@@ -74,8 +75,35 @@ class ScoredEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class OngoingSituation:
+    """An already-confirmed situation that is still producing evidence.
+
+    Promotion happens once per episode -- an active accumulator is not promoted again, which is
+    what makes one intrusion one incident. But 06 §9 requires a live incident's `last_observed`
+    to follow the evidence, so the fact that evidence is *still arriving* has to reach the
+    response stage by some route other than a new candidate. This is that route.
+
+    Throttled by `storage.incident_extend_interval_ms`, because the only thing it changes is a
+    timestamp and a duration.
+    """
+
+    module_id: str
+    event_type: EventType
+    subject: SubjectKey
+    last_observation_ns: int
+    confidence_ratio: float
+    log_odds: float
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisTick:
-    """Everything one analysed frame produced. Deterministic given the same scene and state."""
+    """Everything one analysed frame produced. Deterministic given the same scene and state.
+
+    `scene` travels with the tick because P4's evidence needs the scene *at confirmation* -- the
+    tracks and zones as they were when the decision was made, not as they are when the response
+    worker gets round to writing the dump. It is a frozen value holding no pixels, so carrying it
+    across the queue costs a reference.
+    """
 
     camera_id: str
     t_monotonic_ns: int
@@ -86,6 +114,10 @@ class AnalysisTick:
     module_failures: tuple[ModuleFailure, ...] = ()
     epoch_reset: bool = False
     active_candidates: int = 0
+    ongoing: tuple[OngoingSituation, ...] = ()
+    scene: SceneState | None = None
+    tracker_epoch: int = 0
+    wall_utc: datetime | None = None
 
     @property
     def verified(self) -> tuple[VerifiedEvent, ...]:
@@ -94,6 +126,11 @@ class AnalysisTick:
     @property
     def rejected(self) -> tuple[CandidateRecord, ...]:
         return tuple(r for r in self.records if r.outcome is not CandidateOutcome.VERIFIED)
+
+    @property
+    def has_work(self) -> bool:
+        """Whether this tick is worth handing to the response worker at all."""
+        return bool(self.scored or self.records or self.released or self.ongoing)
 
 
 class AnalysisPipeline:
@@ -106,6 +143,8 @@ class AnalysisPipeline:
         "_camera_trust",
         "_clock",
         "_events",
+        "_extend_interval_ms",
+        "_extended_ns",
         "_instability_since_ns",
         "_ledger",
         "_log",
@@ -135,6 +174,7 @@ class AnalysisPipeline:
         logger: LoggerLike,
         metrics: MetricsRegistry,
         camera_trust_ratio: float = 1.0,
+        extend_interval_ms: float = 1000.0,
     ) -> None:
         self._camera_id = camera_id
         self._events = events
@@ -149,9 +189,11 @@ class AnalysisPipeline:
         self._log = logger.bind(camera_id=camera_id)
         self._metrics = metrics
         self._camera_trust = camera_trust_ratio
+        self._extend_interval_ms = extend_interval_ms
         self._mutes: tuple[Mute, ...] = ()
         self._camera_health: CameraHealth | None = None
         self._instability_since_ns: int | None = None
+        self._extended_ns: dict[tuple[str, SubjectKey], int] = {}
 
     @property
     def camera_id(self) -> str:
@@ -207,6 +249,7 @@ class AnalysisPipeline:
                 verified.append(result.event)
 
         scored = self._score(verified, scene, now_ns)
+        ongoing = self._ongoing(now_ns, exclude={s.candidate.subject for s in scored})
         released = self._release(now_ns)
 
         self._store.prune_idle(now_ns)
@@ -220,9 +263,13 @@ class AnalysisPipeline:
             scored=scored,
             records=tuple(records),
             released=released,
+            ongoing=ongoing,
             module_failures=observed.failures,
             epoch_reset=observed.epoch_reset,
             active_candidates=len(self._store),
+            scene=scene,
+            tracker_epoch=max((t.tracker_epoch for t in scene.tracks), default=0),
+            wall_utc=scene.frame_meta.wall_utc,
         )
 
     # ---------------------------------------------------------------- stages
@@ -296,6 +343,47 @@ class AnalysisPipeline:
             )
         return tuple(scored)
 
+    def _ongoing(self, now_ns: int, *, exclude: set[SubjectKey]) -> tuple[OngoingSituation, ...]:
+        """Active accumulators still receiving evidence, at most one report per interval.
+
+        A subject that produced a scored event on this very tick is excluded: that event
+        already carries its own timestamps, and reporting both would make the response stage
+        extend an incident it is about to create.
+        """
+        interval_ms = self._extend_interval_ms
+        out: list[OngoingSituation] = []
+        for accumulator in self._store:
+            if not accumulator.is_active:
+                continue
+            _camera_id, module_id, subject = accumulator.key
+            if subject in exclude:
+                continue
+            last_ns = accumulator.last_observation_ns
+            if last_ns is None:
+                continue
+            key = (module_id, subject)
+            previous = self._extended_ns.get(key)
+            if previous is not None and ns_to_ms(last_ns - previous) < interval_ms:
+                continue
+            if previous == last_ns:
+                continue  # no new observation since the last report
+            event_type = self._event_type_for(module_id)
+            if event_type is None:
+                continue
+            self._extended_ns[key] = last_ns
+            state = accumulator.state_at(now_ns)
+            out.append(
+                OngoingSituation(
+                    module_id=module_id,
+                    event_type=event_type,
+                    subject=subject,
+                    last_observation_ns=last_ns,
+                    confidence_ratio=state.confidence_ratio,
+                    log_odds=state.log_odds,
+                )
+            )
+        return tuple(out)
+
     def _release(self, now_ns: int) -> tuple[SubjectKey, ...]:
         """End situations whose evidence has gone, starting their cooldown.
 
@@ -318,11 +406,13 @@ class AnalysisPipeline:
                         extensions=closed.extensions,
                     )
             released.append(subject)
+            self._extended_ns.pop((module_id, subject), None)
         return tuple(released)
 
     def _on_epoch_reset(self) -> None:
         """Identities no longer mean what they meant, so everything keyed by them is worthless."""
         self._store.reset()
+        self._extended_ns.clear()
         self._ledger.reset_camera(self._camera_id)
         dropped = self._verification.drop_pending_for_camera(self._camera_id)
         self._metrics.counter("vigil_epoch_resets_total", camera=self._camera_id).inc()

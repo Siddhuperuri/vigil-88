@@ -21,7 +21,6 @@ the API to show (04 §8). An invalid zone file must not stop the application.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -145,7 +144,6 @@ def build_analysis(
     health_for: HealthLookup,
     mutes_for: MuteLookup,
     sink: TickSink,
-    wake: threading.Event | None = None,
     registry: ModuleRegistry | None = None,
 ) -> AnalysisAssembly:
     chain = build_event_chain(settings=settings, logger=logger, metrics=metrics, registry=registry)
@@ -209,8 +207,10 @@ def build_analysis(
             capabilities=granted,
         )
 
+    # No shared wake event: the analysis worker waits on this queue's own condition. Handing it
+    # the inference worker's event would make every analysis hand-off spin the inference loop.
     queue: RoundRobinDropQueue[AnalysedFrame] = RoundRobinDropQueue(
-        settings.pipeline.analysis_queue_size, wake
+        settings.pipeline.analysis_queue_size
     )
     worker = AnalysisWorker(
         cameras=runtimes,

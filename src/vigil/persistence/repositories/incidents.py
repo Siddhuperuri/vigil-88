@@ -84,6 +84,26 @@ class OpenIncident:
 
 
 @dataclass(frozen=True, slots=True)
+class IncidentLifecycle:
+    """The few columns a status change needs.
+
+    A lifecycle change must not pay to parse an incident's explanation JSON: that blob is read
+    once, when an operator opens the incident, and the response path changes statuses far more
+    often than anyone reads one.
+    """
+
+    incident_id: str
+    display_ref: str
+    status: IncidentStatus
+    severity: int
+    severity_score: float
+    confidence_ratio: float
+    confirmed_wall_utc: datetime
+    last_observed_wall_utc: datetime
+    duration_ms: float | None
+
+
+@dataclass(frozen=True, slots=True)
 class IncidentPage:
     incidents: tuple[Incident, ...]
     next_cursor: tuple[str, str] | None
@@ -302,6 +322,31 @@ class IncidentRepository:
             confirmed_wall_utc=from_utc_text(row["confirmed_utc"]),
             last_observed_wall_utc=from_utc_text(row["last_observed_utc"]),
             severity_score=float(row["severity_score"]),
+        )
+
+    def lifecycle(self, incident_id: str) -> IncidentLifecycle | None:
+        row = self._db.query_one(
+            """
+            SELECT incident_id, display_ref, status, severity, severity_score, confidence_ratio,
+                   confirmed_utc, last_observed_utc, duration_ms
+              FROM incidents WHERE incident_id = ?
+            """,
+            (incident_id,),
+        )
+        if row is None:
+            return None
+        from vigil.persistence.mappers import from_utc_text
+
+        return IncidentLifecycle(
+            incident_id=str(row["incident_id"]),
+            display_ref=str(row["display_ref"]),
+            status=IncidentStatus(row["status"]),
+            severity=int(row["severity"]),
+            severity_score=float(row["severity_score"]),
+            confidence_ratio=float(row["confidence_ratio"]),
+            confirmed_wall_utc=from_utc_text(row["confirmed_utc"]),
+            last_observed_wall_utc=from_utc_text(row["last_observed_utc"]),
+            duration_ms=None if row["duration_ms"] is None else float(row["duration_ms"]),
         )
 
     def get(self, incident_id: str) -> Incident | None:

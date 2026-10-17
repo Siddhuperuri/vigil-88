@@ -223,10 +223,14 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 
 | key | type | default | constraints |
 |-----|------|---------|-------------|
+| `evidence.enabled` | bool | `True` |  |
 | `evidence.preroll_seconds` | float | `5.0` | gt=0 |
 | `evidence.preroll_max_mb` | int | `64` | ge=1 |
 | `evidence.postroll_seconds` | float | `10.0` | ge=0 |
 | `evidence.snapshot_quality` | int | `90` | ge=1, le=100 |
+| `evidence.preroll_fps` | float | `5.0` | gt=0, le=30 |
+| `evidence.clips_enabled` | bool | `True` |  |
+| `evidence.max_concurrent_captures` | int | `8` | ge=1, le=64 |
 
 ## `retention`
 
@@ -238,6 +242,31 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `retention.candidate_days` | int | `7` | ge=1 |
 | `retention.metric_days` | int | `14` | ge=1 |
 | `retention.sweep_interval_s` | int | `3600` | ge=60 |
+
+## `storage`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `storage.enabled` | bool | `True` |  |
+| `storage.database_file` | Path | NoneType | `None` |  |
+| `storage.busy_timeout_ms` | int | `5000` | ge=100 |
+| `storage.synchronous` | one of 'normal', 'full' | `'full'` |  |
+| `storage.page_cache_kb` | int | `8192` | ge=256 |
+| `storage.handoff_timeout_ms` | int | `250` | ge=0 |
+| `storage.max_page_size` | int | `200` | ge=1, le=1000 |
+| `storage.incident_extend_interval_ms` | int | `1000` | ge=0 |
+
+## `alerts`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `alerts.enabled` | bool | `True` |  |
+| `alerts.channels` | tuple[Literal['console', 'jsonl', 'webhook'], ...] | `('console',)` |  |
+| `alerts.min_severity` | one of 'INFO', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL' | `'MODERATE'` |  |
+| `alerts.jsonl_file` | Path | NoneType | `None` |  |
+| `alerts.webhook_url` | str | NoneType | `None` |  |
+| `alerts.webhook_timeout_ms` | int | `3000` | ge=100, le=30000 |
+| `alerts.webhook_max_attempts` | int | `3` | ge=1, le=10 |
 
 ## `api`
 

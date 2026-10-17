@@ -23,31 +23,39 @@ from vigil.config.paths import ResolvedPaths
 from vigil.config.settings import Settings
 from vigil.core.bus import EventBus
 from vigil.core.capabilities import CapabilityLedger
-from vigil.core.clock import Clock, ReplayClock, SystemClock
-from vigil.core.errors import CapabilityError, LifecycleError, VigilError
+from vigil.core.clock import Clock, SystemClock
+from vigil.core.errors import (
+    LifecycleError,
+    PersistenceError,
+    VigilError,
+)
+from vigil.core.ids import UlidFactory
 from vigil.core.protocols.detector import Detector
 from vigil.core.protocols.logger import LoggerLike
-from vigil.core.protocols.source import FrameSource, SourceTiming
 from vigil.core.rng import seeded_rng
 from vigil.core.units import NS_PER_S, ns_to_ms
 from vigil.domain.camera import Camera, CameraHealth, CameraStateChanged
 from vigil.domain.enums import CameraState
-from vigil.ingest.buffers import BlockingFrameQueue, FrameChannel, LatestFrameSlot
-from vigil.ingest.capture_worker import CaptureWorker
-from vigil.ingest.health import CameraHealthTracker
+from vigil.domain.incident import SystemSnapshot
 from vigil.ingest.sources.factory import build_source
 from vigil.ingest.watchdog import Watchdog
 from vigil.observability.logging import get_logger
 from vigil.observability.metrics import MetricsRegistry
 from vigil.observability.probes import NvmlProbe, SystemProbe
+from vigil.pipeline import shutdown
+from vigil.pipeline.assembly import AnalysisAssembly
+from vigil.pipeline.camera_runtime import CameraRuntime, SourceFactory, build_camera_runtime
 from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
-from vigil.pipeline.results import LatestDetections
+from vigil.pipeline.response_stack import ResponseStack
+from vigil.pipeline.results import AnalysedFrame, LatestDetections
 from vigil.pipeline.sampler import MetricsSampler
 from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
+from vigil.pipeline.stages import Stages, build_stages
 from vigil.pipeline.workers import ThreadWorker
+from vigil.version import __version__
 from vigil.vision.factory import build_detector
 
 if TYPE_CHECKING:
@@ -68,7 +76,6 @@ class DetectorContext:
 
 
 DetectorFactory = Callable[[DetectorContext], Detector]
-SourceFactory = Callable[[Camera], FrameSource]
 
 _MS_PER_S = 1000.0
 
@@ -82,14 +89,6 @@ def _default_detector_factory(ctx: DetectorContext) -> Detector:
         metrics=ctx.metrics,
         nvml=ctx.nvml,
     )
-
-
-@dataclass
-class _CameraRuntime:
-    camera: Camera
-    health: CameraHealthTracker
-    channel: FrameChannel | None = None
-    worker: ThreadWorker | None = None
 
 
 class Application:
@@ -129,10 +128,14 @@ class Application:
         self._started_wall: datetime | None = None
         self._detector: Detector | None = None
         self.nvml: NvmlProbe | None = None
-        self._cameras: dict[str, _CameraRuntime] = {}
+        self._cameras: dict[str, CameraRuntime] = {}
         self._system_workers: list[ThreadWorker] = []
         self._sampler: MetricsSampler | None = None
         self._shutdown: ShutdownReport | None = None
+        self.ulids = UlidFactory(self.clock, seeded_rng(0, "incident-ids"))
+        self.analysis: AnalysisAssembly | None = None
+        self.response: ResponseStack | None = None
+        self._stages: Stages | None = None
 
     # ------------------------------------------------------------------ state
 
@@ -162,6 +165,21 @@ class Application:
             new=event.new.value,
             detail=event.detail,
         )
+        # Health events are persisted so the timeline can put them on the same axis as
+        # incidents. "The camera was reconnecting when that fired" answers a large fraction of
+        # "why did this fire" questions (08 §3).
+        response = self.response
+        if response is None:
+            return
+        try:
+            response.health_events.record(
+                event.camera_id, event.new, self.clock.wall_utc(), event.detail
+            )
+        except PersistenceError as exc:
+            self.metrics.counter("vigil_db_errors_total", operation="health_event").inc()
+            self._log.warning(
+                "camera_health_not_recorded", camera_id=event.camera_id, error=exc.message
+            )
 
     # ------------------------------------------------------------------ startup
 
@@ -217,6 +235,7 @@ class Application:
             scheduler=scheduler,
             wake=self._wake,
             results=self.results,
+            analysis_sink=self._analysis_sink,
             clock=self.clock,
             metrics=self.metrics,
             logger=self._log,
@@ -224,6 +243,7 @@ class Application:
             idle_wait_ms=cfg.pipeline.worker_idle_wait_ms,
             fps_window_s=cfg.observability.fps_window_s,
         )
+        self._build_stages(detector)
         trackers = [rt.health for rt in self._cameras.values()]
         watchdog = Watchdog(trackers, interval_ms=cfg.ingest.watchdog_interval_ms)
         obs = cfg.observability
@@ -248,12 +268,23 @@ class Application:
                 jpeg_quality=cfg.api.stream_jpeg_quality,
             )
             self._system_workers.append(self._worker("stream", stream.run))
-        for name, target in (
+        stage_workers: list[tuple[str, object]] = [
             ("inference", inference.run),
             ("watchdog", watchdog.run),
             ("sampler", self._sampler.run),
-        ):
-            self._system_workers.append(self._worker(name, target))
+        ]
+        if self.analysis is not None:
+            stage_workers.append(("analysis", self.analysis.worker.run))
+        if self.response is not None:
+            stage_workers.extend(
+                [
+                    ("preroll", self.response.sampler.run),
+                    ("response", self.response.worker.run),
+                    ("retention", self.response.retention.run),
+                ]
+            )
+        for name, target in stage_workers:
+            self._system_workers.append(self._worker(name, target))  # type: ignore[arg-type]
 
         self._started_ns = self.clock.monotonic_ns()
         self._started_wall = self.clock.wall_utc()
@@ -264,80 +295,88 @@ class Application:
                 rt.worker.start()
 
         available = sorted(c.value for c in self.capabilities.available())
+        stages = self._stages
         self._log.info(
             "application started",
             cameras=len(self._cameras),
             detector=detector.descriptor.name,
             capabilities_available=available,
             config_hash=cfg.config_hash(),
+            modules_running=sorted(
+                {
+                    m
+                    for r in (stages.analysis.bindings.values() if stages else ())
+                    for m in r.runnable_ids
+                }
+            ),
+            persists_incidents=bool(stages and stages.persists_incidents),
         )
+
+    def _build_stages(self, detector: Detector) -> None:
+        """Build the analysis and response stages. Composition lives in `stages.py` (01 §5)."""
+        stages: Stages = build_stages(
+            settings=self.settings,
+            paths=self.paths,
+            cameras=list(self.settings.cameras),
+            detector_capabilities=frozenset(detector.provides),
+            detector=lambda: detector.descriptor,
+            system=self._system_snapshot,
+            results=self.results,
+            ledger=self.capabilities,
+            clock=self.clock,
+            ulids=self.ulids,
+            logger=self._log,
+            metrics=self.metrics,
+            health_for=self._health_for,
+        )
+        self._stages = stages
+        self.analysis = stages.analysis
+        self.response = stages.response
+
+    def _health_for(self, camera_id: str) -> CameraHealth | None:
+        runtime = self._cameras.get(camera_id)
+        return None if runtime is None else runtime.health.snapshot()
+
+    def _system_snapshot(self) -> SystemSnapshot:
+        """Copied onto every incident, so a past decision stays explainable (05 §4)."""
+        latency = self.metrics.histogram("vigil_inference_latency_ms").summary()
+        return SystemSnapshot(
+            version=__version__,
+            config_hash=self.settings.config_hash(),
+            device=self._detector.descriptor.device if self._detector else "unknown",
+            pipeline_fps=self.metrics.gauge("vigil_pipeline_fps").value,
+            inference_latency_p95_ms=latency.p95,
+        )
+
+    def _analysis_sink(self, analysed: AnalysedFrame) -> None:
+        """Hand an analysed frame to the analysis stage. Drop-oldest, per camera (01 §9)."""
+        stages = self._stages
+        if stages is None:
+            return
+        dropped = stages.analysis.queue.put(analysed.frame.meta.camera_id, analysed)
+        if dropped is not None:
+            self.metrics.counter(
+                "vigil_frames_analysis_dropped_total", camera=dropped.camera_id
+            ).inc(dropped.dropped)
 
     def _worker(
         self, name: str, target: Callable[[threading.Event, Callable[[], None]], None]
     ) -> ThreadWorker:
         return ThreadWorker(name, target, clock=self.clock, logger=self._log, metrics=self.metrics)
 
-    def _build_camera(self, camera: Camera) -> _CameraRuntime:
-        cfg = self.settings
-        if not camera.enabled:
-            tracker = CameraHealthTracker(
-                camera.camera_id,
-                clock=self.clock,
-                ingest=cfg.ingest,
-                health=cfg.health,
-                bus=self.bus,
-                initial_state=CameraState.DISABLED,
-            )
-            return _CameraRuntime(camera, tracker)
-
-        try:
-            source = self._source_factory(camera)
-        except CapabilityError as exc:
-            tracker = CameraHealthTracker(
-                camera.camera_id,
-                clock=self.clock,
-                ingest=cfg.ingest,
-                health=cfg.health,
-                bus=self.bus,
-            )
-            tracker.mark_failed(exc.message)
-            self.metrics.counter("vigil_camera_unavailable_total", camera=camera.camera_id).inc()
-            self._log.error("camera cannot start", camera_id=camera.camera_id, reason=exc.message)
-            return _CameraRuntime(camera, tracker)
-
-        paced = source.timing is not SourceTiming.LIVE
-        cam_clock: Clock = self.clock
-        seek: Callable[[float], None] | None = None
-        if paced:
-            replay = ReplayClock(wall_anchor=self.clock.wall_utc())
-            cam_clock, seek = replay, replay.seek_pts_ms
-        tracker = CameraHealthTracker(
-            camera.camera_id,
-            clock=cam_clock,
-            ingest=cfg.ingest,
-            health=cfg.health,
+    def _build_camera(self, camera: Camera) -> CameraRuntime:
+        """Composition lives in `camera_runtime.py`; this object owns lifecycle (01 §5)."""
+        return build_camera_runtime(
+            camera,
+            settings=self.settings,
+            clock=self.clock,
             bus=self.bus,
-            watch_stall=not paced,
-        )
-        channel: FrameChannel = (
-            BlockingFrameQueue(cfg.pipeline.paced_queue_size, self._wake)
-            if paced
-            else LatestFrameSlot(self._wake)
-        )
-        capture = CaptureWorker(
-            camera_id=camera.camera_id,
-            source=source,
-            channel=channel,
-            health=tracker,
-            clock=cam_clock,
-            ingest=cfg.ingest,
             metrics=self.metrics,
-            rng=seeded_rng(0, f"capture:{camera.camera_id}"),
             logger=self._log,
-            seek=seek,
+            source_factory=self._source_factory,
+            wake=self._wake,
+            make_worker=self._worker,
         )
-        worker = self._worker(f"capture:{camera.camera_id}", capture.run)
-        return _CameraRuntime(camera, tracker, channel, worker)
 
     def _abort_startup(self) -> None:
         for rt in self._cameras.values():
@@ -366,39 +405,27 @@ class Application:
         started = self.clock.monotonic_ns()
         workers = [rt.worker for rt in self._cameras.values() if rt.worker is not None]
         workers += self._system_workers
-        for w in workers:
-            w.request_stop()
-        for rt in self._cameras.values():
-            if rt.channel is not None:
-                rt.channel.close()  # unblocks a capture worker waiting to hand off
-        if self.stream_hub is not None:
-            self.stream_hub.close()  # wakes any connected viewer so it can disconnect
-
-        timeout_s = self.settings.pipeline.shutdown_timeout_ms / _MS_PER_S
-        deadline_ns = self.clock.monotonic_ns() + int(timeout_s * NS_PER_S)
-        stragglers: list[str] = []
-        for w in workers:
-            remaining = max(0.0, (deadline_ns - self.clock.monotonic_ns()) / NS_PER_S)
-            if not w.join(remaining):
-                stragglers.append(w.name)
+        shutdown.stop_workers(
+            workers,
+            [rt.channel for rt in self._cameras.values() if rt.channel is not None],
+            close_hub=None if self.stream_hub is None else self.stream_hub.close,
+        )
+        stragglers = shutdown.join_workers(
+            workers,
+            timeout_ms=self.settings.pipeline.shutdown_timeout_ms,
+            clock=self.clock,
+        )
+        shutdown.close_response(self.response, stragglers, logger=self._log, metrics=self.metrics)
         if self._detector is not None:
             self._detector.close()
         if self.nvml is not None and not stragglers:
             self.nvml.shutdown()  # only once no worker can still be reading it
 
-        report = ShutdownReport(
-            clean=not stragglers,
-            stragglers=tuple(stragglers),
-            duration_ms=ns_to_ms(self.clock.monotonic_ns() - started),
-        )
-        if stragglers:
-            self._log.error("shutdown incomplete", stragglers=stragglers)
-        else:
-            self._log.info("application stopped", duration_ms=round(report.duration_ms, 1))
+        result = shutdown.report(stragglers, started_ns=started, clock=self.clock, logger=self._log)
         with self._lock:
-            self._shutdown = report
+            self._shutdown = result
             self._state = AppState.STOPPED
-        return report
+        return result
 
     def __enter__(self) -> Application:
         self.start()
