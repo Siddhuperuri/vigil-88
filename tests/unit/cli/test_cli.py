@@ -173,7 +173,31 @@ def test_doctor_reports_environment_config_and_capabilities() -> None:
         "tracking",
     ):
         assert expected in out
-    assert "none registered" in out  # no modules exist: say so rather than imply otherwise
+    assert "1 discovered (intrusion)" in out  # discovery is reported honestly
+
+
+def test_doctor_reports_an_unavailable_module_with_the_reason(tmp_path: Path) -> None:
+    """An exit criterion: a module whose capabilities are absent must be reported UNAVAILABLE
+    with the missing capability named and the action that would fix it (04 §4)."""
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    (cfg / "vigil.yaml").write_text("modules: {enabled: [intrusion]}", encoding="utf-8")
+    result = runner.invoke(app, ["doctor", "--config-dir", str(cfg)])
+    out = result.output
+    assert "module intrusion" in out
+    assert "unavailable" in out
+    for capability in ("detection", "tracking", "zones"):
+        assert capability in out
+    assert "tracking engine" in out  # how to provide it, not just that it is missing
+
+
+def test_doctor_rejects_an_unknown_module_id(tmp_path: Path) -> None:
+    """A typo in `modules.enabled` must not become a module that silently never fires."""
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    (cfg / "vigil.yaml").write_text("modules: {enabled: [intrusionn]}", encoding="utf-8")
+    result = runner.invoke(app, ["doctor", "--config-dir", str(cfg)])
+    assert "do not exist" in result.output and "intrusionn" in result.output
 
 
 def test_doctor_fails_on_broken_config(tmp_path: Path) -> None:

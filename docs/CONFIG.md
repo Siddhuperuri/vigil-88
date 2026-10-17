@@ -70,17 +70,45 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 
 | key | type | default | constraints |
 |-----|------|---------|-------------|
+| `tracking.enabled` | bool | `True` |  |
 | `tracking.max_age_frames` | int | `30` | ge=1 |
+| `tracking.max_lost_ms` | int | `10000` | ge=1 |
 | `tracking.min_hits` | int | `3` | ge=1 |
+| `tracking.tentative_max_age_frames` | int | `1` | ge=0 |
+| `tracking.reset_gap_ms` | int | `5000` | ge=1 |
+| `tracking.max_tracks` | int | `200` | ge=1 |
+| `tracking.high_confidence_ratio` | float | `0.5` | ge=0.0, le=1.0 |
+| `tracking.low_confidence_ratio` | float | `0.1` | ge=0.0, le=1.0 |
 | `tracking.iou_match_threshold_ratio` | float | `0.3` | ge=0.0, le=1.0 |
+| `tracking.low_iou_match_threshold_ratio` | float | `0.5` | ge=0.0, le=1.0 |
+| `tracking.class_mismatch_penalty_ratio` | float | `0.2` | ge=0.0, le=1.0 |
+| `tracking.class_vote_decay_ratio` | float | `0.9` | ge=0.0, le=1.0 |
+| `tracking.min_box_size_px` | float | `2.0` | gt=0.0 |
+| `tracking.max_detections_per_frame` | int | `300` | ge=1 |
+| `tracking.kalman_acceleration_noise_ratio` | float | `2.0` | gt=0.0 |
+| `tracking.kalman_measurement_noise_ratio` | float | `0.05` | gt=0.0 |
 | `tracking.history_length` | int | `90` | ge=2 |
 | `tracking.min_history_for_velocity` | int | `5` | ge=2 |
+| `tracking.velocity_window_frames` | int | `10` | ge=2 |
+| `tracking.stationary_speed_ratio` | float | `0.1` | ge=0.0 |
+| `tracking.stationary_min_duration_ms` | int | `1000` | ge=0 |
 
 ## `scene`
 
 | key | type | default | constraints |
 |-----|------|---------|-------------|
 | `scene.region_grid` | int | `4` | ge=1, le=32 |
+| `scene.zone_anchor` | one of 'bottom_center', 'center' | `'bottom_center'` |  |
+| `scene.center_anchor_classes` | tuple[str, ...] | `('fire', 'smoke')` |  |
+| `scene.max_zones_per_camera` | int | `64` | ge=1 |
+| `scene.near_distance_ratio` | float | `0.5` | ge=0.0 |
+| `scene.approach_max_distance_ratio` | float | `3.0` | gt=0.0 |
+| `scene.approach_min_closing_speed_ratio` | float | `0.1` | ge=0.0 |
+| `scene.max_relation_tracks` | int | `64` | ge=2 |
+| `scene.stability_enabled` | bool | `True` |  |
+| `scene.stability_grid_columns` | int | `16` | ge=2 |
+| `scene.stability_grid_rows` | int | `12` | ge=2 |
+| `scene.stability_full_change_ratio` | float | `0.1` | gt=0.0, le=1.0 |
 
 ## `temporal`
 
@@ -96,6 +124,12 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `temporal.min_support_ratio` | float | `0.6` | ge=0.0, le=1.0 |
 | `temporal.min_duration_ms` | int | `1200` | ge=0 |
 | `temporal.release_sustain_ms` | int | `2000` | ge=0 |
+| `temporal.support_slot_ms` | float | NoneType | `None` | gt=0 |
+| `temporal.support_window_ms` | float | `10000.0` | gt=0 |
+| `temporal.max_window_observations` | int | `512` | ge=2 |
+| `temporal.idle_expiry_ms` | float | `30000.0` | gt=0 |
+| `temporal.default_module_weight` | float | `1.0` | gt=0 |
+| `temporal.module_weights` | collections.abc.Mapping[str, float] | `{}` |  |
 
 ## `verification`
 
@@ -105,6 +139,21 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `verification.cooldown_ms` | int | `60000` | ge=0 |
 | `verification.instability_blackout_ms` | int | `3000` | ge=0 |
 | `verification.min_track_hit_ratio` | float | `0.5` | ge=0.0, le=1.0 |
+| `verification.min_track_age_ms` | float | `400.0` | ge=0.0 |
+| `verification.max_frame_age_ms` | float | `2000.0` | gt=0.0 |
+| `verification.min_stability_ratio` | float | `0.6` | ge=0.0, le=1.0 |
+| `verification.max_events_per_window` | int | `12` | ge=1 |
+| `verification.rate_limit_window_ms` | float | `600000.0` | gt=0.0 |
+| `verification.max_speed_box_heights_s` | float | `6.0` | gt=0.0 |
+| `verification.degraded_confidence_penalty_ratio` | float | `0.1` | ge=0.0, le=0.5 |
+
+## `arbitration`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `arbitration.escalation_window_ms` | float | `120000.0` | gt=0.0 |
+| `arbitration.escalation_min_events` | int | `3` | ge=2 |
+| `arbitration.merge_window_ms` | float | `10000.0` | gt=0.0 |
 
 ## `severity`
 
@@ -122,6 +171,15 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `severity.bands.MODERATE` | float | `40.0` | ge=0, le=100 |
 | `severity.bands.HIGH` | float | `65.0` | ge=0, le=100 |
 | `severity.bands.CRITICAL` | float | `85.0` | ge=0, le=100 |
+| `severity.base_by_type` | collections.abc.Mapping[str, float] | `{'fire': 1.0, 'smoke': 0.8, 'person_down': 0.85, 'vehicle_collision': 0.8, 'intrusion': 0.65, 'restricted_area_entry': 0.5, 'dangerous_motion': 0.55, 'crowd_anomaly': 0.5, 'abandoned_object': 0.45, 'vehicle_anomaly': 0.35}` |  |
+| `severity.base_default` | float | `0.5` | ge=0.0, le=1.0 |
+| `severity.count_saturation` | float | `5.0` | gt=0.0 |
+| `severity.persistence_saturation_ms` | float | `60000.0` | gt=0.0 |
+| `severity.escalation_saturation` | float | `5.0` | gt=0.0 |
+| `severity.time_policy[].start` | str | `PydanticUndefined` |  |
+| `severity.time_policy[].end` | str | `PydanticUndefined` |  |
+| `severity.time_policy[].weight_ratio` | float | `PydanticUndefined` | ge=0.0, le=1.0 |
+| `severity.time_default_weight_ratio` | float | `0.3` | ge=0.0, le=1.0 |
 
 ## `pipeline`
 
@@ -229,3 +287,5 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `cameras[].zones_ref` | str | NoneType | `None` |  |
 | `cameras[].target_inference_fps` | float | `5.0` | gt=0 |
 | `cameras[].tags` | tuple[str, ...] | `()` |  |
+| `cameras[].module_params` | collections.abc.Mapping[str, collections.abc.Mapping[str, object]] | `{}` |  |
+| `cameras[].trust_ratio` | float | `1.0` | ge=0.0, le=1.0 |

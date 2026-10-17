@@ -173,8 +173,63 @@ def _config_rows(loaded: LoadedConfig) -> list[Row]:
             "info",
             f"{len(s.cameras)} configured, {sum(c.enabled for c in s.cameras)} enabled",
         ),
-        Row("modules", "info", "none registered (no detection modules exist yet)"),
     ]
+
+
+def _module_rows(loaded: LoadedConfig, ledger: CapabilityLedger) -> list[Row]:
+    """What the event registry discovered, and whether each module can actually run.
+
+    Discovery is not enablement and enablement is not availability (06 §5), so all three are
+    reported separately. A module that cannot run says which capability it is missing and what
+    would supply it — this command is the console's stand-in until the console exists, and
+    "no fake functionality" means an unavailable module is visibly unavailable (README rule 1).
+    """
+    from vigil.core.capabilities import Availability
+    from vigil.core.errors import ModuleError
+    from vigil.events.registry import build_registry
+
+    settings = loaded.settings
+    try:
+        registry = build_registry()
+    except ModuleError as exc:
+        return [Row("modules", "fail", exc.message)]
+    if len(registry) == 0:
+        return [Row("modules", "info", "none discovered")]
+
+    rows = [
+        Row(
+            "modules",
+            "info",
+            f"{len(registry)} discovered ({', '.join(registry.ids())}); "
+            f"{len(settings.modules.enabled)} enabled",
+        )
+    ]
+    unknown = registry.unknown_enabled(settings.modules.enabled)
+    if unknown:
+        rows.append(
+            Row(
+                "modules.enabled",
+                "fail",
+                f"names modules that do not exist: {', '.join(unknown)}",
+            )
+        )
+
+    available = ledger.available()
+    # Capabilities are resolved per camera; with none configured, report the process-wide view.
+    camera_id = settings.cameras[0].camera_id if settings.cameras else "(no camera)"
+    for entry in registry.table(
+        camera_id=camera_id, available=available, enabled_ids=settings.modules.enabled
+    ):
+        status = {
+            Availability.ACTIVE: "ok",
+            Availability.DEGRADED: "info",
+            Availability.UNAVAILABLE: "info" if not entry.enabled else "fail",
+        }[entry.status]
+        detail = f"{entry.status.value}"
+        if entry.reason:
+            detail = f"{detail}: {entry.reason}"
+        rows.append(Row(f"module {entry.module_id}", status, detail))
+    return rows
 
 
 def _probe_webcam(index: int) -> list[Row]:
@@ -228,6 +283,9 @@ def doctor(
         rows.append(Row("config", "fail", str(exc)))
     detector_rows, ledger = _detector_check(loaded)
     rows += detector_rows
+    if loaded is not None:
+        # After the detector, because module availability depends on what it granted.
+        rows += _module_rows(loaded, ledger)
     if probe_webcam is not None:
         rows += _probe_webcam(probe_webcam)
 

@@ -13,7 +13,7 @@ from vigil.domain._validate import (
     require_ratio,
     require_utc,
 )
-from vigil.domain.enums import EventType, ValidatorOutcome
+from vigil.domain.enums import CandidateOutcome, EventType, ValidatorOutcome
 from vigil.domain.observation import Observation, SubjectKey
 
 
@@ -38,6 +38,20 @@ class AccumulatorState:
         require_non_negative("observation_count", self.observation_count)
         if self.last_observation_ns < self.first_observation_ns:
             raise ValueError("last_observation_ns precedes first_observation_ns")
+
+
+@dataclass(frozen=True, slots=True)
+class AccumulatorSample:
+    """One point on an accumulator's trajectory. The sequence of these is what makes a decision
+    reconstructable months later (01 §7.5), so it is captured as the decision is made and never
+    recomputed from current config."""
+
+    t_monotonic_ns: int
+    log_odds: float
+    confidence_ratio: float
+
+    def __post_init__(self) -> None:
+        require_ratio("confidence_ratio", self.confidence_ratio)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,3 +103,46 @@ class VerifiedEvent:
         if any(v.outcome is ValidatorOutcome.REJECT for v in self.verdicts):
             raise ValueError("a VerifiedEvent cannot carry a REJECT verdict")
         object.__setattr__(self, "verdicts", tuple(self.verdicts))
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateRecord:
+    """The durable account of one candidate, whatever became of it (05 §5).
+
+    Written for rejections as well as confirmations. A rejected candidate must still answer:
+    what was considered (`candidate.observations`), why it was considered (their `facts` and the
+    accumulator's state), how confidence evolved (`accumulator_trace`), and why it was refused
+    (`rejection_reason`, with every verdict kept). Without that, tuning suppression means
+    guessing (06 §6).
+
+    P3 produces these records; P4 persists them. Retained under `retention.candidate_days`.
+    """
+
+    candidate: CandidateEvent
+    outcome: CandidateOutcome
+    verdicts: tuple[ValidatorVerdict, ...]
+    accumulator_trace: tuple[AccumulatorSample, ...]
+    rejection_reason: str | None
+    decided_monotonic_ns: int
+    decided_wall_utc: datetime
+
+    def __post_init__(self) -> None:
+        require_utc("decided_wall_utc", self.decided_wall_utc)
+        if self.outcome is CandidateOutcome.REJECTED and not (self.rejection_reason or "").strip():
+            raise ValueError("a REJECTED candidate must carry a rejection_reason")
+        if self.outcome is CandidateOutcome.VERIFIED and self.rejection_reason is not None:
+            raise ValueError("a VERIFIED candidate cannot carry a rejection_reason")
+        object.__setattr__(self, "verdicts", tuple(self.verdicts))
+        object.__setattr__(self, "accumulator_trace", tuple(self.accumulator_trace))
+
+    @property
+    def camera_id(self) -> str:
+        return self.candidate.camera_id
+
+    @property
+    def event_type(self) -> EventType:
+        return self.candidate.event_type
+
+    @property
+    def subject(self) -> SubjectKey:
+        return self.candidate.subject

@@ -1,15 +1,19 @@
-"""Tracked objects and trajectories (05 §4). The tracking engine arrives in P2."""
+"""Tracked objects and trajectories (05 §4)."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 
 from vigil.core.geometry import BBox, Vector2
 from vigil.core.ids import validate_camera_id
+from vigil.core.units import NS_PER_MS
 from vigil.domain._validate import frozen_mapping, require_non_negative, require_ratio
 from vigil.domain.enums import ObjectClass, TrackFlag
+
+_FULL_TURN_DEG = 360.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +71,9 @@ class TrackedObject:
     velocity_m_s: Vector2 | None
     zone_dwell_ms: Mapping[str, float]
     flags: frozenset[TrackFlag]
+    # Start of the current stationary stretch; set exactly while STATIONARY is flagged. The
+    # trajectory is bounded, so a duration longer than its window cannot be derived from it.
+    stationary_since_monotonic_ns: int | None = None
 
     def __post_init__(self) -> None:
         validate_camera_id(self.camera_id)
@@ -77,6 +84,12 @@ class TrackedObject:
             raise ValueError("hits cannot exceed age_frames")
         if self.last_seen_monotonic_ns < self.first_seen_monotonic_ns:
             raise ValueError("last_seen precedes first_seen")
+        if self.stationary_since_monotonic_ns is not None and not (
+            self.first_seen_monotonic_ns
+            <= self.stationary_since_monotonic_ns
+            <= self.last_seen_monotonic_ns
+        ):
+            raise ValueError("stationary_since must lie within the track's observed lifetime")
         object.__setattr__(self, "zone_dwell_ms", frozen_mapping(self.zone_dwell_ms))
         object.__setattr__(self, "flags", frozenset(self.flags))
 
@@ -84,3 +97,30 @@ class TrackedObject:
     def hit_ratio(self) -> float:
         """hits / age_frames: low means the track is mostly prediction (06 §6 validator 3)."""
         return self.hits / self.age_frames if self.age_frames else 0.0
+
+    @property
+    def is_visible(self) -> bool:
+        """Matched to a detection in the latest update (as opposed to predicted through a gap)."""
+        return self.time_since_update_frames == 0
+
+    @property
+    def speed_px_s(self) -> float | None:
+        """Pixel-space speed. Honest about its unit: not metres, not corrected for perspective."""
+        return None if self.velocity_px_s is None else self.velocity_px_s.magnitude
+
+    @property
+    def heading_deg(self) -> float | None:
+        """Direction of travel in image space, degrees in [0, 360): 0 = right (+x), 90 = down
+        (+y, image rows grow downward), 180 = left, 270 = up. None where a direction is not
+        meaningful: velocity unknown, zero, or the track is flagged STATIONARY."""
+        v = self.velocity_px_s
+        if v is None or TrackFlag.STATIONARY in self.flags or v.magnitude == 0.0:
+            return None
+        return math.degrees(math.atan2(v.y, v.x)) % _FULL_TURN_DEG
+
+    @property
+    def stationary_duration_ms(self) -> float | None:
+        """How long the track has been stationary as of its last observation, else None."""
+        if self.stationary_since_monotonic_ns is None:
+            return None
+        return (self.last_seen_monotonic_ns - self.stationary_since_monotonic_ns) / NS_PER_MS

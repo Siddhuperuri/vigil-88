@@ -98,8 +98,18 @@ class EvidenceKind(StrEnum):
 
 
 class TrackFlag(StrEnum):
+    """Lifecycle and motion state of a track (05 §4 lists these with an open-ended `...`).
+
+    NEW           not yet confirmed: fewer than `tracking.min_hits` matched detections
+    OCCLUDED      temporarily lost: no detection matched this update; the box is a prediction
+    REACQUIRED    present for exactly the update in which a lost track was matched again
+    STATIONARY    effectively not moving for at least `tracking.stationary_min_duration_ms`
+    SUSPECT_MOTION  owned by P3's MotionSanityValidator; the tracker never sets it
+    """
+
     NEW = "new"
     OCCLUDED = "occluded"
+    REACQUIRED = "reacquired"
     STATIONARY = "stationary"
     SUSPECT_MOTION = "suspect_motion"
 
@@ -124,3 +134,24 @@ class ValidatorOutcome(StrEnum):
     PASS = "pass"  # noqa: S105 - verdict label, not a credential
     REJECT = "reject"
     DEFER = "defer"
+
+
+class CandidateOutcome(StrEnum):
+    """What became of a promoted candidate (05 §5 `candidate_events.outcome`).
+
+    Rejections are data, not waste: they are the only way to tune suppression without flying
+    blind, and the fastest way to discover that a validator is silently eating real events
+    (06 §6). Every outcome below except PENDING is terminal for that candidate.
+
+    PENDING    promoted, verification not finished (a validator returned DEFER)
+    VERIFIED   survived every validator; P4 turns this into an incident
+    REJECTED   a validator objected; `rejection_reason` says which and why
+    EXPIRED    held in DEFER past `verification.max_defer_ms` and never became decidable
+    SUPPRESSED arbitration folded it into another event, which names it as a contributor
+    """
+
+    PENDING = "pending"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+    SUPPRESSED = "suppressed"

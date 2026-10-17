@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
 from vigil.config.schema.base import ConfigModel
+from vigil.config.schema.zones import ZONES_REF_PATTERN
 from vigil.core.ids import validate_camera_id
 from vigil.core.redaction import contains_inline_credentials
 
@@ -84,11 +86,29 @@ class CameraConfig(ConfigModel):
     zones_ref: str | None = None
     target_inference_fps: float = Field(default=5.0, gt=0)
     tags: tuple[str, ...] = ()
+    # Per-camera module parameter overrides, keyed by module_id (06 §5). The innermost of the
+    # three levels: descriptor defaults, then config/modules/<id>.yaml, then these. This matters
+    # in practice — the same intrusion module wants a high base signal at a fence line and a low
+    # one at a loading dock where people legitimately pass through.
+    module_params: Mapping[str, Mapping[str, object]] = Field(default_factory=dict)
+    # How much this camera's judgements are trusted, from its history of false positives. Feeds
+    # the severity engine's `camera_trust` factor (06 §8); the operator sets it.
+    trust_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
 
     @field_validator("camera_id")
     @classmethod
     def _slug(cls, value: str) -> str:
         return validate_camera_id(value)
+
+    @field_validator("zones_ref")
+    @classmethod
+    def _zones_ref_is_a_name_not_a_path(cls, value: str | None) -> str | None:
+        if value is not None and not ZONES_REF_PATTERN.match(value):
+            raise ValueError(
+                "zones_ref must be a short name such as 'front-gate' (it selects "
+                "config/zones/<name>.zones.yaml), never a path"
+            )
+        return value
 
     @property
     def display_name(self) -> str:

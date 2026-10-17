@@ -154,10 +154,29 @@ layers = [
     "vigil.cli",
     "vigil.api | vigil.bench",
     "vigil.pipeline",
-    "vigil.ingest | vigil.vision",
+    "vigil.ingest | vigil.vision | vigil.tracking | vigil.scene | vigil.temporal | vigil.events | vigil.verification | vigil.severity",
     "vigil.domain",
     "vigil.config : vigil.observability",
     "vigil.core",
+]
+
+# 01 §5: the L4 engines are siblings and MUST NOT import each other. `pipeline/` constructs them
+# and wires their inputs to outputs; an engine declares what it needs as a protocol in
+# `core/protocols/` and receives it by constructor injection. This is the contract that keeps
+# `events/` from reaching into `temporal/` the moment a module is awkward to write — which is
+# how a modular architecture degrades silently without a machine checking it.
+[[tool.importlinter.contracts]]
+name = "engines-are-independent"
+type = "independence"
+modules = [
+    "vigil.ingest",
+    "vigil.vision",
+    "vigil.tracking",
+    "vigil.scene",
+    "vigil.temporal",
+    "vigil.events",
+    "vigil.verification",
+    "vigil.severity",
 ]
 
 [[tool.importlinter.contracts]]

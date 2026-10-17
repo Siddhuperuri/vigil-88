@@ -7,7 +7,7 @@ import pytest
 
 from tests.support.fakes import StubPixels
 from vigil.core.capabilities import Capability
-from vigil.core.geometry import BBox, Point, Polygon
+from vigil.core.geometry import BBox, Point, Polygon, Vector2
 from vigil.domain import (
     AccumulatorState,
     Alert,
@@ -35,6 +35,7 @@ from vigil.domain import (
     SubjectKey,
     SystemMetric,
     TrackedObject,
+    TrackFlag,
     TrackPoint,
     Trajectory,
     ValidatorOutcome,
@@ -184,6 +185,61 @@ def test_track_hit_ratio_and_invariants() -> None:
         track(hits=11)
     with pytest.raises(ValueError, match="precedes"):
         track(first_seen_monotonic_ns=20, last_seen_monotonic_ns=10)
+
+
+def test_track_visibility_follows_time_since_update() -> None:
+    assert track().is_visible
+    assert not track(time_since_update_frames=2, flags=frozenset({TrackFlag.OCCLUDED})).is_visible
+
+
+def test_track_speed_is_pixel_space_and_none_when_velocity_unknown() -> None:
+    assert track(velocity_px_s=Vector2(3, 4)).speed_px_s == 5
+    assert track().speed_px_s is None
+
+
+@pytest.mark.parametrize(
+    ("velocity", "heading"),
+    [
+        (Vector2(10, 0), 0.0),  # right
+        (Vector2(0, 10), 90.0),  # down: image rows grow downward
+        (Vector2(-10, 0), 180.0),  # left
+        (Vector2(0, -10), 270.0),  # up
+        (Vector2(10, 10), 45.0),
+    ],
+)
+def test_track_heading_is_image_space_degrees(velocity: Vector2, heading: float) -> None:
+    assert track(velocity_px_s=velocity).heading_deg == pytest.approx(heading)
+
+
+def test_heading_is_not_meaningful_without_motion() -> None:
+    assert track().heading_deg is None  # velocity unknown
+    assert track(velocity_px_s=Vector2(0, 0)).heading_deg is None  # zero velocity
+    still = track(
+        velocity_px_s=Vector2(1, 0),
+        flags=frozenset({TrackFlag.STATIONARY}),
+        stationary_since_monotonic_ns=2,
+    )
+    assert still.heading_deg is None  # jitter around a standstill has no direction
+
+
+def test_stationary_duration_runs_from_the_start_of_the_stretch_to_the_last_sighting() -> None:
+    t = track(
+        first_seen_monotonic_ns=0,
+        last_seen_monotonic_ns=5_000_000_000,
+        stationary_since_monotonic_ns=2_000_000_000,
+        flags=frozenset({TrackFlag.STATIONARY}),
+    )
+    assert t.stationary_duration_ms == pytest.approx(3000.0)
+    assert track().stationary_duration_ms is None
+
+
+def test_stationary_since_must_lie_inside_the_observed_lifetime() -> None:
+    with pytest.raises(ValueError, match="stationary_since"):
+        track(first_seen_monotonic_ns=5, last_seen_monotonic_ns=10, stationary_since_monotonic_ns=4)
+    with pytest.raises(ValueError, match="stationary_since"):
+        track(
+            first_seen_monotonic_ns=5, last_seen_monotonic_ns=10, stationary_since_monotonic_ns=11
+        )
 
 
 def test_track_mappings_are_read_only_copies() -> None:

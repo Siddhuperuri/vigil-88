@@ -64,6 +64,22 @@ class InferenceError(VigilError):
     """A detector failed to produce a result for a batch."""
 
 
+class TrackingError(VigilError):
+    """The tracker was handed input it cannot accept (another camera's frame, a mismatched
+    detection set). Raised before any state is touched, so the track table stays intact."""
+
+
+class SceneError(VigilError):
+    """The scene analyzer was handed input it cannot accept (tracks or zones that belong to a
+    different camera than the frame)."""
+
+
+class TemporalError(VigilError):
+    """The temporal engine was handed something it cannot reason over: an observation whose
+    timestamp precedes the accumulator's last update, or one addressed to a different
+    accumulator. Raised before any state changes, so the accumulator keeps its history."""
+
+
 class ModuleError(VigilError):
     """A detection module raised or violated its contract."""
 

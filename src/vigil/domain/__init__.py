@@ -5,6 +5,7 @@ from vigil.domain.camera import Camera, CameraHealth, CameraStateChanged, Source
 from vigil.domain.detection import Detection, DetectionSet, ModelDescriptor, PreparedFrame
 from vigil.domain.enums import (
     CameraState,
+    CandidateOutcome,
     EventType,
     EvidenceKind,
     IncidentStatus,
@@ -17,11 +18,17 @@ from vigil.domain.enums import (
     ValidatorOutcome,
     ZoneKind,
 )
-from vigil.domain.event import AccumulatorState, CandidateEvent, ValidatorVerdict, VerifiedEvent
+from vigil.domain.event import (
+    AccumulatorSample,
+    AccumulatorState,
+    CandidateEvent,
+    CandidateRecord,
+    ValidatorVerdict,
+    VerifiedEvent,
+)
 from vigil.domain.evidence import Evidence
 from vigil.domain.frame import Frame, FrameMeta
 from vigil.domain.incident import (
-    AccumulatorSample,
     Incident,
     IncidentExplanation,
     IncidentTransition,
@@ -51,6 +58,8 @@ __all__ = [
     "CameraState",
     "CameraStateChanged",
     "CandidateEvent",
+    "CandidateOutcome",
+    "CandidateRecord",
     "Detection",
     "DetectionSet",
     "EventType",

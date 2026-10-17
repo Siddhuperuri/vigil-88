@@ -22,7 +22,7 @@ from vigil.domain._validate import (
 )
 from vigil.domain.detection import ModelDescriptor
 from vigil.domain.enums import EventType, IncidentStatus, Severity
-from vigil.domain.event import ValidatorVerdict
+from vigil.domain.event import AccumulatorSample, ValidatorVerdict
 from vigil.domain.observation import FactValue
 
 DISPLAY_REF_RE = re.compile(r"^INC-\d{8}-[0-9A-Z]{6}$")
@@ -40,16 +40,6 @@ class ObservationSummary:
     def __post_init__(self) -> None:
         require_ratio("signal", self.signal)
         object.__setattr__(self, "facts", frozen_mapping(self.facts))
-
-
-@dataclass(frozen=True, slots=True)
-class AccumulatorSample:
-    t_monotonic_ns: int
-    log_odds: float
-    confidence_ratio: float
-
-    def __post_init__(self) -> None:
-        require_ratio("confidence_ratio", self.confidence_ratio)
 
 
 @dataclass(frozen=True, slots=True)

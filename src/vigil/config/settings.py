@@ -12,6 +12,7 @@ from vigil.config.schema.api import ApiConfig
 from vigil.config.schema.base import ConfigModel
 from vigil.config.schema.camera import CameraConfig
 from vigil.config.schema.modules import (
+    ArbitrationConfig,
     ModulesConfig,
     SceneConfig,
     TemporalConfig,
@@ -35,6 +36,7 @@ class Settings(ConfigModel):
     scene: SceneConfig = Field(default_factory=SceneConfig)
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
     verification: VerificationConfig = Field(default_factory=VerificationConfig)
+    arbitration: ArbitrationConfig = Field(default_factory=ArbitrationConfig)
     severity: SeverityConfig = Field(default_factory=SeverityConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)

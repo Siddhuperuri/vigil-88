@@ -22,7 +22,14 @@ $Floors = @(
     @{ Path = "src/vigil/vision/*";        Min = 90 },
     @{ Path = "src/vigil/pipeline/*";      Min = 90 },
     @{ Path = "src/vigil/api/*";           Min = 90 },
-    @{ Path = "src/vigil/bench/*";         Min = 88 }
+    @{ Path = "src/vigil/bench/*";         Min = 88 },
+    # The logic that decides whether to alarm. Highest floors in the project (09 section 3):
+    # a bug in temporal/ makes every event's confidence wrong, and one in verification/
+    # decides what an operator never sees.
+    @{ Path = "src/vigil/temporal/*";      Min = 95 },
+    @{ Path = "src/vigil/verification/*";  Min = 95 },
+    @{ Path = "src/vigil/severity/*";      Min = 90 },
+    @{ Path = "src/vigil/events/*";        Min = 90 }
 )
 
 Step "ruff format --check" { uv run ruff format --check . }

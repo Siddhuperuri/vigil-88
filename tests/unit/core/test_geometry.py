@@ -107,3 +107,67 @@ def test_containment_survives_scaling(sx: float, sy: float, px: float, py: float
 
 def test_vector_magnitude() -> None:
     assert Vector2(3, 4).magnitude == 5
+
+
+# ------------------------------------------------------------------ distances
+
+
+def test_point_distance() -> None:
+    assert Point(0, 0).distance_to(Point(3, 4)) == 5
+
+
+@pytest.mark.parametrize(
+    ("other", "gap"),
+    [
+        (BBox(5, 5, 8, 8), 0.0),  # overlapping
+        (BBox(10, 0, 20, 10), 0.0),  # touching along an edge
+        (BBox(15, 0, 20, 10), 5.0),  # separated horizontally
+        (BBox(0, 13, 10, 20), 3.0),  # separated vertically
+        (BBox(13, 14, 20, 20), 5.0),  # separated diagonally: 3-4-5
+    ],
+)
+def test_bbox_gap(other: BBox, gap: float) -> None:
+    a = BBox(0, 0, 10, 10)
+    assert a.gap_to(other) == pytest.approx(gap)
+    assert other.gap_to(a) == pytest.approx(gap)
+
+
+@pytest.mark.parametrize(
+    ("p", "distance"),
+    [
+        (Point(5, 5), 5.0),  # centre of the square: 5 from every edge
+        (Point(2, 5), 2.0),  # inside, near the left edge
+        (Point(0, 5), 0.0),  # on an edge
+        (Point(13, 5), 3.0),  # outside, beside an edge
+        (Point(13, 14), 5.0),  # outside, nearest to the corner (10, 10)
+    ],
+)
+def test_distance_to_boundary(p: Point, distance: float) -> None:
+    assert SQUARE.distance_to_boundary(p) == pytest.approx(distance)
+
+
+# ------------------------------------------------------------------ simplicity
+
+
+def test_convex_and_concave_polygons_are_simple() -> None:
+    assert SQUARE.is_simple() and L_SHAPE.is_simple()
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        [(0, 0), (10, 10), (10, 0), (0, 10)],  # bow-tie: edges cross
+        [(0, 0), (5, 5), (10, 10)],  # collinear: no area
+        [(0, 0), (10, 0), (10, 0), (10, 10), (0, 10)],  # duplicated vertex
+        [(0, 0), (10, 0), (10, 10), (5, 0), (0, 10)],  # a vertex lands on another edge
+        [(0, 0), (10, 0), (4, 0), (10, 10), (0, 10)],  # an edge folds back over its neighbour
+    ],
+)
+def test_self_intersecting_or_degenerate_polygons_are_not_simple(
+    points: list[tuple[float, float]],
+) -> None:
+    assert not Polygon([Point(x, y) for x, y in points]).is_simple()
+
+
+def test_a_triangle_is_simple() -> None:
+    assert Polygon([Point(0, 0), Point(4, 0), Point(0, 3)]).is_simple()
