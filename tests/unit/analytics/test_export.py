@@ -391,3 +391,39 @@ def test_the_default_filter_is_a_shared_singleton() -> None:
     """A frozen no-op filter, so a default argument does not construct one per call site."""
     assert IncidentFilter() == ALL_INCIDENTS
     assert ALL_INCIDENTS.describes_everything
+
+
+def test_an_export_carries_relative_evidence_paths_not_machine_paths(
+    store: Database,
+) -> None:
+    """A report leaves the machine. An absolute path in it would publish the operator's user
+    name and directory layout for no benefit: the API resolves a stored path, not a caller."""
+    report = _report(store)
+    handle = io.StringIO()
+    write_csv(report, handle)
+    text = handle.getvalue()
+    assert ":\\" not in text  # no Windows drive letters
+    assert "/home/" not in text and "/Users/" not in text
+    for row in report.incidents:
+        for path in row.evidence_paths:
+            assert not Path(path).is_absolute()
+
+
+def test_an_export_does_not_carry_the_configuration_only_its_hash(
+    store: Database,
+) -> None:
+    """`SystemSnapshot` is version, config hash, device and two timings. The hash identifies a
+    configuration without reproducing it, so no setting, path or secret rides along."""
+    report = _report(store)
+    document = report_to_json(report)
+    incidents = document["incidents"]
+    assert isinstance(incidents, list)
+    system = incidents[0]["system"]
+    assert isinstance(system, dict)
+    assert set(system) == {
+        "version",
+        "config_hash",
+        "device",
+        "pipeline_fps",
+        "inference_latency_p95_ms",
+    }
