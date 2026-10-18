@@ -56,14 +56,17 @@ def fake_package(name: str, **attrs: object) -> ModuleType:
 # ------------------------------------------------------------------ discovery
 
 
-def test_the_builtin_intrusion_module_is_discovered() -> None:
+SHIPPED = ("abandoned_object", "intrusion", "person_down")
+
+
+def test_every_builtin_module_is_discovered() -> None:
     found = discover_builtin()
-    assert [r.module_id for r in found] == ["intrusion"]
-    assert found[0].source == "builtin:intrusion"
+    assert [r.module_id for r in found] == list(SHIPPED)
+    assert {r.source for r in found} == {f"builtin:{mid}" for mid in SHIPPED}
 
 
 def test_discovery_is_deterministic() -> None:
-    assert build_registry(include_entry_points=False).ids() == ("intrusion",)
+    assert build_registry(include_entry_points=False).ids() == SHIPPED
 
 
 def test_a_package_without_a_descriptor_is_a_loud_failure() -> None:
@@ -217,7 +220,8 @@ def test_the_table_covers_every_discovered_module_in_order() -> None:
 
 def test_the_table_exposes_metadata_the_ui_needs() -> None:
     registry = build_registry(include_entry_points=False)
-    entry = registry.table(camera_id="cam-01", available=FULL, enabled_ids=("intrusion",))[0]
+    table = registry.table(camera_id="cam-01", available=FULL, enabled_ids=("intrusion",))
+    entry = next(e for e in table if e.module_id == "intrusion")
     assert entry.event_type is EventType.INTRUSION
     assert entry.version == "1.0.0"
     assert "restricted zone" in entry.description
@@ -287,7 +291,7 @@ def test_entry_point_discovery_is_sorted(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_build_registry_can_combine_builtin_and_extra(monkeypatch: pytest.MonkeyPatch) -> None:
     extra = registration(descriptor("injected"), "test:injected")
     registry = build_registry(include_entry_points=False, extra=[extra])
-    assert registry.ids() == ("injected", "intrusion")
+    assert registry.ids() == ("abandoned_object", "injected", "intrusion", "person_down")
 
 
 class _StubEntryPoint:

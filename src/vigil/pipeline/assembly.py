@@ -25,6 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from vigil.config.calibration import load_calibration
 from vigil.config.module_params import ParamMap, load_module_params
 from vigil.config.schema.camera import CameraConfig
 from vigil.config.settings import Settings
@@ -49,6 +50,7 @@ from vigil.pipeline.events import EventChain, build_camera_pipeline, build_event
 from vigil.pipeline.queues import RoundRobinDropQueue
 from vigil.pipeline.results import AnalysedFrame
 from vigil.scene.analyzer import SceneAnalyzer, StabilityProbe
+from vigil.scene.calibration import CalibrationError, GroundPlane, ground_plane_from_config
 from vigil.tracking.bytetrack import ByteTracker
 
 TRACKING_PROVIDER = "tracking engine (bytetrack)"
@@ -62,6 +64,12 @@ class CameraZones:
 
 
 @dataclass(frozen=True, slots=True)
+class CameraGroundPlane:
+    plane: GroundPlane | None
+    issue: str | None  # why this camera has no ground plane, when it asked for one
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisAssembly:
     chain: EventChain
     worker: AnalysisWorker
@@ -69,6 +77,7 @@ class AnalysisAssembly:
     capabilities_by_camera: Mapping[str, frozenset[Capability]]
     bindings: Mapping[str, BindingReport]
     zone_issues: Mapping[str, str]
+    calibration_issues: Mapping[str, str]
 
     def availability(self, camera_id: str) -> tuple[object, ...]:
         report = self.bindings.get(camera_id)
@@ -90,6 +99,27 @@ def load_camera_zones(config_dir: Path, camera: CameraConfig, *, max_zones: int)
     if not zones:
         return CameraZones((), f"zone file {camera.zones_ref!r} defines no zones")
     return CameraZones(zones, None)
+
+
+def load_camera_ground_plane(config_dir: Path, camera: CameraConfig) -> CameraGroundPlane:
+    """Materialise a camera's ground plane, or say why it has none. Never raises.
+
+    A bad calibration is exactly like a bad zone file: it leaves the camera without the
+    capability and says why, rather than stopping an application that was monitoring fine in
+    pixels a moment ago.
+    """
+    if camera.calibration_ref is None:
+        return CameraGroundPlane(None, None)
+    try:
+        config = load_calibration(config_dir, camera.calibration_ref)
+    except ConfigError as exc:
+        issues = "; ".join(exc.issues) if exc.issues else ""
+        return CameraGroundPlane(None, f"{exc.message}{f' ({issues})' if issues else ''}")
+    try:
+        plane = ground_plane_from_config(config, camera.camera_id)
+    except CalibrationError as exc:
+        return CameraGroundPlane(None, f"calibration {camera.calibration_ref!r}: {exc}")
+    return CameraGroundPlane(plane, None)
 
 
 def build_stability_probe(settings: Settings) -> StabilityProbe | None:
@@ -114,6 +144,7 @@ def camera_capabilities(
     detector: frozenset[Capability],
     has_zones: bool,
     has_stability: bool,
+    has_ground_plane: bool = False,
 ) -> frozenset[Capability]:
     granted = set(detector)
     if settings.tracking.enabled:
@@ -123,6 +154,8 @@ def camera_capabilities(
         granted.add(Capability.ZONES)
     if has_stability:
         granted.add(Capability.SCENE_STABILITY)
+    if has_ground_plane:
+        granted.add(Capability.GROUND_PLANE)
     return frozenset(granted)
 
 
@@ -160,6 +193,7 @@ def build_analysis(
     capabilities: dict[str, frozenset[Capability]] = {}
     bindings: dict[str, BindingReport] = {}
     zone_issues: dict[str, str] = {}
+    calibration_issues: dict[str, str] = {}
 
     for camera in cameras:
         zones = load_camera_zones(config_dir, camera, max_zones=settings.scene.max_zones_per_camera)
@@ -168,11 +202,22 @@ def build_analysis(
             logger.warning("camera_has_no_zones", camera_id=camera.camera_id, reason=zones.issue)
         if zones.zones:
             ledger.grant(Capability.ZONES, f"zone file {camera.zones_ref!r}")
+        calibration = load_camera_ground_plane(config_dir, camera)
+        if calibration.issue is not None:
+            calibration_issues[camera.camera_id] = calibration.issue
+            logger.warning(
+                "camera_is_not_calibrated",
+                camera_id=camera.camera_id,
+                reason=calibration.issue,
+            )
+        if calibration.plane is not None:
+            ledger.grant(Capability.GROUND_PLANE, f"calibration file {camera.calibration_ref!r}")
         granted = camera_capabilities(
             settings=settings,
             detector=detector_capabilities,
             has_zones=bool(zones.zones),
             has_stability=probe_available,
+            has_ground_plane=calibration.plane is not None,
         )
         capabilities[camera.camera_id] = granted
         pipeline, report = build_camera_pipeline(
@@ -201,6 +246,7 @@ def build_analysis(
                 zones=zones.zones,
                 # One probe per camera: it holds that camera's previous frame grid.
                 stability=build_stability_probe(settings),
+                ground_plane=calibration.plane,
             ),
             pipeline=pipeline,
             binding=report,
@@ -230,4 +276,5 @@ def build_analysis(
         capabilities_by_camera=capabilities,
         bindings=bindings,
         zone_issues=zone_issues,
+        calibration_issues=calibration_issues,
     )

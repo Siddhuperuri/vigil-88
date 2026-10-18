@@ -3,7 +3,7 @@
 The honest gap between the architecture and the implementation. Updated at every phase.
 Nothing here is hidden behind a control that appears to work (README rule 1).
 
-**Current phase: P4 (incidents, persistence, evidence), on a now-complete P2.**
+**Current phase: P5 (person-down, abandoned object, analytics, reporting).**
 
 The chain runs end to end on a live camera. Frames are captured, inferred, tracked and assembled
 into a `SceneState`; modules observe it; observations accumulate as log-odds with half-life decay,
@@ -16,20 +16,27 @@ audit trail, and an operator can acknowledge, dismiss, annotate or escalate it.
 intrusion produces **exactly one** incident, that its evidence is hashed and self-describing,
 and that both survive a restart.
 
-**P5 and P6 are not started.** `person_down`, `abandoned_object`, analytics, reporting and
-fire/smoke do not exist. The sections below say what else does not.
+Three vision modules now observe that scene — `intrusion`, `person_down` and
+`abandoned_object` — and every number the analytics layer reports is an aggregate over rows that
+were actually persisted, with a metric that cannot be computed from the records present reported
+as **unavailable rather than as zero**. A camera with four measured floor points reports velocity
+in m/s as well as px/s; one without reports px/s and says so.
+
+**P6 is not started.** Fire and smoke detection, the degradation ladder, the supervisor and the
+security and dependency audit do not exist. The sections below say what else does not.
 
 ## What does not exist
 
 | Area | State | Planned |
 |------|-------|---------|
-| Ground-plane calibration, velocity in m/s | Not built. `scene/calibration.py` does not exist, `GROUND_PLANE` is never granted, and every reported velocity is in **px/s and labelled as such** — in the API, in `tracks.json`, and in the UI. 10-roadmap lists this under P5; the P4 brief did not ask for it | P5 |
+| Velocity in m/s **validated against a tape measure** | `scene/calibration.py` is built: four measured points, a homography, `GROUND_PLANE` granted per camera, and `velocity_m_s` filled at each track's foot point. **The 10%-of-ground-truth exit criterion is not met and cannot be met here** — it needs a physical camera, a tape and someone walking a measured distance. What is proven is the mathematics against synthetic geometry with known answers. An uncalibrated camera still reports px/s, labelled px/s | needs a real camera |
 | Post-roll clip on a build with no MP4 encoder | Clips are muxed with OpenCV's `VideoWriter` using `mp4v`, and availability depends on what the local OpenCV build was compiled with. When no writer can be opened the clip is **absent and the failure is named** in the incident's manifest, with `evidence_status = partial`. There is no silent fallback format and no zero-byte placeholder | as needed |
 | Arbitration: merge and spatial coalesce | The **subsume** and **escalate** rules of 06 §7 are implemented. **Merge** needs `FIRE`/`SMOKE` and **spatial coalesce** needs `region:` subjects; neither event type has a module | P6 |
-| Sequence patterns in a shipped module | `temporal/sequence.py` implements the ordered-pattern matcher of 04 §6.4 and is unit-tested, but no shipped module uses it yet | P5 (`abandoned_object`) |
+| Sequence patterns in a shipped module | `temporal/sequence.py` implements the ordered-pattern matcher of 04 §6.4 and is unit-tested, and **still no shipped module uses it**. `abandoned_object` expresses its owner-then-gone sequence as accumulating evidence instead, on purpose: a matcher resets on the first frame the tracker blinks, while "the last time an owner was seen beside it" survives a detection gap (ADR 0014 §B). The matcher remains the right tool for patterns whose steps are discrete events | when one has them |
 | Threshold tuning against real footage | **Not done.** Every value in `temporal`, `verification` and `severity` is the architecture's starting default. The tuning observations recorded below still stand, and the dismissal rate the console now records is the measurement that should drive it | next |
-| Event modules beyond `intrusion` | `person_down`, `abandoned_object`, `fire`, `smoke` and the rest have entries in `EventType` and no code. `EventType` is the taxonomy, not a promise of functionality (05 §3) | P5, P6 |
-| Analytics and reporting | Not built. No `analytics/` package, no aggregations, no CSV/JSON export, no Analytics view | P5 |
+| Event modules beyond the three shipped | `fire`, `smoke`, `vehicle_collision`, `crowd_anomaly`, `dangerous_motion` and `vehicle_anomaly` have entries in `EventType` and no code. `EventType` is the taxonomy, not a promise of functionality (05 §3) | P6 (fire, smoke) |
+| Pose estimation | Not built, and **not declared**. `POSE` is in the capability vocabulary and nothing grants it. `person_down` is bounding-box geometry and says so in its descriptor, its facts and its README; it declares no `POSE` dependency because it uses none, and an optional-but-unused capability would report a degradation that changes nothing (ADR 0014 §A) | when a module needs it |
+| PDF reports without the `reports` extra | Built, behind an optional extra: `uv sync --extra reports` installs `reportlab` and `format=pdf` produces a document. Without it the format answers **503 with the install command**, and the viewer's PDF button ships disabled carrying that reason. A core renderer would cost every headless install a font stack and `pillow` for a report many deployments never ask for (ADR 0014 §C) | installed on demand |
 | Degradation ladder, supervisor/restart | Not built. The scheduler bounds load, but nothing lowers resolution or demotes cameras under overload, and a crashed worker is reported rather than restarted | P6 |
 | Web operations console | Not built. The **provisional viewer** at `/` now shows the live streams, the metrics, the incident list, an incident's full explanation and evidence, the real operator actions and the mute countdown. It follows the console's honesty rules (a disabled control says why) but it is not the seven-view console of 08 | later |
 | RTSP / IP cameras | Config validates (and rejects inline credentials). Such a camera is reported **FAILED: not implemented** | later |
@@ -37,8 +44,9 @@ fire/smoke do not exist. The sections below say what else does not.
 | Ultralytics backend | Deliberately not built (AGPL, drags in PyTorch); see ADR 0012 | only if needed |
 | Windows Credential Manager (`keyring`) | Not implemented; secrets come from environment variables or `.env` | when needed |
 | Alert channels beyond console, jsonl and webhook | Email, SMS and MQTT are not implemented and are **absent from the channel list**, not stubbed. A configured channel that cannot deliver reports `is_available()` false with its reason | on demand |
-| Incident export bundles | `POST`-able operator actions, the evidence manifest and per-file download exist. The single-file **report bundle** of 06 §10 (`analytics/export.py`) does not | P5 |
+| Evidence inside an export | A report carries evidence **references** — ids, relative paths, sizes and hashes — never bytes. The files are fetched through the API, which is the only path that re-resolves the stored path and verifies the hash (05 §6). There is no single-file zip bundle | on demand |
 | Soak testing | **Not run.** P4's exit criteria call for an 8-hour synthetic soak with bounded RSS and handle count. Not executed in this environment; the evidence ring's byte ceiling is asserted by a test over a short run only | P6 |
+| Calibrated probabilities | A confidence is a **score**, not a probability. The log-odds accumulator produces a number in [0, 1] that orders events sensibly; no reliability diagram has been plotted against labelled outcomes, so "0.8" does not mean "right four times in five". Analytics never aggregates confidences into a rate, and the metric definitions say so | needs labelled data |
 
 ## Incidents and evidence: what P4 proves and what it does not
 
@@ -139,6 +147,102 @@ Live accumulators stayed at 300 — the idle-expiry window divided by the slot w
 1,000 or 10,000 distinct subjects passed through, with about 585 KiB retained. The chain is
 roughly four orders of magnitude cheaper than inference on this hardware, which is what 04 §2
 assumes when it says the narrow stages can afford to be careful.
+
+## The P5 modules: what they claim and what they do not
+
+Both modules emit **observations**, not incidents (D-003). Neither decides anything: promotion
+needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio` and
+`min_duration_ms` all hold, and then eleven validators have to agree.
+
+1. **`person_down` is geometry, and makes no medical claim.** It reports that a tracked person's
+   box has collapsed from upright to prone and stayed that way — *not* that anyone is injured,
+   unconscious or in distress. No pose model is used and none is declared; every observation
+   carries `method: bounding-box geometry; no pose model`, and the descriptor and README say the
+   same. The dominant false positive is someone sitting or lying down on purpose, which is
+   geometrically identical to a collapse. Someone first seen already on the ground has no
+   standing reference, so the collapse term is reported unavailable and the remaining weights are
+   renormalised — a real gap, not a degradation that can be tuned away.
+2. **`abandoned_object` requires an owner to have been seen and to have left.** Stationary alone
+   is never enough — a bin is stationary. An object nobody has been observed beside is furniture
+   as far as the module can tell, and it stays silent about it permanently, with no learned
+   object list. The cost is the matching failure: a bag dropped before its track existed (before
+   startup, before a reconnect, before re-acquisition) can never be reported, because the same
+   rule covers both cases. Ownership is proximity in time and space and nothing more; there is no
+   re-identification, and a lost-and-reacquired track is a new id whose separation clock restarts.
+3. **Both degrade honestly through capability negotiation.** Without `VELOCITY`, `person_down`
+   runs DEGRADED, drops the immobility term and renormalises; without `ZONES`,
+   `abandoned_object` watches the whole frame, runs DEGRADED, and says `zones_unavailable` rather
+   than quoting a location it cannot know. A missing term is renormalised, never zeroed — treating
+   an uncomputable term as 0 would turn absent evidence into evidence *against*.
+4. **Neither has been evaluated against footage of the thing it detects.** There is no fall
+   dataset and no abandoned-luggage dataset here. The unit tests prove the arithmetic, the
+   thresholds, the degradation paths and the false-positive *mechanisms* (an edge-clipped box, a
+   merged detection, an owner who returns); they prove nothing about how often either fires
+   correctly in a real place. Every threshold in `params.py` is a starting default. Each module's
+   README lists the false positives to expect, and none of them is fixed by tuning alone.
+
+## Calibration: what a metre means here
+
+- **Four points, measured by hand.** `config/calibration/<ref>.calib.yaml` holds four pixel
+  positions and the floor positions measured at them. That determines a homography exactly, and
+  **the accuracy of the result is the accuracy of the tape measure**. Nothing in the system can
+  check that, and the reprojection error cannot either: an exact four-point fit reproduces its
+  own points whatever they are. What *is* checked is degeneracy — coincident points, three in a
+  line — in both pixel and world space.
+- **Only the foot point is converted.** A person's feet are on the calibrated floor; their head
+  is a metre and a half above it. Speeds are converted at `bbox.bottom_center` and nowhere else.
+- **Nothing off the plane is right, and nothing says so.** A staircase, a ramp, a thrown object,
+  a vehicle on a slope: the homography answers confidently and wrongly, because a projective map
+  of a plane has no way to report that its input was not on that plane.
+- **Perspective is large and the system does not hide it.** Across the example calibration's own
+  quad, metres-per-pixel varies by a factor of 2.5. `scale_spread()` reports that ratio, which is
+  the reason a single frame-wide scale factor was refused.
+- **A calibration belongs to one frame size.** Taken at 1280x720 it is refused for a 640x480
+  stream, `GROUND_PLANE` is withheld and `SceneFact.GROUND_PLANE` appears in `degraded_facts` —
+  rather than being rescaled by a factor nobody checked.
+- **`velocity_m_s` is never computed from `velocity_px_s`.** On an uncalibrated camera it is
+  `None`, not a pixel number wearing a metric label.
+- **No module uses m/s yet.** Both P5 modules are deliberately scale-free: `person_down` measures
+  against the track's own box height and `abandoned_object` measures distance in the object's own
+  box heights, which is why both work on an uncalibrated camera. The metric velocity is reported
+  for operators and for future thresholds, and nothing currently depends on it.
+
+## Analytics: what each number is and is not
+
+- **Every figure is an aggregate over persisted rows.** Nothing is modelled, extrapolated or
+  inferred from a partial window, and no analytics query loads a table into memory — they are
+  `COUNT`/`SUM`/`GROUP BY` against indexed columns, parameterised throughout.
+- **Unavailable is not zero.** A metric with no records behind it (time-to-acknowledge when
+  nothing has been acknowledged) comes back `available: false` with every statistic `null`, and
+  the viewer renders "unavailable". On a chart a zero and an absence are indistinguishable, and
+  only one of them is true.
+- **A camera with no recorded health history reads as `unknown`, never as 100% online.** A blind
+  camera that looks healthy is the worst thing this page could draw.
+- **The dismissal rate is the dismissal rate.** It counts what operators dismissed, per module
+  version. It is *not* a false-positive rate: a dismissal can be correct detection of something
+  the operator did not care about, and a missed event is invisible to it. The metric definition
+  travels with the number and says this.
+- **There is no measured false-positive or false-negative rate, and none can be computed here.**
+  That needs labelled ground truth, which does not exist in this repository.
+- **Windows are closed-open and bucketed in UTC.** `[since, until)`, so adjacent windows neither
+  gap nor double-count; an incident at exactly `until` is outside. A local offset in minutes only
+  shifts the bucket *labels* — the arithmetic stays in UTC. A report states whether its window is
+  fully covered by the records that exist (`covers_full_window`) and when the earliest record is,
+  so a seven-day chart over two days of data cannot be read as seven quiet days.
+- **Caveats are generated from the data, not written in advance**, and are rendered verbatim by
+  both the viewer and every export.
+- **Exports are JSON, CSV and (with the `reports` extra) PDF.** A saved export is written inside
+  `paths.exports_dir` through the same `safe_join` the evidence store uses; a name that is not a
+  plain filename is *replaced* rather than cleaned, so there is no half-sanitised string to
+  reason about. CSV cells beginning `=`, `+`, `-`, `@`, tab or CR are prefixed with `'` so an
+  operator note cannot become a spreadsheet formula — which is separate from, and additional
+  to, correct quoting. All three formats are built from one `Report` object, so they cannot
+  disagree about the window they cover.
+- **A report references evidence and never embeds it.** Ids, relative paths, sizes and hashes
+  go out; bytes do not. A frame copied into a PDF is evidence outside the store, with no hash
+  check on the way out and nothing to verify it against later.
+- **A report's row list is capped** (`rows`) and says `truncated: true` when it bites, while the
+  summary above it still counts the whole window.
 
 ## Detection: what it is and what it is not
 

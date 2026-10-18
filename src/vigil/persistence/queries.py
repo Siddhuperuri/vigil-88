@@ -81,6 +81,12 @@ class IncidentFilter:
         return self == IncidentFilter()
 
 
+# The no-op filter, as a shared frozen singleton. A default argument of `IncidentFilter()`
+# would construct one per call site at import time, which is harmless but which ruff rightly
+# refuses to let pass unexamined (B008).
+ALL_INCIDENTS = IncidentFilter()
+
+
 @dataclass(slots=True)
 class WhereClause:
     sql: str

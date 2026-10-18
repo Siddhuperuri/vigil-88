@@ -1,6 +1,6 @@
 # Operations
 
-Runbook for the current phase (P1). It documents only what exists.
+Runbook for the current phase (P5). It documents only what exists.
 
 ## Setup
 
@@ -8,6 +8,7 @@ Runbook for the current phase (P1). It documents only what exists.
 uv sync --group dev --extra onnx-gpu --extra api   # full workstation: GPU detector + live API
 uv sync --group dev --extra onnx-cpu --extra api   # no NVIDIA GPU: CPU detector
 uv sync --group dev --extra capture                # webcam capture only (null detector)
+uv sync --extra reports                            # add PDF export (optional; JSON/CSV need nothing)
 uv sync --group dev                                # logic and tests only; no OpenCV, no models
 ```
 
@@ -83,6 +84,20 @@ Served by `--serve`. Reads immutable snapshots; it never runs a model.
 | `GET /api/v1/cameras/{id}/detections` | the latest detections, in source-frame pixels |
 | `GET /api/v1/cameras/{id}/snapshot.jpg?overlay=` | one annotated (or raw) frame |
 | `GET /api/v1/cameras/{id}/stream.mjpeg?overlay=&fps=` | live annotated MJPEG |
+| `GET /api/v1/cameras/{id}/modules` | per-module availability: ACTIVE, DEGRADED or UNAVAILABLE, with the reason and what would grant the missing capability |
+| `GET /api/v1/cameras/{id}/zones/status` | configured zones and whether each is usable |
+| `GET /api/v1/incidents?...` | the incident page: filter, sort, keyset paginate |
+| `GET /api/v1/incidents/{id}` | one incident: explanation, timeline, evidence, permitted actions |
+| `GET /api/v1/incidents/{id}/evidence` | the manifest, including items that are **missing and why** |
+| `GET /api/v1/incidents/{id}/evidence/{eid}` | the file, with `X-Evidence-Integrity: ok\|mismatch` |
+| `POST /api/v1/incidents/{id}/acknowledge\|dismiss\|escalate\|annotate` | operator actions; a forbidden transition is a 409 naming the rule |
+| `DELETE /api/v1/incidents/{id}/annotate` | clear the note |
+| `GET /api/v1/events/candidates`, `/candidates/reasons`, `/timeline` | what was *rejected*, and by which validator |
+| `GET /api/v1/mutes`, `/mutes/history` · `POST /api/v1/mutes` · `DELETE /api/v1/mutes/{id}` | suppression with an expiry and a reason |
+| `GET /api/v1/system/channels` | alert channels and whether each can actually deliver |
+| `GET /api/v1/analytics/summary?days=&bucket=&...` | counts, trends and breakdowns over a window |
+| `GET /api/v1/analytics/report?...&rows=` | the same summary plus incident rows and their timelines |
+| `GET /api/v1/analytics/export?format=csv\|json&save=` | download, or write into `paths.exports_dir` |
 | `GET /api/docs` | OpenAPI documentation |
 
 `overlay` is `none` or a comma list of `boxes`, `labels`, `info`. The overlay is drawn on the
@@ -91,6 +106,74 @@ Streams are encoded only while someone watches, once per distinct overlay howeve
 
 The API binds `127.0.0.1`. Binding anything else requires `api.auth.enabled: true` and a token
 of at least 32 characters in `VIGIL_API_TOKEN`, or startup is refused.
+
+## Incidents and evidence
+
+A verified event becomes one durable incident, keyed so that repeated evidence about the same
+situation **extends** it rather than creating another. Nothing is deleted implicitly.
+
+Where things live, all under `paths.data_dir` unless the key beside it is set:
+
+| path | holds | key |
+|------|-------|-----|
+| `db/vigil.sqlite3` | incidents, evidence rows, candidates, operator actions, mutes, metrics | `storage.database_file` |
+| `evidence/<incident>/` | `snapshot.jpg`, `clip.mp4`, `manifest.json` | `paths.evidence_dir` |
+| `exports/` | saved analytics exports | `paths.exports_dir` |
+
+- **An incident's evidence is listed even when an item is absent**, with the reason. A missing
+  clip leaves `evidence_status: partial`, never a zero-byte file and never a substitute frame.
+- **Every evidence read is hashed and compared.** A mismatch is served with
+  `X-Evidence-Integrity: mismatch` and labelled in the viewer rather than withheld silently.
+- **Retention is time-based and per kind** — `retention.clip_days` (30), `snapshot_days` (90),
+  `candidate_days` (7), `metric_days` (14), `incident_days` (365) — swept every
+  `retention.sweep_interval_s`. It deletes files before rows and incidents last, so an incident
+  never references evidence that has gone. **An open incident and an annotated one are never
+  deleted automatically**, at any age.
+- **`storage.enabled: false` is supported and visibly different.** Events are analysed and
+  nothing is stored; `GET /api/v1/system/health` reports `persists_incidents: false` and the
+  viewer says so instead of showing an empty list.
+
+## Analytics and exports
+
+The Analytics panel in the viewer, and the three routes above, aggregate **only what was
+persisted**. Read them with two rules in mind:
+
+- **"unavailable" means the records cannot answer**, not zero. Time-to-acknowledge with nothing
+  acknowledged is unavailable; a camera with no recorded health history is `unknown`, not 100%
+  online.
+- **The dismissal rate is not a false-positive rate.** It is what operators dismissed, per module
+  version. Each number carries its own definition; `GET /analytics/summary` returns them in
+  `metric_definitions`.
+
+```powershell
+# CSV for a quarter, written into paths.exports_dir
+curl "http://127.0.0.1:8088/api/v1/analytics/export?days=90&format=csv&save=true&name=q1-review"
+```
+
+Exports are JSON, CSV and — with `--extra reports` installed — PDF. Without that extra,
+`format=pdf` answers **503 naming the install command** rather than silently returning something
+else, and the viewer's PDF button is disabled carrying the same reason. A `name` that is not a
+plain filename is replaced, not cleaned, and every write lands inside `paths.exports_dir`.
+`GET /api/v1/analytics/formats` says which formats this install can actually produce.
+
+## Calibrating a camera for metres
+
+Optional. Without it everything works and velocity is reported in px/s, labelled px/s.
+
+1. Pick something flat and measurable in view: a parking bay, four floor tiles, a doormat.
+2. Measure the four corners with a tape, in metres, from any origin you like, as long as it lies
+   in the floor plane.
+3. Read the same four corners' pixel positions off
+   `GET /api/v1/cameras/<id>/snapshot.jpg`.
+4. Copy `config/calibration/example-floor.calib.yaml`, fill in your numbers and the frame size,
+   and set `calibration_ref: <name>` on the camera.
+5. `uv run vigil doctor` then reports `ground_plane` as available, with the file as its provider.
+
+What you get is m/s **for things standing on that plane**, converted at each track's foot point
+because metres-per-pixel varies across a perspective view. What you do not get is anything off
+the plane — a staircase, a ramp, a thrown object — and no accuracy check: a four-point fit passes
+exactly through whatever four points you give it. A broken or missing calibration costs the
+capability, not the camera: `vigil doctor` names the reason and the pipeline keeps running.
 
 ## Benchmarking
 

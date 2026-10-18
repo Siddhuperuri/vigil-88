@@ -23,6 +23,9 @@ class PathsConfig(ConfigModel):
     evidence_dir: Path | None = None
     db_dir: Path | None = None
     bench_dir: Path | None = None
+    # Where `vigil export` and the API's export route may write. The only directory a caller
+    # can influence a filename inside, so every write through it is path-checked.
+    exports_dir: Path | None = None
 
 
 class LoggingConfig(ConfigModel):

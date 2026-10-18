@@ -1,0 +1,49 @@
+# Example ground-plane calibration. Not referenced by any camera, so it does nothing until you
+# set `calibration_ref: example-floor` on a camera whose stream really is 1280x720.
+#
+# How to make your own:
+#
+#   1. Pick something flat and measurable in view of the camera -- a parking bay, four floor
+#      tiles, a doormat, two taped crosses on a corridor floor.
+#   2. Measure the four corners with a tape, in metres, from any origin you like. The origin and
+#      the axis directions are yours; they only have to be consistent and lie in the floor plane.
+#   3. Open `GET /api/v1/cameras/<id>/snapshot.jpg` and read the pixel coordinates of the same
+#      four corners.
+#   4. Write them below, in any order, as long as each `pixel` and `world_m` pair belong to the
+#      same physical corner.
+#
+# What this does and does not buy you:
+#
+#   * Velocities for tracks standing ON this plane are reported in m/s, converted at each
+#     track's foot point, because metres-per-pixel varies across a perspective view.
+#   * Nothing off the plane is correct: a staircase, a ramp, a thrown object. The homography
+#     cannot tell that its input was not on the floor, so it will answer confidently and wrongly.
+#   * Accuracy is the accuracy of your tape measure, and nothing here can check it. A four-point
+#     fit passes exactly through the four points you give it, right or wrong. What IS checked is
+#     degeneracy: four points that coincide, or three in a line, are refused with the reason.
+#
+# A camera with no calibration, or with a broken one, is not an error: it reports velocity in
+# px/s, labelled px/s, and `vigil doctor` says GROUND_PLANE is unavailable and why.
+
+version: 1
+
+# The frame these pixels were read from. A calibration is refused for a different size rather
+# than scaled by a factor nobody checked.
+width_px: 1280
+height_px: 720
+
+description: Four corners of the floor mat by the lobby door, measured 2026-10-18.
+
+points:
+  - label: mat near-left
+    pixel: [420.0, 610.0]
+    world_m: [0.0, 0.0]
+  - label: mat near-right
+    pixel: [860.0, 610.0]
+    world_m: [1.80, 0.0]
+  - label: mat far-right
+    pixel: [760.0, 430.0]
+    world_m: [1.80, 1.20]
+  - label: mat far-left
+    pixel: [520.0, 430.0]
+    world_m: [0.0, 1.20]

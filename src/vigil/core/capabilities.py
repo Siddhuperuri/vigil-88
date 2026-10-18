@@ -50,7 +50,10 @@ HOW_TO_PROVIDE: Mapping[Capability, str] = MappingProxyType(
             "a zone file for this camera: set cameras.<id>.zones_ref and create "
             "config/zones/<ref>.zones.yaml with at least one zone"
         ),
-        Capability.GROUND_PLANE: "a calibrated homography for this camera (planned: P5)",
+        Capability.GROUND_PLANE: (
+            "a calibration file for this camera: set cameras.<id>.calibration_ref and "
+            "create config/calibration/<ref>.calib.yaml with four measured points"
+        ),
         Capability.OPTICAL_FLOW: "an optical-flow stage (not planned)",
         Capability.SCENE_STABILITY: (
             "the scene analyzer with an array backend installed (the capture extra), "

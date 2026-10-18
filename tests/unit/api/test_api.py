@@ -89,6 +89,15 @@ def test_the_viewer_page_is_served_and_loads_nothing_external(running) -> None: 
     assert "innerHTML" not in page.text  # data reaches the DOM through textContent only
 
 
+def test_the_viewer_offers_an_export_only_through_a_control_it_can_honour(running) -> None:  # type: ignore[no-untyped-def]
+    """PDF ships disabled in the markup and is enabled only by the formats route, so a failed
+    probe leaves a control that cannot deliver visibly unavailable (08 §8)."""
+    _, _, client = running
+    page = client.get("/").text
+    assert '<button id="export-pdf" disabled>' in page
+    assert "/api/v1/analytics/formats" in page
+
+
 def test_health_reports_the_real_detector_and_grants_detection(running) -> None:  # type: ignore[no-untyped-def]
     _, _, client = running
     body = client.get("/api/v1/system/health").json()

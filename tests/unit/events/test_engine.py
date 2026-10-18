@@ -532,9 +532,11 @@ def test_binding_refuses_a_module_whose_capabilities_are_absent(log: LoggerLike)
         logger=log,
     )
     assert report.runnable_ids == ()
-    assert len(report.unavailable) == 1
-    assert report.unavailable[0].reason is not None
-    assert "zones" in report.unavailable[0].reason
+    # Every discovered module needs TRACKING, so every one of them is unavailable here. The
+    # enabled one is what matters: it must say which capability is missing.
+    intrusion = next(a for a in report.unavailable if a.module_id == "intrusion")
+    assert intrusion.reason is not None
+    assert "zones" in intrusion.reason
 
 
 def test_binding_reports_a_module_whose_parameters_do_not_validate(log: LoggerLike) -> None:

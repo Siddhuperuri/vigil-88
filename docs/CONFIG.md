@@ -24,6 +24,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `paths.evidence_dir` | Path | NoneType | `None` |  |
 | `paths.db_dir` | Path | NoneType | `None` |  |
 | `paths.bench_dir` | Path | NoneType | `None` |  |
+| `paths.exports_dir` | Path | NoneType | `None` |  |
 
 ## `logging`
 
@@ -314,6 +315,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `cameras[].priority` | int | `5` | ge=0, le=9 |
 | `cameras[].enabled` | bool | `True` |  |
 | `cameras[].zones_ref` | str | NoneType | `None` |  |
+| `cameras[].calibration_ref` | str | NoneType | `None` |  |
 | `cameras[].target_inference_fps` | float | `5.0` | gt=0 |
 | `cameras[].tags` | tuple[str, ...] | `()` |  |
 | `cameras[].module_params` | collections.abc.Mapping[str, collections.abc.Mapping[str, object]] | `{}` |  |

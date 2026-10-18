@@ -5,6 +5,10 @@ This is the boundary every detection module sees. What it guarantees:
   * **tracks carry their zone dwell.** `tracking/` cannot compute dwell because it must not
     know about zones (01 §5), so the analyzer copies the occupancy tracker's answer onto the
     `TrackedObject` it reports. A module reads `track.zone_dwell_ms` and never recomputes it;
+  * **tracks carry a metric velocity only when one exists.** `velocity_m_s` is filled here, from
+    the camera's calibrated ground plane, for the same reason: `tracking/` must not know about
+    the scene. With no calibration the field stays `None` -- never a px/s number relabelled as
+    metres, which is the one mistake in this area that would be invisible downstream;
   * **one answer per fact.** Occupancy, enter/exit, relations and stability are computed here,
     once, so two modules can never disagree about the same scene (05 §4);
   * **missing facts are declared, not faked.** Anything that could not be computed appears in
@@ -32,6 +36,7 @@ from vigil.domain.enums import SceneFact
 from vigil.domain.frame import FrameMeta
 from vigil.domain.scene import SceneState, Zone
 from vigil.domain.track import TrackedObject
+from vigil.scene.calibration import GroundPlane
 from vigil.scene.occupancy import OccupancyTracker
 from vigil.scene.relations import compute_relations
 from vigil.scene.zones import ZoneGeometry
@@ -54,7 +59,15 @@ class StabilityProbe(Protocol):
 class SceneAnalyzer:
     """Implements `core.protocols.scene.SceneAnalyzer`, plus the pixel-dependent stability pass."""
 
-    __slots__ = ("_camera_id", "_config", "_geometry", "_occupancy", "_stability", "_zones")
+    __slots__ = (
+        "_camera_id",
+        "_config",
+        "_geometry",
+        "_ground_plane",
+        "_occupancy",
+        "_stability",
+        "_zones",
+    )
 
     def __init__(
         self,
@@ -63,11 +76,13 @@ class SceneAnalyzer:
         config: SceneConfig,
         zones: Sequence[Zone] = (),
         stability: StabilityProbe | None = None,
+        ground_plane: GroundPlane | None = None,
     ) -> None:
         self._camera_id = camera_id
         self._config = config
         self._zones = tuple(zones)
         self._stability = stability
+        self._ground_plane = ground_plane
         self._occupancy = OccupancyTracker()
         self._geometry: ZoneGeometry | None = None
 
@@ -78,6 +93,10 @@ class SceneAnalyzer:
     @property
     def has_zones(self) -> bool:
         return bool(self._zones)
+
+    @property
+    def ground_plane(self) -> GroundPlane | None:
+        return self._ground_plane
 
     def set_zones(self, zones: Sequence[Zone]) -> None:
         """Zone edits take effect without a restart (08 §11), so this is a live swap.
@@ -118,8 +137,16 @@ class SceneAnalyzer:
         if not geometry.zones:
             degraded.add(SceneFact.ZONE_OCCUPANCY)
 
+        plane = self._plane_for(frame_meta)
+        if self._ground_plane is not None and plane is None:
+            # Calibrated, but for a different frame size: the homography is in pixels, so it
+            # does not transfer. Degraded rather than wrong.
+            degraded.add(SceneFact.GROUND_PLANE)
         enriched = tuple(
-            self._with_dwell(t, occupancy.dwell_ms_by_track.get(t.track_id, {})) for t in tracks
+            self._with_world_velocity(
+                self._with_dwell(t, occupancy.dwell_ms_by_track.get(t.track_id, {})), plane
+            )
+            for t in tracks
         )
         relations = compute_relations(enriched, geometry, self._config)
         if relations.degraded:
@@ -151,6 +178,12 @@ class SceneAnalyzer:
             self._geometry = geometry
         return geometry
 
+    def _plane_for(self, frame_meta: FrameMeta) -> GroundPlane | None:
+        plane = self._ground_plane
+        if plane is None or not plane.matches(frame_meta.width_px, frame_meta.height_px):
+            return None
+        return plane
+
     def _measure_stability(self, pixels: PixelBuffer | None) -> float | None:
         if self._stability is None or pixels is None or not self._config.stability_enabled:
             return None
@@ -160,3 +193,17 @@ class SceneAnalyzer:
     def _with_dwell(track: TrackedObject, dwell_ms: Mapping[str, float]) -> TrackedObject:
         """`TrackedObject` is frozen, so this returns a new one with the dwell map filled in."""
         return track if not dwell_ms else replace(track, zone_dwell_ms=dwell_ms)
+
+    @staticmethod
+    def _with_world_velocity(track: TrackedObject, plane: GroundPlane | None) -> TrackedObject:
+        """Convert px/s to m/s at the track's **foot point**, which is the part on the floor.
+
+        The box centre is not on the calibrated plane -- it is roughly chest height -- so
+        converting there would report a speed measured on a plane that does not exist. The
+        conversion is skipped, not approximated, where it cannot be made: at the horizon, or
+        with no velocity to convert.
+        """
+        if plane is None or track.velocity_px_s is None:
+            return track
+        world = plane.to_world_velocity(track.bbox.bottom_center, track.velocity_px_s)
+        return track if world is None else replace(track, velocity_m_s=world)

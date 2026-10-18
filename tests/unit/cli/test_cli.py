@@ -173,7 +173,11 @@ def test_doctor_reports_environment_config_and_capabilities() -> None:
         "tracking",
     ):
         assert expected in out
-    assert "1 discovered (intrusion)" in out  # discovery is reported honestly
+    # Discovery is reported honestly, and the count grows as modules ship. The table wraps, so
+    # the count and the names are asserted separately rather than as one contiguous string.
+    assert "3 discovered" in out
+    for module_id in ("abandoned_object", "intrusion", "person_down"):
+        assert module_id in out
 
 
 def test_doctor_reports_an_unavailable_module_with_the_reason(tmp_path: Path) -> None:

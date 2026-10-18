@@ -121,6 +121,7 @@ class SceneFact(StrEnum):
     SPATIAL_RELATIONS = "spatial_relations"
     STABILITY = "stability"
     VELOCITY = "velocity"
+    GROUND_PLANE = "ground_plane"
 
 
 class SpatialRelationKind(StrEnum):

@@ -26,6 +26,7 @@ class ResolvedPaths:
     log_file: Path
     database_file: Path
     alerts_file: Path
+    exports_dir: Path
 
     def directories(self) -> tuple[Path, ...]:
         return (
@@ -35,6 +36,7 @@ class ResolvedPaths:
             self.evidence_dir,
             self.db_dir,
             self.bench_dir,
+            self.exports_dir,
         )
 
     def ensure_directories(self) -> None:
@@ -76,6 +78,7 @@ def resolve_paths(settings: Settings, *, config_dir: Path) -> ResolvedPaths:
         db_dir=db_dir,
         bench_dir=absolute(cfg.bench_dir) if cfg.bench_dir else data_dir / "bench",
         log_file=absolute(json_file) if json_file else logs_dir / "vigil.jsonl",
+        exports_dir=absolute(cfg.exports_dir) if cfg.exports_dir else data_dir / "exports",
         database_file=absolute(storage_file) if storage_file else db_dir / "vigil.sqlite3",
         alerts_file=absolute(alerts_file) if alerts_file else logs_dir / "alerts.jsonl",
     )

@@ -26,7 +26,7 @@ from vigil.core.capabilities import Capability
 from vigil.core.clock import ManualClock
 from vigil.core.protocols.logger import LoggerLike
 from vigil.core.protocols.module import DetectionModule, ModuleContext
-from vigil.domain.enums import EventType, ObjectClass, ZoneKind
+from vigil.domain.enums import EventType, ObjectClass, TrackFlag, ZoneKind
 from vigil.domain.observation import Observation
 from vigil.domain.scene import SceneState
 from vigil.events.registry import ModuleRegistration, build_registry
@@ -61,7 +61,12 @@ def populated_scene(
     capabilities: frozenset[Capability] = FULL_CAPABILITIES,
     epoch: int = 1,
 ) -> SceneState:
-    """A scene rich enough that any module shipped here should have something to say about it."""
+    """A scene rich enough that any module shipped here should have something to say about it.
+
+    It is shared, so it grows as modules ship: a fixture that only exercised the first module
+    would quietly stop being a contract. Each element below is here because some module needs
+    it, and the comments say which.
+    """
     return (
         SceneStateBuilder(camera_id=CAMERA)
         .with_zone("yard", ZoneKind.RESTRICTED, criticality=3)
@@ -86,11 +91,31 @@ def populated_scene(
             2,
             ObjectClass.OBJECT_BAG,
             at=(0.2, 0.6),
+            size=(40.0, 30.0),
             hits=30,
             age_frames=30,
             in_zones=["dock"],
             dwell_ms={"dock": 60_000.0},
+            # A bag that has been in a dock for a minute is only *abandoned* if it is also
+            # still and someone was once beside it. The scene said neither, which meant it
+            # described a bag nothing could have an opinion about. Both are now stated, so the
+            # fixture represents the situation it was always reaching for.
+            flags=[TrackFlag.STATIONARY],
+            stationary_since_ms=0.0,
             first_seen_ms=0.0,
+        )
+        .with_track(
+            # The bag's owner, standing beside it. Ownership is the condition that separates a
+            # dropped bag from the furniture, so a scene with no plausible owner anywhere cannot
+            # exercise it at all.
+            3,
+            ObjectClass.PERSON,
+            at=(0.22, 0.62),
+            hits=12,
+            age_frames=12,
+            in_zones=["dock"],
+            dwell_ms={"dock": 4000.0},
+            first_seen_ms=1000.0,
         )
         .with_capabilities(capabilities)
         .with_epoch(epoch)

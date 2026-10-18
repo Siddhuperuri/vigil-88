@@ -375,6 +375,30 @@ class IncidentRepository:
         )
         return tuple(transition_from_row(r) for r in rows)
 
+    def transitions_for(
+        self, incident_ids: Sequence[str]
+    ) -> dict[str, tuple[IncidentTransition, ...]]:
+        """Transitions for a whole page in one query.
+
+        `page()` deliberately returns incidents without their transitions, because a list of
+        twelve rows should not pay for their audit trails. A report *does* need them -- the
+        timeline is part of what an export is for -- so it asks for them in one statement
+        rather than one per row.
+        """
+        if not incident_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in incident_ids)
+        rows = self._db.query(
+            "SELECT incident_id, from_status, to_status, at_utc, actor, reason "
+            f"FROM incident_transitions WHERE incident_id IN ({placeholders}) "
+            "ORDER BY incident_id, id ASC",
+            list(incident_ids),
+        )
+        out: dict[str, list[IncidentTransition]] = {}
+        for row in rows:
+            out.setdefault(str(row["incident_id"]), []).append(transition_from_row(row))
+        return {incident_id: tuple(items) for incident_id, items in out.items()}
+
     def evidence_status(self, incident_id: str) -> str | None:
         value = self._db.scalar(
             "SELECT evidence_status FROM incidents WHERE incident_id = ?", (incident_id,)

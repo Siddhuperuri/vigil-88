@@ -36,7 +36,11 @@ $Floors = @(
     @{ Path = "src/vigil/temporal/*";      Min = 95 },
     @{ Path = "src/vigil/verification/*";  Min = 95 },
     @{ Path = "src/vigil/severity/*";      Min = 90 },
-    @{ Path = "src/vigil/events/*";        Min = 90 }
+    @{ Path = "src/vigil/events/*";        Min = 90 },
+    # Analytics reports numbers an operator will act on, and a wrong one is indistinguishable
+    # from a right one by looking at it -- so the arithmetic, the empty-window paths and the
+    # CSV neutralisation are all covered.
+    @{ Path = "src/vigil/analytics/*";     Min = 95 }
 )
 
 Step "ruff format --check" { uv run ruff format --check . }

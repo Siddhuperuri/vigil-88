@@ -25,6 +25,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from vigil.analytics.queries import AnalyticsQueries
+from vigil.analytics.reports import ReportBuilder
 from vigil.config.paths import ResolvedPaths
 from vigil.config.schema.camera import CameraConfig
 from vigil.config.settings import Settings
@@ -69,6 +71,8 @@ class ResponseStack:
     cameras: CameraRepository
     manager: IncidentManager
     actions: OperatorActions
+    analytics: AnalyticsQueries
+    reports: ReportBuilder
     mutes: MuteRegistry
     alerts: AlertDispatcher
     capture: EvidenceCapture
@@ -125,6 +129,8 @@ def build_response_stack(
     # is renamed or removed (05 §4).
     camera_rows.upsert_all(cameras, now_wall_utc=clock.wall_utc())
 
+    analytics = AnalyticsQueries(database)
+    reports = ReportBuilder(analytics=analytics, incidents=incidents, evidence=evidence_repo)
     manager = IncidentManager(
         incidents=incidents,
         settings=settings,
@@ -233,6 +239,8 @@ def build_response_stack(
         cameras=camera_rows,
         manager=manager,
         actions=actions,
+        analytics=analytics,
+        reports=reports,
         mutes=mutes,
         alerts=alerts,
         capture=capture,

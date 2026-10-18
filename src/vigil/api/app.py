@@ -241,6 +241,7 @@ def _mount_incident_routes(api: APIRouter, application: Application) -> None:
     "broken" (08 §8). `GET /system/health` reports `persists_incidents` either way, so the
     console knows which it is looking at.
     """
+    from vigil.api.routers import analytics as analytics_router
     from vigil.api.routers import events as events_router
     from vigil.api.routers import incidents as incidents_router
     from vigil.api.routers import modules as modules_router
@@ -279,3 +280,12 @@ def _mount_incident_routes(api: APIRouter, application: Application) -> None:
         )
     )
     api.include_router(mutes_router.build_router(mutes=response.mutes, clock=application.clock))
+    api.include_router(
+        analytics_router.build_router(
+            analytics=response.analytics,
+            reports=response.reports,
+            exports_dir=application.paths.exports_dir,
+            clock=application.clock,
+            ulids=application.ulids,
+        )
+    )

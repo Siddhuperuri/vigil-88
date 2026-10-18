@@ -9,6 +9,7 @@ from typing import Literal, Self
 from pydantic import Field, field_validator, model_validator
 
 from vigil.config.schema.base import ConfigModel
+from vigil.config.schema.calibration import CALIBRATION_REF_PATTERN
 from vigil.config.schema.zones import ZONES_REF_PATTERN
 from vigil.core.ids import validate_camera_id
 from vigil.core.redaction import contains_inline_credentials
@@ -84,6 +85,9 @@ class CameraConfig(ConfigModel):
     priority: int = Field(default=5, ge=0, le=9)
     enabled: bool = True
     zones_ref: str | None = None
+    # Names config/calibration/<ref>.calib.yaml. Without it the camera is
+    # uncalibrated, GROUND_PLANE is not granted, and velocity stays in px/s.
+    calibration_ref: str | None = None
     target_inference_fps: float = Field(default=5.0, gt=0)
     tags: tuple[str, ...] = ()
     # Per-camera module parameter overrides, keyed by module_id (06 §5). The innermost of the
@@ -107,6 +111,16 @@ class CameraConfig(ConfigModel):
             raise ValueError(
                 "zones_ref must be a short name such as 'front-gate' (it selects "
                 "config/zones/<name>.zones.yaml), never a path"
+            )
+        return value
+
+    @field_validator("calibration_ref")
+    @classmethod
+    def _calibration_ref_is_a_name_not_a_path(cls, value: str | None) -> str | None:
+        if value is not None and not CALIBRATION_REF_PATTERN.match(value):
+            raise ValueError(
+                "calibration_ref must be a short name such as 'lobby-floor' (it selects "
+                "config/calibration/<name>.calib.yaml), never a path"
             )
         return value
 
