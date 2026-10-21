@@ -35,7 +35,6 @@ from vigil.core.protocols.logger import LoggerLike
 from vigil.core.rng import seeded_rng
 from vigil.core.units import NS_PER_S, ns_to_ms
 from vigil.domain.camera import Camera, CameraHealth, CameraStateChanged
-from vigil.domain.enums import CameraState
 from vigil.domain.incident import SystemSnapshot
 from vigil.ingest.sources.factory import build_source
 from vigil.ingest.watchdog import Watchdog
@@ -44,7 +43,13 @@ from vigil.observability.metrics import MetricsRegistry
 from vigil.observability.probes import NvmlProbe, SystemProbe
 from vigil.pipeline import shutdown
 from vigil.pipeline.assembly import AnalysisAssembly
-from vigil.pipeline.camera_runtime import CameraRuntime, SourceFactory, build_camera_runtime
+from vigil.pipeline.camera_runtime import (
+    CameraRuntime,
+    SourceFactory,
+    all_drained,
+    build_camera_runtime,
+    record_analysis_drop,
+)
 from vigil.pipeline.cameras import camera_from_config
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
@@ -353,11 +358,16 @@ class Application:
         stages = self._stages
         if stages is None:
             return
-        dropped = stages.analysis.queue.put(analysed.frame.meta.camera_id, analysed)
+        camera_id = analysed.frame.meta.camera_id
+        runtime = self._cameras.get(camera_id)
+        # A PACED camera blocks rather than drops: losing a frame there breaks the replay
+        # determinism that benchmarking and regression testing rest on (07 §2).
+        lossless = runtime is not None and runtime.lossless
+        dropped = stages.analysis.queue.put(camera_id, analysed, block=lossless)
         if dropped is not None:
-            self.metrics.counter(
-                "vigil_frames_analysis_dropped_total", camera=dropped.camera_id
-            ).inc(dropped.dropped)
+            record_analysis_drop(
+                runtime, camera_id=camera_id, count=dropped.dropped, metrics=self.metrics
+            )
 
     def _worker(
         self, name: str, target: Callable[[threading.Event, Callable[[], None]], None]
@@ -409,6 +419,7 @@ class Application:
             workers,
             [rt.channel for rt in self._cameras.values() if rt.channel is not None],
             close_hub=None if self.stream_hub is None else self.stream_hub.close,
+            close_queues=() if self._stages is None else (self._stages.analysis.queue.close,),
         )
         stragglers = shutdown.join_workers(
             workers,
@@ -439,6 +450,10 @@ class Application:
     def camera_health(self) -> tuple[CameraHealth, ...]:
         return tuple(rt.health.snapshot() for rt in self._cameras.values())
 
+    @property
+    def _drained(self) -> bool:
+        return all_drained(self._cameras.values(), metrics=self.metrics)
+
     def wait_until_drained(self, timeout_s: float) -> bool:
         """True once every camera has finished and every frame it produced was inferred.
 
@@ -447,26 +462,10 @@ class Application:
         stop = threading.Event()
         deadline = self.clock.monotonic_ns() + int(timeout_s * NS_PER_S)
         while self.clock.monotonic_ns() < deadline:
-            if self._drained():
+            if self._drained:
                 return True
             stop.wait(0.01)
-        return self._drained()
-
-    def _drained(self) -> bool:
-        for rt in self._cameras.values():
-            if rt.worker is None:
-                continue
-            h = rt.health.snapshot()
-            if h.state not in (CameraState.OFFLINE, CameraState.FAILED):
-                return False
-            if rt.channel is not None and rt.channel.depth() > 0:
-                return False
-            inferred = self.metrics.counter(
-                "vigil_frames_inferred_total", camera=rt.camera.camera_id
-            ).value
-            if inferred < h.frames_received - h.frames_skipped:
-                return False
-        return True
+        return self._drained
 
     def snapshot(self) -> AppSnapshot:
         cameras = self.camera_health()
@@ -482,6 +481,7 @@ class Application:
             if self._started_ns is None
             else ns_to_ms(self.clock.monotonic_ns() - self._started_ns)
         )
+        stall_ms = self.settings.pipeline.worker_stall_timeout_ms
         return AppSnapshot(
             state=self.state,
             started_wall_utc=self._started_wall,
@@ -489,7 +489,7 @@ class Application:
             cameras=cameras,
             workers=workers,
             capabilities=self.capabilities.table(),
-            health=aggregate_health(cameras, workers),
+            health=aggregate_health(cameras, workers, worker_stall_timeout_ms=stall_ms),
             detector=self._detector.descriptor if self._detector else None,
             frames_inferred=int(self.metrics.counter_total("vigil_frames_inferred_total")),
             detections_total=int(self.metrics.counter_total("vigil_detections_total")),

@@ -56,7 +56,9 @@ def fake_package(name: str, **attrs: object) -> ModuleType:
 # ------------------------------------------------------------------ discovery
 
 
-SHIPPED = ("abandoned_object", "intrusion", "person_down")
+# Every module in `events/builtin/`, in discovery order. `fire` and `smoke` are
+# declaration-only (ADR 0015): discovered and reported, never runnable.
+SHIPPED = ("abandoned_object", "fire", "intrusion", "person_down", "smoke")
 
 
 def test_every_builtin_module_is_discovered() -> None:
@@ -291,7 +293,7 @@ def test_entry_point_discovery_is_sorted(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_build_registry_can_combine_builtin_and_extra(monkeypatch: pytest.MonkeyPatch) -> None:
     extra = registration(descriptor("injected"), "test:injected")
     registry = build_registry(include_entry_points=False, extra=[extra])
-    assert registry.ids() == ("abandoned_object", "injected", "intrusion", "person_down")
+    assert registry.ids() == tuple(sorted((*SHIPPED, "injected")))
 
 
 class _StubEntryPoint:

@@ -42,9 +42,10 @@ from vigil.domain.observation import SubjectKey
 from vigil.observability.metrics import MetricsRegistry
 from vigil.persistence.repositories.events import CandidateRepository
 from vigil.persistence.repositories.evidence import EvidenceRepository
-from vigil.pipeline.analysis import AnalysisTick, ScoredEvent
+from vigil.pipeline.analysis import AnalysisTick
 from vigil.pipeline.evidence_capture import EvidenceCapture, PendingCapture
 from vigil.pipeline.queues import SpillQueue
+from vigil.pipeline.scoring import ScoredEvent
 from vigil.response.channels.registry import AlertDispatcher
 from vigil.response.evidence import EvidenceStatus
 from vigil.response.incident_manager import (

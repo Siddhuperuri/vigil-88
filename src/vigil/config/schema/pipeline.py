@@ -18,6 +18,11 @@ class PipelineConfig(ConfigModel):
     min_inference_fps: float = Field(default=2.0, gt=0)
     shutdown_timeout_ms: int = Field(default=5000, ge=100)
     worker_idle_wait_ms: int = Field(default=20, ge=1)
+    # A worker beats once per loop iteration, so a beat this old means the thread is
+    # blocked rather than busy. Generous: the slowest legitimate beat is the
+    # watchdog's one per second, and a blocked `read()` is the case being caught.
+    # Reaching it makes the application report FAILED, because nothing restarts it.
+    worker_stall_timeout_ms: int = Field(default=30_000, ge=1000)
 
     @model_validator(mode="after")
     def _fps_order(self) -> Self:
@@ -35,6 +40,11 @@ class IngestConfig(ConfigModel):
     # opens that fail before the camera ever came online (absent / locked device)
     max_initial_open_attempts: int = Field(default=3, ge=1)
     max_consecutive_read_failures: int = Field(default=3, ge=1)
+    # Frames a reopened stream must deliver before the reconnect is judged to have
+    # worked and the backoff escalation resets. Without this, a camera that opens and
+    # then fails its first read retries at `reconnect_base_ms` for ever and never
+    # reaches FAILED, because every successful open cleared the attempt counter.
+    reconnect_reset_frames: int = Field(default=10, ge=1)
     glitch_wait_ms: int = Field(default=10, ge=0)
     watchdog_interval_ms: int = Field(default=1000, ge=50)
     stall_timeout_ms: int = Field(default=5000, ge=100)
@@ -48,7 +58,18 @@ class IngestConfig(ConfigModel):
 
 
 class HealthConfig(ConfigModel):
+    # Measured frame rate below this fraction of the *expected* rate is DEGRADED --
+    # and DEGRADED makes verification reject every candidate (06 §6 validator 1), so
+    # what counts as expected decides whether the camera can detect anything at all.
     min_fps_ratio: float = Field(default=0.5, gt=0.0, le=1.0)
+    # The expectation starts as the driver's claim and is replaced by what the camera
+    # has actually sustained once it has delivered this many frames. A driver that
+    # advertises 30 fps and delivers 14 would otherwise hold the camera DEGRADED for
+    # its whole life, silencing it, for a stream whose spacing is perfectly regular.
+    adopt_measured_fps_after_frames: int = Field(default=90, ge=10)
+    # The floor no amount of demonstration lowers. Temporal reasoning over frames
+    # this far apart is unsound whatever the camera claims or has shown.
+    min_absolute_fps: float = Field(default=1.0, gt=0.0)
     fps_window_frames: int = Field(default=30, ge=5)
     min_frames_for_fps: int = Field(default=10, ge=2)
     decode_error_window_ms: int = Field(default=60_000, ge=1000)

@@ -38,40 +38,17 @@ from vigil.domain.event import (
     CandidateRecord,
     VerifiedEvent,
 )
-from vigil.domain.incident import SeverityAssessment
 from vigil.domain.observation import Observation, SubjectKey
 from vigil.domain.scene import SceneState
 from vigil.events.engine import EventEngine, ModuleFailure
 from vigil.events.promotion import promote
 from vigil.observability.metrics import MetricsRegistry
+from vigil.pipeline.scoring import ScoredEvent, ScoringResult, score_tick
 from vigil.severity.engine import SeverityScorer
-from vigil.severity.factors import FactorInputs
 from vigil.temporal.store import AccumulatorStore
-from vigil.verification.arbitration import ArbitrationOutcome, arbitrate
 from vigil.verification.engine import VerificationEngine
 from vigil.verification.ledger import SuppressionLedger, dedup_key
 from vigil.verification.validators.context import Mute, VerificationState
-
-
-@dataclass(frozen=True, slots=True)
-class ScoredEvent:
-    """A verified event with its severity. The most P3 produces; P4's input."""
-
-    event: VerifiedEvent
-    assessment: SeverityAssessment
-    arbitration: ArbitrationOutcome
-
-    @property
-    def candidate(self) -> CandidateEvent:
-        return self.event.candidate
-
-    @property
-    def detection_latency_ms(self) -> float:
-        """`confirmed - first_observed`: the headline quality metric for the temporal engine."""
-        accumulator = self.event.candidate.accumulator
-        return ns_to_ms(
-            self.event.candidate.promoted_monotonic_ns - accumulator.first_observation_ns
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,8 +225,14 @@ class AnalysisPipeline:
             if result.event is not None:
                 verified.append(result.event)
 
-        scored = self._score(verified, scene, now_ns)
-        ongoing = self._ongoing(now_ns, exclude={s.candidate.subject for s in scored})
+        decided = self._score(verified, records, scene, now_ns)
+        scored = decided.scored
+        # A suppressed subject is excluded from the ongoing pass for the same reason a scored one
+        # is: its situation is already being reported, on the event that absorbed it.
+        ongoing = self._ongoing(
+            now_ns,
+            exclude={s.candidate.subject for s in scored} | set(decided.suppressed_subjects),
+        )
         released = self._release(now_ns)
 
         self._store.prune_idle(now_ns)
@@ -261,7 +244,7 @@ class AnalysisPipeline:
             t_monotonic_ns=now_ns,
             observations=observed.observations,
             scored=scored,
-            records=tuple(records),
+            records=decided.records,
             released=released,
             ongoing=ongoing,
             module_failures=observed.failures,
@@ -314,34 +297,23 @@ class AnalysisPipeline:
         return tuple(candidates)
 
     def _score(
-        self, events: Sequence[VerifiedEvent], scene: SceneState, now_ns: int
-    ) -> tuple[ScoredEvent, ...]:
-        """Arbitrate, then score. Nothing else in the system constructs a SeverityAssessment."""
-        if not events:
-            return ()
-        outcomes = arbitrate(events, config=self._arbitration, now_monotonic_ns=now_ns)
-        scored: list[ScoredEvent] = []
-        for outcome in outcomes:
-            assessment = self._scorer.score(
-                FactorInputs(
-                    event=outcome.event,
-                    now_wall_utc=scene.frame_meta.wall_utc,
-                    zones=scene.zones,
-                    camera_trust_ratio=self._camera_trust,
-                    related_event_count=max(outcome.escalation_count - 1, 0),
-                )
-            )
-            scored.append(
-                ScoredEvent(event=outcome.event, assessment=assessment, arbitration=outcome)
-            )
-            self._log.info(
-                "event_scored",
-                candidate_id=outcome.event.candidate.candidate_id,
-                severity=assessment.severity.name,
-                severity_score=round(assessment.score, 2),
-                suppressed_by=outcome.suppressed_by,
-            )
-        return tuple(scored)
+        self,
+        events: Sequence[VerifiedEvent],
+        records: Sequence[CandidateRecord],
+        scene: SceneState,
+        now_ns: int,
+    ) -> ScoringResult:
+        """Arbitrate, act on any suppression, then score. See `pipeline/scoring.py`."""
+        return score_tick(
+            events,
+            records,
+            scene=scene,
+            now_ns=now_ns,
+            config=self._arbitration,
+            scorer=self._scorer,
+            camera_trust_ratio=self._camera_trust,
+            logger=self._log,
+        )
 
     def _ongoing(self, now_ns: int, *, exclude: set[SubjectKey]) -> tuple[OngoingSituation, ...]:
         """Active accumulators still receiving evidence, at most one report per interval.
@@ -410,13 +382,26 @@ class AnalysisPipeline:
         return tuple(released)
 
     def _on_epoch_reset(self) -> None:
-        """Identities no longer mean what they meant, so everything keyed by them is worthless."""
-        self._store.reset()
-        self._extended_ns.clear()
+        """Drop what the identities owned; keep what the places owned (07 §5).
+
+        `track:` accumulators go, because track 7 before the gap is not track 7 after it.
+        `zone:`, `region:` and `camera:` accumulators stay and decay across the gap instead: a
+        fire does not stop burning because the network blipped. Before P6 this discarded all of
+        them, which no shipped module could notice because all three use `track:` subjects, and
+        which would have been silently wrong for the first module that did not.
+        """
+        forgotten = self._store.reset_tracks()
+        for key in forgotten:
+            self._extended_ns.pop(key, None)
         self._ledger.reset_camera(self._camera_id)
         dropped = self._verification.drop_pending_for_camera(self._camera_id)
         self._metrics.counter("vigil_epoch_resets_total", camera=self._camera_id).inc()
-        self._log.info("analysis_state_reset_on_epoch_change", dropped_pending=len(dropped))
+        self._log.info(
+            "analysis_state_reset_on_epoch_change",
+            dropped_pending=len(dropped),
+            track_accumulators_forgotten=len(forgotten),
+            accumulators_kept=len(self._store),
+        )
 
     # ---------------------------------------------------------------- helpers
 

@@ -7,9 +7,15 @@ import pytest
 from tests.support.candidates import CAMERA, candidate, verified
 from vigil.config.schema.modules import ArbitrationConfig, VerificationConfig
 from vigil.core.units import ms_to_ns
-from vigil.domain.enums import EventType
+from vigil.domain.enums import CandidateOutcome, EventType
+from vigil.domain.event import CandidateRecord
 from vigil.domain.observation import SubjectKey
-from vigil.verification.arbitration import SUBSUMED_BY, arbitrate
+from vigil.verification.arbitration import (
+    MERGED_INTO,
+    SUBSUMED_BY,
+    arbitrate,
+    suppressed_record,
+)
 from vigil.verification.ledger import SuppressionLedger, dedup_key
 
 TRACK_1 = SubjectKey("track", "1")
@@ -301,3 +307,153 @@ def test_arbitration_considers_already_active_events() -> None:
 
 def test_arbitration_of_nothing_is_nothing() -> None:
     assert arbitrate([], config=CONFIG, now_monotonic_ns=0) == ()
+
+
+# ------------------------------------------------------------------ merge (06 §7)
+#
+# Held back in P3 for want of FIRE/SMOKE and implemented in P6. Neither event type has a
+# detector in this build (ADR 0015), so these are the only exercise the rule gets -- which is
+# why they cover the directions it must *not* fire in as carefully as the one it must.
+
+
+def _fire(subject: SubjectKey = TRACK_1, *, camera: str = CAMERA, step_ms: float = 100.0):
+    return verified(
+        cand=candidate(
+            event_type=EventType.FIRE,
+            subject=subject,
+            camera_id=camera,
+            module_id="fire",
+            step_ms=step_ms,
+        )
+    )
+
+
+def _smoke(subject: SubjectKey = TRACK_1, *, camera: str = CAMERA, step_ms: float = 100.0):
+    return verified(
+        cand=candidate(
+            event_type=EventType.SMOKE,
+            subject=subject,
+            camera_id=camera,
+            module_id="smoke",
+            step_ms=step_ms,
+        )
+    )
+
+
+def test_the_merge_table_is_one_directional() -> None:
+    """A symmetric table would let two events suppress each other and report neither."""
+    assert MERGED_INTO[EventType.SMOKE] is EventType.FIRE
+    for contributing, dominant in MERGED_INTO.items():
+        assert MERGED_INTO.get(dominant) is not contributing
+        assert dominant not in MERGED_INTO
+
+
+def test_smoke_on_the_same_subject_is_merged_into_fire() -> None:
+    """One fire is one incident. Two would be a reporting failure (06 §7)."""
+    fire, smoke = _fire(), _smoke()
+    outcomes = arbitrate([fire, smoke], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+    by_type = {o.event.candidate.event_type: o for o in outcomes}
+    merged = by_type[EventType.SMOKE]
+    kept = by_type[EventType.FIRE]
+    assert merged.suppressed
+    assert merged.suppressed_by == fire.candidate.candidate_id
+    assert "contributing signal" in " ".join(merged.notes)
+    # The fire is reported, and it names what it absorbed rather than discarding it.
+    assert not kept.suppressed
+    assert kept.merged_from == (smoke.candidate.candidate_id,)
+    assert "contributing signals" in " ".join(kept.notes)
+
+
+def test_fire_is_never_merged_into_smoke() -> None:
+    """The dominant half must survive whatever order the events arrive in."""
+    for events in ([_fire(), _smoke()], [_smoke(), _fire()]):
+        outcomes = arbitrate(events, config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+        fire = next(o for o in outcomes if o.event.candidate.event_type is EventType.FIRE)
+        assert not fire.suppressed
+
+
+def test_a_lone_smoke_event_stands_on_its_own() -> None:
+    """Smoke with no fire beside it is the warning that matters most; it must not vanish."""
+    outcomes = arbitrate([_smoke()], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+    assert not outcomes[0].suppressed
+    assert outcomes[0].notes == ()
+
+
+def test_merging_requires_the_same_subject() -> None:
+    """Overlap is subject equality; adjacent regions are spatial coalesce's job, not merge's."""
+    outcomes = arbitrate(
+        [_fire(TRACK_1), _smoke(TRACK_2)], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0)
+    )
+    assert not any(o.suppressed for o in outcomes)
+
+
+def test_merging_requires_the_same_camera() -> None:
+    """A fire on one camera says nothing about smoke on another."""
+    outcomes = arbitrate(
+        [_fire(), _smoke(camera="cam-b")], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0)
+    )
+    assert not any(o.suppressed for o in outcomes)
+
+
+def test_merging_requires_the_two_to_be_inside_the_merge_window() -> None:
+    """Promotions 10.8 s apart are two situations under the 10 s default, not one."""
+    fire = _fire(step_ms=100.0)  # promoted at 1200 ms
+    smoke = _smoke(step_ms=1000.0)  # promoted at 12000 ms
+    gap_ms = abs(
+        (smoke.candidate.promoted_monotonic_ns - fire.candidate.promoted_monotonic_ns) / 1e6
+    )
+    assert gap_ms > CONFIG.merge_window_ms
+    outcomes = arbitrate([fire, smoke], config=CONFIG, now_monotonic_ns=ms_to_ns(12_000.0))
+    assert not any(o.suppressed for o in outcomes)
+    # Widen the window past the gap and the same pair does merge, so it is the window that
+    # decided and not some other difference between the two candidates.
+    wide = ArbitrationConfig(merge_window_ms=gap_ms + 1.0)
+    outcomes = arbitrate([fire, smoke], config=wide, now_monotonic_ns=ms_to_ns(12_000.0))
+    smoke_outcome = next(o for o in outcomes if o.event.candidate.event_type is EventType.SMOKE)
+    assert smoke_outcome.suppressed
+
+
+def test_subsumption_wins_over_merge_so_one_event_has_one_reason() -> None:
+    """Both rules suppress; an event suppressed twice would carry two contradictory reasons."""
+    broad = verified(cand=candidate(event_type=EventType.INTRUSION, subject=TRACK_1))
+    narrow = verified(cand=candidate(event_type=EventType.RESTRICTED_AREA_ENTRY, subject=TRACK_1))
+    outcomes = arbitrate([broad, narrow], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+    suppressed = next(o for o in outcomes if o.suppressed)
+    assert suppressed.suppressed_by == broad.candidate.candidate_id
+    assert sum("merged into" in n for n in suppressed.notes) == 0
+
+
+# ------------------------------------------------------------------ acting on a suppression
+
+
+def _record(cand, outcome: CandidateOutcome = CandidateOutcome.VERIFIED) -> CandidateRecord:
+    return CandidateRecord(
+        candidate=cand,
+        outcome=outcome,
+        verdicts=(),
+        accumulator_trace=(),
+        rejection_reason=None,
+        decided_monotonic_ns=cand.promoted_monotonic_ns,
+        decided_wall_utc=cand.promoted_wall_utc,
+    )
+
+
+def test_a_suppressed_candidate_record_says_so_and_carries_the_reason() -> None:
+    """05 §5 has `SUPPRESSED` for exactly this. Leaving it VERIFIED with no incident behind it
+    would make the candidate table disagree with the incident table."""
+    fire, smoke = _fire(), _smoke()
+    outcomes = arbitrate([fire, smoke], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+    merged = next(o for o in outcomes if o.suppressed)
+    rewritten = suppressed_record(_record(smoke.candidate), merged)
+    assert rewritten.outcome is CandidateOutcome.SUPPRESSED
+    assert rewritten.rejection_reason is not None
+    assert fire.candidate.candidate_id in rewritten.rejection_reason
+    # Everything that was considered survives the rewrite: a suppression is not a deletion.
+    assert rewritten.candidate is smoke.candidate
+
+
+def test_an_unsuppressed_record_is_returned_untouched() -> None:
+    fire = _fire()
+    outcomes = arbitrate([fire], config=CONFIG, now_monotonic_ns=ms_to_ns(1200.0))
+    record = _record(fire.candidate)
+    assert suppressed_record(record, outcomes[0]) is record

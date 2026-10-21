@@ -4,7 +4,7 @@
 
   * clock       - no reads of real time outside core/clock.py (decision logic uses frame times)
   * except      - no bare `except:` and no swallowed broad exceptions
-  * paths       - no machine-specific absolute paths in source, config or scripts
+  * paths       - no machine-specific absolute paths in source, config, scripts or docs
   * secrets     - no credential-shaped literals, no credentialed URLs in non-test code
   * size        - no source file beyond MAX_LINES (a giant file is a modularity failure)
 
@@ -49,7 +49,7 @@ _SECRET_RES = {
     "Slack token": re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"),
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 }
-_TEXT_SUFFIXES = {".py", ".yaml", ".yml", ".toml", ".ps1", ".json", ".example"}
+_TEXT_SUFFIXES = {".py", ".yaml", ".yml", ".toml", ".ps1", ".json", ".example", ".md"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,8 +159,11 @@ def check_except(root: Path) -> list[Violation]:
 
 
 def check_paths(root: Path) -> list[Violation]:
+    """Also covers `docs/`: `PERFORMANCE.md` and `docs/bench-results/*.json` are generated from
+    machine data and committed, which makes them the likeliest place for a developer's home
+    directory to reach the repository."""
     out: list[Violation] = []
-    for p in _files(root, "src", "config", "scripts"):
+    for p in _files(root, "src", "config", "scripts", "docs"):
         if p.name == "gates.py":
             continue  # this file contains the patterns it searches for
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
@@ -171,7 +174,7 @@ def check_paths(root: Path) -> list[Violation]:
 
 def check_secrets(root: Path) -> list[Violation]:
     out: list[Violation] = []
-    for p in _files(root, "src", "config", "scripts"):
+    for p in _files(root, "src", "config", "scripts", "docs"):
         if p.name == "gates.py":
             continue
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):

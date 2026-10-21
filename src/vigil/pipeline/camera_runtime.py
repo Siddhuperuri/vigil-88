@@ -20,7 +20,7 @@ the reason, and every other camera keeps running (01 §6).
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from vigil.config.settings import Settings
@@ -38,6 +38,54 @@ from vigil.ingest.health import CameraHealthTracker
 from vigil.observability.metrics import MetricsRegistry
 from vigil.pipeline.workers import ThreadWorker
 
+
+def all_drained(runtimes: Iterable[CameraRuntime], *, metrics: MetricsRegistry) -> bool:
+    """True once every capturing camera has finished and every frame it produced was inferred.
+
+    A property of the camera runtimes rather than of application lifecycle, so it lives beside
+    them. Meaningful for PACED sources, where nothing is skipped; a LIVE source skips by design
+    and `frames_received - frames_skipped` is what it owed the pipeline.
+    """
+    for rt in runtimes:
+        if rt.worker is None:
+            continue
+        health = rt.health.snapshot()
+        if health.state not in (CameraState.OFFLINE, CameraState.FAILED):
+            return False
+        if rt.channel is not None and rt.channel.depth() > 0:
+            return False
+        inferred = metrics.counter("vigil_frames_inferred_total", camera=rt.camera.camera_id).value
+        if inferred < health.frames_received - health.frames_skipped:
+            return False
+    return True
+
+
+def record_analysis_drop(
+    runtime: CameraRuntime | None,
+    *,
+    camera_id: str,
+    count: int,
+    metrics: MetricsRegistry,
+) -> None:
+    """Account for frames the inference-to-analysis queue had to drop.
+
+    Three places, because each is read by someone different: the per-queue counter for
+    diagnosing *which* edge overflowed, the camera's own `frames_dropped` for the Cameras view
+    and 07 §9's per-camera table, and `vigil_frames_dropped_total` for the persisted
+    `SystemMetric`.
+
+    The last two were never written before P6. `RoundRobinDropQueue.put` returned a
+    `DropReport`, the application counted it into one queue-specific metric, and
+    `CameraHealthTracker.record_dropped()` was called from no production code at all — so the
+    health snapshot and every stored metric read zero drops under sustained overload, and
+    05 §4's "skipped is design, dropped is failure" was unobservable where it mattered.
+    """
+    metrics.counter("vigil_frames_analysis_dropped_total", camera=camera_id).inc(count)
+    metrics.counter("vigil_frames_dropped_total", camera=camera_id).inc(count)
+    if runtime is not None:
+        runtime.health.record_dropped(count)
+
+
 SourceFactory = Callable[[Camera], FrameSource]
 WorkerFactory = Callable[[str, object], ThreadWorker]
 
@@ -50,6 +98,15 @@ class CameraRuntime:
     health: CameraHealthTracker
     channel: FrameChannel | None = None
     worker: ThreadWorker | None = None
+    # LIVE or PACED, which decides both the capture buffer here and the overflow policy on the
+    # inference->analysis edge. Defaults to LIVE: a camera whose source could not be built has
+    # no timing, and dropping is the safe answer for one that never delivers anything.
+    timing: SourceTiming = SourceTiming.LIVE
+
+    @property
+    def lossless(self) -> bool:
+        """A PACED source must not lose frames anywhere in the chain (07 §2)."""
+        return self.timing is not SourceTiming.LIVE
 
     @property
     def captures(self) -> bool:
@@ -131,5 +188,9 @@ def build_camera_runtime(
         seek=seek,
     )
     return CameraRuntime(
-        camera, tracker, channel, make_worker(f"capture:{camera.camera_id}", capture.run)
+        camera,
+        tracker,
+        channel,
+        make_worker(f"capture:{camera.camera_id}", capture.run),
+        timing=source.timing,
     )

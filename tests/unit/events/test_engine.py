@@ -520,7 +520,13 @@ def test_binding_produces_a_runnable_intrusion_module(log: LoggerLike) -> None:
     )
     assert report.runnable_ids == ("intrusion",)
     assert report.bind_failures == {}
-    assert report.unavailable == ()
+    # `fire` and `smoke` are unavailable on a fully capable camera and always will
+    # be: they require `classification`, which nothing in this build grants
+    # (ADR 0015). Asserted by name so a module becoming unavailable for some other
+    # reason cannot hide in a count.
+    assert {a.module_id for a in report.unavailable} == {"fire", "smoke"}
+    for declared in report.unavailable:
+        assert "classification" in (declared.reason or "")
 
 
 def test_binding_refuses_a_module_whose_capabilities_are_absent(log: LoggerLike) -> None:
@@ -552,8 +558,9 @@ def test_binding_reports_a_module_whose_parameters_do_not_validate(log: LoggerLi
     )
     assert report.runnable_ids == ()
     assert "intrusion" in report.bind_failures
-    assert report.unavailable[0].status is Availability.UNAVAILABLE
-    assert "failed to bind" in (report.unavailable[0].reason or "")
+    bad = next(a for a in report.unavailable if a.module_id == "intrusion")
+    assert bad.status is Availability.UNAVAILABLE
+    assert "failed to bind" in (bad.reason or "")
 
 
 def test_per_camera_parameters_override_the_module_file(log: LoggerLike) -> None:

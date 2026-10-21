@@ -25,6 +25,11 @@ Sustained runs side by side. Details for each follow.
 | `gpu-yolox-s-4cameras` | GPU | 40.0 (40.0) | 17.4 / 18.9 | 104.4 / 136.4 | 2396 / 0 | 71 | 85 | 1939 | 0 |
 | `gpu-yolox-s-1080p` | GPU | 30.0 (30.0) | 16.5 / 17.5 | 16.9 / 17.8 | 0 / 0 | 50 | 78 | 1729 | 0 |
 | `gpu-yolox-s-5fps` | GPU | 5.0 (5.0) | 68.0 / 72.5 | 99.3 / 104.4 | 2999 / 0 | 69 | 66 | 300 | 0 |
+| `p6-gpu-yolox-s-1cam` | GPU | 10.0 (10.0) | 36.5 / 42.0 | 79.3 / 110.7 | 599 / 0 | 45 | 50 | 591 | 0 |
+| `p6-gpu-yolox-s-2cam` | GPU | 20.0 (20.0) | 22.9 / 28.1 | 86.7 / 118.3 | 1198 / 0 | 51 | 50 | 1086 | 0 |
+| `p6-gpu-yolox-s-4cam` | GPU | 40.0 (40.0) | 19.7 / 24.4 | 126.5 / 160.2 | 2396 / 0 | 80 | 57 | 1301 | 0 |
+| `p6-gpu-yolox-s-6cam` | GPU | 52.1 (52.0) | 18.6 / 22.1 | 110.9 / 143.1 | 4546 / 0 | 79 | 64 | 1376 | 0 |
+| `p6-gpu-yolox-s-8cam` | GPU | 51.6 (51.9) | 18.8 / 22.4 | 110.0 / 145.1 | 8211 / 0 | 80 | 66 | 1455 | 0 |
 
 ## Sustained benchmarks
 
@@ -359,6 +364,246 @@ Annotated frames delivered to the in-process viewer: 1099.
 VRAM: 1621 MB was already in use before the run (desktop and other programs); the peak during the run was 1904 MB, so this workload added about 283 MB.  
 GPU throttle reasons seen: none.  
 Annotated frames delivered to the in-process viewer: 601.  
+
+- The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
+- The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.
+- An in-process viewer consumed the annotated stream, as a browser tab would.
+
+### p6-gpu-yolox-s-1cam
+
+| | |
+|---|---|
+| model | `yolox_s` 640px, fp32+tf32, Apache-2.0 |
+| device | cuda:0 NVIDIA GeForce RTX 3050 6GB Laptop GPU |
+| source | 1 x synthetic 640x480 @ 15 fps |
+| target inference rate | 10 fps per camera |
+| annotated stream consumed | yes (in-process viewer) |
+| duration | 120.0 s measured (requested 120 s); model load + warm-up 0.79 s |
+| started | 2026-10-21T03:35:25.193694+00:00 |
+| code | commit `f8f4bb4` (uncommitted changes), onnxruntime 1.26.0 (gpu build) |
+| GPU | NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MB, driver 616.56, power limit 95 W |
+| host | Intel64 Family 6 Model 183 Stepping 1, GenuineIntel, 10 cores / 16 threads, 15.6 GB RAM, Windows-10-10.0.26300-SP0 |
+
+| metric | whole run | first 30 s | last 30 s | change |
+|---|---|---|---|---|
+| FPS, mean (frames inferred / second) | 10.0 | 10.0 | 10.0 | +0.3% |
+| FPS, median of per-second rates | 10.0 | 10.0 | 10.0 | +0.1% |
+| FPS, slowest 10% of seconds | 9.0 | 9.9 | 10.0 | +0.3% |
+| inference latency, ms (p50 / p95 / p99) | 36.5 / 42.0 / 43.2 | 32.4 / 42.6 / 43.5 | 35.7 / 40.3 / 41.5 | +10.0% |
+|   preprocess, ms | 3.2 / 4.3 / 4.5 | 2.1 / 4.3 / 4.5 | 3.3 / 4.3 / 4.6 | +57.7% |
+|   model run, ms | 30.9 / 35.2 / 36.1 | 27.4 / 35.6 / 37.8 | 30.0 / 33.5 / 34.3 | +9.5% |
+|   postprocess, ms | 2.9 / 3.7 / 4.7 | 2.8 / 3.3 / 4.0 | 2.9 / 3.7 / 4.6 | +2.4% |
+| capture to detections, ms (p50 / p95) | 79.3 / 110.7 | 75.1 / 105.4 | 73.0 / 112.2 | -2.8% |
+| capture to annotated JPEG, ms (p50 / p95) | 139.1 / 188.3 | 127.0 / 187.3 | 129.2 / 188.7 | +1.7% |
+| frames received | 1800 | 435 | 450 |  |
+| frames inferred | 1201 | 290 | 301 |  |
+| frames skipped (not analysed: normal) | 599 | 144 | 150 |  |
+| frames dropped (lost to a full queue: a problem) | 0 | 0 | 0 |  |
+| system CPU %, mean / min / max | 13 / 6 / 36 | 15 / 6 / 36 | 13 / 6 / 24 | -14.2% |
+| process CPU %, mean / min / max (100 = one core) | 41 / 16 / 64 | 37 / 16 / 62 | 39 / 30 / 64 | +4.7% |
+| process RAM, MB, mean / min / max | 888 / 885 / 892 | 887 / 885 / 889 | 888 / 885 / 892 | +0.2% |
+| GPU utilisation %, mean / min / max | 35 / 16 / 45 | 32 / 16 / 43 | 35 / 20 / 45 | +9.2% |
+| VRAM in use, MB, mean / min / max (whole GPU) | 1299 / 1295 / 1352 | 1309 / 1299 / 1352 | 1295 / 1295 / 1295 | -1.0% |
+| GPU temperature C, mean / min / max | 48 / 47 / 50 | 49 / 49 / 50 | 48 / 47 / 48 | -2.6% |
+| GPU SM clock MHz, mean / min / max | 591 / 487 / 1237 | 714 / 487 / 1237 | 589 / 532 / 652 | -17.5% |
+| GPU power W, mean / min / max | 13.5 / 12.5 / 16.6 | 14.2 / 12.5 / 16.6 | 13.2 / 13.0 / 13.4 | -6.7% |
+| seconds the GPU reported being throttled | 0 | 0 | 0 |  |
+
+VRAM: 1043 MB was already in use before the run (desktop and other programs); the peak during the run was 1352 MB, so this workload added about 309 MB.  
+GPU throttle reasons seen: none.  
+Annotated frames delivered to the in-process viewer: 1089.  
+
+- The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
+- The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.
+- An in-process viewer consumed the annotated stream, as a browser tab would.
+
+### p6-gpu-yolox-s-2cam
+
+| | |
+|---|---|
+| model | `yolox_s` 640px, fp32+tf32, Apache-2.0 |
+| device | cuda:0 NVIDIA GeForce RTX 3050 6GB Laptop GPU |
+| source | 2 x synthetic 640x480 @ 15 fps |
+| target inference rate | 10 fps per camera |
+| annotated stream consumed | yes (in-process viewer) |
+| duration | 120.0 s measured (requested 120 s); model load + warm-up 0.81 s |
+| started | 2026-10-21T03:37:28.049936+00:00 |
+| code | commit `f8f4bb4` (uncommitted changes), onnxruntime 1.26.0 (gpu build) |
+| GPU | NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MB, driver 616.56, power limit 95 W |
+| host | Intel64 Family 6 Model 183 Stepping 1, GenuineIntel, 10 cores / 16 threads, 15.6 GB RAM, Windows-10-10.0.26300-SP0 |
+
+| metric | whole run | first 30 s | last 30 s | change |
+|---|---|---|---|---|
+| FPS, mean (frames inferred / second) | 20.0 | 20.0 | 20.0 | +0.0% |
+| FPS, median of per-second rates | 20.0 | 20.0 | 20.0 | -0.1% |
+| FPS, slowest 10% of seconds | 18.2 | 18.2 | 19.7 | +8.5% |
+| inference latency, ms (p50 / p95 / p99) | 22.9 / 28.1 / 30.0 | 23.0 / 27.9 / 29.3 | 24.5 / 29.1 / 31.2 | +6.5% |
+|   preprocess, ms | 2.0 / 4.1 / 4.5 | 2.0 / 4.1 / 4.5 | 2.2 / 4.3 / 4.6 | +7.7% |
+|   model run, ms | 17.9 / 22.3 / 23.6 | 17.7 / 21.7 / 22.8 | 18.4 / 22.9 / 24.1 | +3.9% |
+|   postprocess, ms | 2.9 / 3.6 / 4.7 | 2.9 / 3.9 / 4.7 | 2.9 / 4.2 / 4.9 | +0.9% |
+| capture to detections, ms (p50 / p95) | 86.7 / 118.3 | 86.4 / 116.4 | 93.4 / 123.5 | +8.0% |
+| capture to annotated JPEG, ms (p50 / p95) | 142.4 / 203.8 | 142.3 / 203.3 | 144.4 / 205.6 | +1.4% |
+| frames received | 3600 | 870 | 900 |  |
+| frames inferred | 2400 | 580 | 600 |  |
+| frames skipped (not analysed: normal) | 1198 | 288 | 300 |  |
+| frames dropped (lost to a full queue: a problem) | 0 | 0 | 0 |  |
+| system CPU %, mean / min / max | 16 / 7 / 36 | 19 / 8 / 36 | 12 / 7 / 26 | -36.0% |
+| process CPU %, mean / min / max (100 = one core) | 54 / 37 / 88 | 55 / 41 / 73 | 57 / 43 / 78 | +3.7% |
+| process RAM, MB, mean / min / max | 889 / 884 / 892 | 889 / 884 / 892 | 889 / 885 / 892 | +0.1% |
+| GPU utilisation %, mean / min / max | 37 / 25 / 51 | 37 / 31 / 47 | 38 / 26 / 48 | +1.6% |
+| VRAM in use, MB, mean / min / max (whole GPU) | 1295 / 1295 / 1295 | 1295 / 1295 / 1295 | 1295 / 1295 / 1295 | +0.0% |
+| GPU temperature C, mean / min / max | 50 / 49 / 50 | 49 / 49 / 50 | 50 / 49 / 50 | +1.3% |
+| GPU SM clock MHz, mean / min / max | 1086 / 780 / 1260 | 1121 / 982 / 1237 | 1060 / 795 / 1200 | -5.4% |
+| GPU power W, mean / min / max | 17.6 / 16.4 / 19.4 | 17.4 / 16.4 / 19.3 | 17.5 / 16.5 / 18.9 | +0.4% |
+| seconds the GPU reported being throttled | 0 | 0 | 0 |  |
+
+VRAM: 1044 MB was already in use before the run (desktop and other programs); the peak during the run was 1295 MB, so this workload added about 251 MB.  
+GPU throttle reasons seen: none.  
+Annotated frames delivered to the in-process viewer: 2176.  
+
+- The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
+- The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.
+- An in-process viewer consumed the annotated stream, as a browser tab would.
+
+### p6-gpu-yolox-s-4cam
+
+| | |
+|---|---|
+| model | `yolox_s` 640px, fp32+tf32, Apache-2.0 |
+| device | cuda:0 NVIDIA GeForce RTX 3050 6GB Laptop GPU |
+| source | 4 x synthetic 640x480 @ 15 fps |
+| target inference rate | 10 fps per camera |
+| annotated stream consumed | yes (in-process viewer) |
+| duration | 120.0 s measured (requested 120 s); model load + warm-up 0.78 s |
+| started | 2026-10-21T03:39:30.878452+00:00 |
+| code | commit `f8f4bb4` (uncommitted changes), onnxruntime 1.26.0 (gpu build) |
+| GPU | NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MB, driver 616.56, power limit 95 W |
+| host | Intel64 Family 6 Model 183 Stepping 1, GenuineIntel, 10 cores / 16 threads, 15.6 GB RAM, Windows-10-10.0.26300-SP0 |
+
+| metric | whole run | first 30 s | last 30 s | change |
+|---|---|---|---|---|
+| FPS, mean (frames inferred / second) | 40.0 | 40.0 | 40.0 | +0.0% |
+| FPS, median of per-second rates | 40.0 | 40.0 | 40.0 | +0.0% |
+| FPS, slowest 10% of seconds | 39.7 | 39.8 | 39.8 | -0.1% |
+| inference latency, ms (p50 / p95 / p99) | 19.7 / 24.4 / 27.2 | 20.2 / 25.3 / 28.3 | 19.8 / 24.2 / 26.1 | -2.2% |
+|   preprocess, ms | 1.9 / 2.7 / 3.8 | 2.0 / 3.0 / 4.1 | 1.9 / 3.1 / 4.1 | -1.2% |
+|   model run, ms | 15.1 / 19.7 / 22.5 | 15.5 / 20.4 / 23.1 | 15.0 / 19.3 / 21.3 | -2.8% |
+|   postprocess, ms | 2.8 / 3.3 / 4.3 | 2.8 / 3.5 / 4.7 | 2.8 / 3.4 / 4.2 | +0.5% |
+| capture to detections, ms (p50 / p95) | 126.5 / 160.2 | 129.5 / 162.2 | 127.5 / 158.2 | -1.5% |
+| capture to annotated JPEG, ms (p50 / p95) | 176.0 / 237.7 | 177.1 / 239.0 | 176.0 / 237.4 | -0.6% |
+| frames received | 7197 | 1737 | 1800 |  |
+| frames inferred | 4800 | 1160 | 1200 |  |
+| frames skipped (not analysed: normal) | 2396 | 576 | 600 |  |
+| frames dropped (lost to a full queue: a problem) | 0 | 0 | 0 |  |
+| system CPU %, mean / min / max | 22 / 10 / 52 | 19 / 11 / 49 | 18 / 12 / 31 | -5.9% |
+| process CPU %, mean / min / max (100 = one core) | 95 / 72 / 138 | 95 / 75 / 125 | 92 / 75 / 122 | -3.7% |
+| process RAM, MB, mean / min / max | 906 / 901 / 908 | 904 / 901 / 907 | 907 / 902 / 908 | +0.4% |
+| GPU utilisation %, mean / min / max | 61 / 45 / 80 | 61 / 53 / 80 | 62 / 45 / 77 | +1.3% |
+| VRAM in use, MB, mean / min / max (whole GPU) | 1295 / 1295 / 1295 | 1295 / 1295 / 1295 | 1295 / 1295 / 1295 | +0.0% |
+| GPU temperature C, mean / min / max | 55 / 50 / 57 | 52 / 50 / 54 | 56 / 55 / 57 | +7.5% |
+| GPU SM clock MHz, mean / min / max | 1301 / 817 / 1800 | 1260 / 855 / 1650 | 1285 / 937 / 1635 | +2.0% |
+| GPU power W, mean / min / max | 29.3 / 22.6 / 37.4 | 27.9 / 22.6 / 34.4 | 29.3 / 25.4 / 35.1 | +4.9% |
+| seconds the GPU reported being throttled | 0 | 0 | 0 |  |
+
+VRAM: 1044 MB was already in use before the run (desktop and other programs); the peak during the run was 1295 MB, so this workload added about 251 MB.  
+GPU throttle reasons seen: none.  
+Annotated frames delivered to the in-process viewer: 4326.  
+
+- The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
+- The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.
+- An in-process viewer consumed the annotated stream, as a browser tab would.
+
+### p6-gpu-yolox-s-6cam
+
+| | |
+|---|---|
+| model | `yolox_s` 640px, fp32+tf32, Apache-2.0 |
+| device | cuda:0 NVIDIA GeForce RTX 3050 6GB Laptop GPU |
+| source | 6 x synthetic 640x480 @ 15 fps |
+| target inference rate | 10 fps per camera |
+| annotated stream consumed | yes (in-process viewer) |
+| duration | 120.0 s measured (requested 120 s); model load + warm-up 0.78 s |
+| started | 2026-10-21T03:41:33.667934+00:00 |
+| code | commit `f8f4bb4` (uncommitted changes), onnxruntime 1.26.0 (gpu build) |
+| GPU | NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MB, driver 616.56, power limit 95 W |
+| host | Intel64 Family 6 Model 183 Stepping 1, GenuineIntel, 10 cores / 16 threads, 15.6 GB RAM, Windows-10-10.0.26300-SP0 |
+
+| metric | whole run | first 30 s | last 30 s | change |
+|---|---|---|---|---|
+| FPS, mean (frames inferred / second) | 52.1 | 52.2 | 51.7 | -1.0% |
+| FPS, median of per-second rates | 52.0 | 52.0 | 52.0 | +0.1% |
+| FPS, slowest 10% of seconds | 48.2 | 48.0 | 48.0 | -0.1% |
+| inference latency, ms (p50 / p95 / p99) | 18.6 / 22.1 / 23.6 | 18.6 / 21.9 / 24.3 | 18.8 / 22.3 / 23.9 | +1.4% |
+|   preprocess, ms | 1.9 / 2.4 / 2.9 | 1.9 / 2.4 / 2.8 | 2.0 / 2.5 / 3.1 | +1.3% |
+|   model run, ms | 14.0 / 17.4 / 19.0 | 13.9 / 17.3 / 19.4 | 14.1 / 17.4 / 19.2 | +1.2% |
+|   postprocess, ms | 2.7 / 3.2 / 3.9 | 2.8 / 3.2 / 3.9 | 2.8 / 3.3 / 3.9 | +1.7% |
+| capture to detections, ms (p50 / p95) | 110.9 / 143.1 | 111.7 / 142.5 | 111.1 / 143.3 | -0.5% |
+| capture to annotated JPEG, ms (p50 / p95) | 158.9 / 221.4 | 160.3 / 221.1 | 159.1 / 221.0 | -0.8% |
+| frames received | 10802 | 2607 | 2700 |  |
+| frames inferred | 6249 | 1514 | 1550 |  |
+| frames skipped (not analysed: normal) | 4546 | 1090 | 1150 |  |
+| frames dropped (lost to a full queue: a problem) | 0 | 0 | 0 |  |
+| system CPU %, mean / min / max | 34 / 13 / 78 | 20 / 16 / 23 | 29 / 13 / 69 | +46.2% |
+| process CPU %, mean / min / max (100 = one core) | 115 / 94 / 150 | 118 / 100 / 144 | 111 / 94 / 130 | -5.9% |
+| process RAM, MB, mean / min / max | 917 / 908 / 922 | 913 / 908 / 915 | 920 / 915 / 922 | +0.8% |
+| GPU utilisation %, mean / min / max | 73 / 67 / 79 | 73 / 67 / 79 | 71 / 68 / 79 | -2.1% |
+| VRAM in use, MB, mean / min / max (whole GPU) | 1292 / 1287 / 1300 | 1295 / 1295 / 1295 | 1287 / 1287 / 1287 | -0.7% |
+| GPU temperature C, mean / min / max | 60 / 57 / 64 | 58 / 57 / 60 | 61 / 60 / 64 | +4.9% |
+| GPU SM clock MHz, mean / min / max | 1376 / 862 / 1755 | 1381 / 862 / 1755 | 1386 / 937 / 1717 | +0.3% |
+| GPU power W, mean / min / max | 37.3 / 30.4 / 46.4 | 38.0 / 30.7 / 44.7 | 38.2 / 33.7 / 44.4 | +0.6% |
+| seconds the GPU reported being throttled | 0 | 0 | 0 |  |
+
+VRAM: 1044 MB was already in use before the run (desktop and other programs); the peak during the run was 1300 MB, so this workload added about 255 MB.  
+GPU throttle reasons seen: none.  
+Annotated frames delivered to the in-process viewer: 5347.  
+
+- The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
+- The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.
+- An in-process viewer consumed the annotated stream, as a browser tab would.
+
+### p6-gpu-yolox-s-8cam
+
+| | |
+|---|---|
+| model | `yolox_s` 640px, fp32+tf32, Apache-2.0 |
+| device | cuda:0 NVIDIA GeForce RTX 3050 6GB Laptop GPU |
+| source | 8 x synthetic 640x480 @ 15 fps |
+| target inference rate | 10 fps per camera |
+| annotated stream consumed | yes (in-process viewer) |
+| duration | 120.0 s measured (requested 120 s); model load + warm-up 0.99 s |
+| started | 2026-10-21T03:43:36.814538+00:00 |
+| code | commit `f8f4bb4` (uncommitted changes), onnxruntime 1.26.0 (gpu build) |
+| GPU | NVIDIA GeForce RTX 3050 6GB Laptop GPU, 6144 MB, driver 616.56, power limit 95 W |
+| host | Intel64 Family 6 Model 183 Stepping 1, GenuineIntel, 10 cores / 16 threads, 15.6 GB RAM, Windows-10-10.0.26300-SP0 |
+
+| metric | whole run | first 30 s | last 30 s | change |
+|---|---|---|---|---|
+| FPS, mean (frames inferred / second) | 51.6 | 50.2 | 51.0 | +1.4% |
+| FPS, median of per-second rates | 51.9 | 51.7 | 51.7 | +0.0% |
+| FPS, slowest 10% of seconds | 47.9 | 47.7 | 48.1 | +0.7% |
+| inference latency, ms (p50 / p95 / p99) | 18.8 / 22.4 / 24.5 | 19.2 / 22.6 / 25.7 | 19.0 / 22.6 / 25.0 | -0.9% |
+|   preprocess, ms | 1.9 / 2.7 / 3.2 | 2.0 / 2.9 / 3.3 | 1.9 / 2.6 / 3.2 | -3.0% |
+|   model run, ms | 14.0 / 17.3 / 18.9 | 14.2 / 17.4 / 20.7 | 14.2 / 17.3 / 19.3 | +0.3% |
+|   postprocess, ms | 2.8 / 3.6 / 4.6 | 2.9 / 3.7 / 4.7 | 2.8 / 3.6 / 5.2 | -1.3% |
+| capture to detections, ms (p50 / p95) | 110.0 / 145.1 | 111.5 / 147.5 | 111.9 / 147.0 | +0.4% |
+| capture to annotated JPEG, ms (p50 / p95) | 163.1 / 227.0 | 171.4 / 230.8 | 165.1 / 236.9 | -3.7% |
+| frames received | 14403 | 3475 | 3592 |  |
+| frames inferred | 6189 | 1457 | 1528 |  |
+| frames skipped (not analysed: normal) | 8211 | 2012 | 2068 |  |
+| frames dropped (lost to a full queue: a problem) | 0 | 0 | 0 |  |
+| system CPU %, mean / min / max | 24 / 13 / 76 | 20 / 13 / 52 | 27 / 17 / 76 | +32.4% |
+| process CPU %, mean / min / max (100 = one core) | 117 / 97 / 162 | 120 / 102 / 162 | 117 / 103 / 139 | -2.3% |
+| process RAM, MB, mean / min / max | 1039 / 1027 / 1044 | 1034 / 1027 / 1041 | 1042 / 1042 / 1044 | +0.8% |
+| GPU utilisation %, mean / min / max | 70 / 52 / 80 | 70 / 64 / 76 | 70 / 52 / 76 | +0.4% |
+| VRAM in use, MB, mean / min / max (whole GPU) | 1290 / 992 / 1363 | 1292 / 1287 / 1363 | 1305 / 1305 / 1305 | +1.0% |
+| GPU temperature C, mean / min / max | 62 / 59 / 66 | 60 / 59 / 63 | 62 / 61 / 63 | +3.2% |
+| GPU SM clock MHz, mean / min / max | 1455 / 892 / 1980 | 1415 / 915 / 1980 | 1404 / 892 / 1687 | -0.8% |
+| GPU power W, mean / min / max | 39.9 / 27.4 / 64.2 | 36.8 / 28.3 / 47.1 | 37.0 / 30.9 / 44.5 | +0.3% |
+| seconds the GPU reported being throttled | 0 | 0 | 0 |  |
+
+VRAM: 1036 MB was already in use before the run (desktop and other programs); the peak during the run was 1363 MB, so this workload added about 327 MB.  
+GPU throttle reasons seen: none.  
+Annotated frames delivered to the in-process viewer: 6197.  
 
 - The detector's models have a static batch of 1, so frames from several cameras are inferred one after another; cross-camera batching gains nothing yet.
 - The source is a synthetic test pattern: detectors find nothing in it, so post-processing and NMS cost are those of an empty scene. Inference time is content-independent; post-processing time on real scenes is higher.

@@ -34,6 +34,7 @@ from typing import TypeVar
 from vigil.config.schema.retention import RetentionConfig
 from vigil.core.clock import Clock
 from vigil.core.errors import PersistenceError
+from vigil.core.heartbeat import wait_beating
 from vigil.core.protocols.logger import LoggerLike
 from vigil.domain.evidence import Evidence
 from vigil.observability.metrics import MetricsRegistry
@@ -324,4 +325,7 @@ class RetentionWorker:
             self.sweep()
             spent_s = (self._clock.monotonic_ns() - started) / _NS_PER_S
             self._metrics.histogram("vigil_retention_sweep_ms").observe(spent_s * _MS_PER_S)
-            stop.wait(max(1.0, interval_s - spent_s))
+            # Beats while it waits: an hour of silence is indistinguishable from a hung thread
+            # to the health check, and this worker sleeps for an hour by design
+            # (`retention.sweep_interval_s`). See `core/heartbeat.py`.
+            wait_beating(stop, beat, max(1.0, interval_s - spent_s))

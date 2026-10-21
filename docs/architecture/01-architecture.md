@@ -291,7 +291,7 @@ to its operator.
 | Control | Design |
 |---------|--------|
 | Secrets | Never in config files, code, or logs. Env vars, `.env` (gitignored), or Windows Credential Manager via `keyring`. Config references them as `${env:CAM_NORTH_PASSWORD}`, resolved at load. |
-| Credential validator | Config validation **rejects** an RTSP URL carrying inline credentials (`rtsp://user:pass@host/...`), with an error naming the env-var form to use instead. Enforced in code, not in documentation. |
+| Credential validator | Config validation **rejects** an RTSP URL carrying inline credentials (`rtsp://user:pass@host/...`), with an error naming the env-var form to use instead. Enforced in code, not in documentation. | <!-- gate: allow - the inline-credential form above is the one the validator REJECTS, quoted deliberately; an HTML comment so the marker does not render -->
 | Network exposure | API binds `127.0.0.1` by default. Binding any other interface requires `api.auth.enabled=true` and a token of at least 32 chars; the validator refuses otherwise. |
 | Paths | No hard-coded paths. Everything derives from `paths.data_dir` (default `./var`, overridable to a platform app dir). Path traversal is rejected when serving evidence. |
 | Retention | Per evidence class, configurable: `retention.clip_days`, `retention.snapshot_days`, `retention.incident_days`. A retention worker enforces it and logs what it deleted. The default is finite, not infinite. |

@@ -194,6 +194,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `pipeline.min_inference_fps` | float | `2.0` | gt=0 |
 | `pipeline.shutdown_timeout_ms` | int | `5000` | ge=100 |
 | `pipeline.worker_idle_wait_ms` | int | `20` | ge=1 |
+| `pipeline.worker_stall_timeout_ms` | int | `30000` | ge=1000 |
 
 ## `ingest`
 
@@ -205,6 +206,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `ingest.max_reconnect_attempts` | int | `0` | ge=0 |
 | `ingest.max_initial_open_attempts` | int | `3` | ge=1 |
 | `ingest.max_consecutive_read_failures` | int | `3` | ge=1 |
+| `ingest.reconnect_reset_frames` | int | `10` | ge=1 |
 | `ingest.glitch_wait_ms` | int | `10` | ge=0 |
 | `ingest.watchdog_interval_ms` | int | `1000` | ge=50 |
 | `ingest.stall_timeout_ms` | int | `5000` | ge=100 |
@@ -215,6 +217,8 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | key | type | default | constraints |
 |-----|------|---------|-------------|
 | `health.min_fps_ratio` | float | `0.5` | gt=0.0, le=1.0 |
+| `health.adopt_measured_fps_after_frames` | int | `90` | ge=10 |
+| `health.min_absolute_fps` | float | `1.0` | gt=0.0 |
 | `health.fps_window_frames` | int | `30` | ge=5 |
 | `health.min_frames_for_fps` | int | `10` | ge=2 |
 | `health.decode_error_window_ms` | int | `60000` | ge=1000 |

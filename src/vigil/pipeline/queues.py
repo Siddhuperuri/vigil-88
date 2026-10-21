@@ -3,11 +3,20 @@
 A queue whose behaviour under pressure is an incidental consequence of its `maxsize` is a
 latent outage. Both policies here are chosen, named, and counted:
 
-  * **inference to analysis — `DROP_OLDEST`, per camera.** Analysis falling behind means the
-    system is overloaded, and in that state the recent picture is worth more than the complete
-    one. Per camera rather than shared, because a shared bound lets a 30 fps camera evict a
-    2 fps camera's only frame, which looks exactly like the slow camera's detector failing.
-    Drops are counted per camera and surfaced; a silent drop is indistinguishable from a bug.
+  * **inference to analysis — `DROP_OLDEST` for a LIVE camera, `BLOCK` for a PACED one.**
+    Analysis falling behind a live camera means the system is overloaded, and in that state the
+    recent picture is worth more than the complete one. Per camera rather than shared, because a
+    shared bound lets a 30 fps camera evict a 2 fps camera's only frame, which looks exactly like
+    the slow camera's detector failing. Drops are counted per camera and surfaced; a silent drop
+    is indistinguishable from a bug.
+
+    A **PACED** camera is the opposite case and gets the opposite answer: a file or synthetic
+    source has no real-time deadline, and 07 §2 makes losslessness the property that defines it
+    ("Replay must be lossless or results are not reproducible"). Dropping there does not shed
+    load, it destroys the reproducibility that benchmarking and regression testing rest on. So
+    `put` blocks for those cameras until analysis makes room, which stalls the puller, which is
+    the correct backpressure for a source that is being pulled. `close()` is what releases a
+    blocked producer at shutdown, so the wait needs no timeout and cannot outlive the process.
 
   * **analysis to response — `BLOCK` with timeout, then spill.** Losing a confirmed incident is
     unacceptable, so the producer waits; but it must not wait forever, because the thread that
@@ -52,8 +61,13 @@ class RoundRobinDropQueue(Generic[T]):
         self._order: deque[str] = deque()
         self._closed = False
 
-    def put(self, key: str, item: T) -> DropReport | None:
-        """Enqueue under `key`. Returns a report when something had to be dropped."""
+    def put(self, key: str, item: T, *, block: bool = False) -> DropReport | None:
+        """Enqueue under `key`. Returns a report when something had to be dropped.
+
+        With `block`, waits for room rather than evicting: the PACED policy above. The wait ends
+        when a consumer takes an item or the queue is closed, so a producer blocked here is
+        released by shutdown and never outlives the process.
+        """
         dropped = 0
         with self._cond:
             if self._closed:
@@ -63,6 +77,10 @@ class RoundRobinDropQueue(Generic[T]):
                 queue = deque()
                 self._queues[key] = queue
                 self._order.append(key)
+            if block:
+                self._cond.wait_for(lambda: self._closed or len(queue) < self._maxsize)
+                if self._closed_unlocked():
+                    return None  # released by shutdown rather than by room appearing
             while len(queue) >= self._maxsize:
                 queue.popleft()
                 dropped += 1
@@ -81,11 +99,24 @@ class RoundRobinDropQueue(Generic[T]):
                 self._order.rotate(-1)
                 queue = self._queues.get(key)
                 if queue:
-                    return queue.popleft()
+                    item = queue.popleft()
+                    # Wakes a producer blocked in `put(block=True)`: taking an item is the only
+                    # thing besides `close()` that can make room for it.
+                    self._cond.notify_all()
+                    return item
             return None
 
     def _any_pending(self) -> bool:
         return any(self._queues.values())
+
+    def _closed_unlocked(self) -> bool:
+        """Read the flag with the lock already held by the caller.
+
+        A method rather than a direct attribute read because a blocking `put` has to re-check it
+        *after* waiting, and a narrowing type checker would otherwise treat the second read as
+        unreachable on the strength of the first.
+        """
+        return self._closed
 
     def depth(self, key: str | None = None) -> int:
         with self._cond:
@@ -159,7 +190,9 @@ class SpillQueue(Generic[T]):
                 self._items.append(item)
                 self._cond.notify()
                 return True
-        self._spilled += 1
+            # Counted inside the lock: `+=` is a read-modify-write, and several analysis threads
+            # spill concurrently under exactly the overload this counter exists to measure.
+            self._spilled += 1
         self._spill(item)
         return False
 

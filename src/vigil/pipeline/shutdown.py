@@ -6,9 +6,11 @@ small file with the reasoning attached:
 
   1. **Ask every worker to stop.** Cooperative, because a thread blocked in a decode cannot be
      interrupted safely (ADR 0011).
-  2. **Close every frame channel.** A capture worker waiting to hand a frame to a full queue is
-     waiting on a condition nobody will signal once the consumer has stopped; closing the
-     channel is what releases it.
+  2. **Close every frame channel and the bounded queues.** A capture worker waiting to hand a
+     frame to a full queue is waiting on a condition nobody will signal once the consumer has
+     stopped; closing it is what releases it. The same applies to the inference worker, which
+     blocks on a full analysis queue for a PACED camera (01 §9) -- so that queue is closed here
+     too, which is what makes the lossless handoff safe to wait on without a timeout.
   3. **Close the stream hub**, which wakes connected viewers so the HTTP server can finish
      rather than holding the process open for a browser.
   4. **Join within the budget**, and name any straggler. A straggler is reported, never waited
@@ -41,12 +43,15 @@ def stop_workers(
     channels: Sequence[FrameChannel],
     *,
     close_hub: Callable[[], None] | None,
+    close_queues: Sequence[Callable[[], None]] = (),
 ) -> None:
     """Steps 1 to 3: request a stop, then release anything a worker could be blocked on."""
     for worker in workers:
         worker.request_stop()
     for channel in channels:
         channel.close()
+    for close in close_queues:
+        close()
     if close_hub is not None:
         close_hub()
 

@@ -15,12 +15,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import cv2
-import numpy as np
-
+from vigil.core.optional import optional_import
 from vigil.core.units import NS_PER_S
 from vigil.ingest.buffers import EncodedFrame
+
+if TYPE_CHECKING:  # the real modules, for type checking only
+    import cv2
+    import numpy as np
+else:  # at run time they are optional: see `core/optional.py`
+    cv2, _ = optional_import("cv2")
+    np, _ = optional_import("numpy")
 
 # mp4v is the most widely available MPEG-4 encoder in OpenCV's own wheels. The codec is recorded
 # in the manifest through the file's media type, so a reviewer knows what they have.

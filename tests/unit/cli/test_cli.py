@@ -175,8 +175,8 @@ def test_doctor_reports_environment_config_and_capabilities() -> None:
         assert expected in out
     # Discovery is reported honestly, and the count grows as modules ship. The table wraps, so
     # the count and the names are asserted separately rather than as one contiguous string.
-    assert "3 discovered" in out
-    for module_id in ("abandoned_object", "intrusion", "person_down"):
+    assert "5 discovered" in out
+    for module_id in ("abandoned_object", "intrusion", "person_down", "fire", "smoke"):
         assert module_id in out
 
 
