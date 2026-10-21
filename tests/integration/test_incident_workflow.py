@@ -296,12 +296,17 @@ def test_a_sustained_situation_extends_rather_than_duplicating(running: object) 
     first = response.incidents.page(_all(), limit=1).incidents[0]  # type: ignore[arg-type]
 
     # Let the module keep reporting for a while: the span must grow, the count must not.
+    # A wall-clock budget, not an assertion: the assertion is that the span grows and the count
+    # does not. This drives a real Application on real threads and waits for the extension
+    # cadence, so under `--cov` on a loaded machine 10 s was occasionally not enough and the
+    # test failed intermittently in the full gate. Widened to 30 s, which still sits inside
+    # pytest's own 60 s per-test timeout.
     assert wait_for(
         lambda: (
             response.incidents.get(first.incident_id) is not None
             and _last_observed(response, first.incident_id) > first.last_observed_wall_utc
         ),
-        timeout_s=10.0,
+        timeout_s=30.0,
     )
     assert response.incidents.count(_all()) == 1  # type: ignore[arg-type]
     assert response.worker.stats.incidents_extended > 0
