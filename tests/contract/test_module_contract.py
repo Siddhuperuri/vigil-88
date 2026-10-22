@@ -12,6 +12,20 @@ Two of these are unusual and deliberate:
     silently wrong) — the two ways capability negotiation degrades into theatre.
   * `test_has_a_readme_documenting_false_positives` is a real test. A module without a
     documented failure mode has not been thought about carefully enough to trust.
+
+The suite is in **two halves**, split by a property of the source rather than by a list of
+names. A module whose required capabilities include one that nothing in this build can grant
+(`core.capabilities.UNGRANTABLE`) can never run here, so the behavioural contract -- purity,
+signal ranges, bounded state, capability use -- has nothing to measure on it. P6 ships two such
+modules, `fire` and `smoke`: declarations that the capability is absent, with no detector behind
+them (ADR 0015).
+
+Those get `TestDeclarationOnlyModuleContract` instead, which is not a weaker contract but a
+different one. It asserts that the module is reported UNAVAILABLE with a reason naming the
+capability, that `observe()` **raises** rather than returning an empty sequence (silence would
+read as "nothing is happening"), that it carries no parameters and no shipped version, and that
+its README says plainly that it is not implemented. `test_every_module_is_in_exactly_one_half`
+holds the split closed, so a module cannot escape both.
 """
 
 from __future__ import annotations
@@ -22,11 +36,12 @@ from pathlib import Path
 import pytest
 
 from tests.support.scenes import FULL_CAPABILITIES, SceneStateBuilder
-from vigil.core.capabilities import Capability
+from vigil.core.capabilities import Availability, Capability, ungrantable
 from vigil.core.clock import ManualClock
+from vigil.core.errors import CapabilityError
 from vigil.core.protocols.logger import LoggerLike
 from vigil.core.protocols.module import DetectionModule, ModuleContext
-from vigil.domain.enums import EventType, ObjectClass, ZoneKind
+from vigil.domain.enums import EventType, ObjectClass, TrackFlag, ZoneKind
 from vigil.domain.observation import Observation
 from vigil.domain.scene import SceneState
 from vigil.events.registry import ModuleRegistration, build_registry
@@ -34,6 +49,11 @@ from vigil.observability.logging import get_logger
 
 REGISTRY = build_registry(include_entry_points=False)
 REGISTRATIONS = [REGISTRY.get(mid) for mid in REGISTRY.ids()]
+# Modules that could run in this build, and modules that never can because a capability they
+# require is one nothing here grants. Derived from the descriptors, so adding a module of either
+# kind puts it in the right half with no list to maintain.
+OBSERVING = [r for r in REGISTRATIONS if not ungrantable(r.descriptor.requires)]
+DECLARED = [r for r in REGISTRATIONS if ungrantable(r.descriptor.requires)]
 CAMERA = "test-cam"
 # 04 §3.5 rule 3. Generous here: this asserts the module is not doing something pathological,
 # not that this machine is fast. Real enforcement is the engine's per-frame budget.
@@ -61,7 +81,12 @@ def populated_scene(
     capabilities: frozenset[Capability] = FULL_CAPABILITIES,
     epoch: int = 1,
 ) -> SceneState:
-    """A scene rich enough that any module shipped here should have something to say about it."""
+    """A scene rich enough that any module shipped here should have something to say about it.
+
+    It is shared, so it grows as modules ship: a fixture that only exercised the first module
+    would quietly stop being a contract. Each element below is here because some module needs
+    it, and the comments say which.
+    """
     return (
         SceneStateBuilder(camera_id=CAMERA)
         .with_zone("yard", ZoneKind.RESTRICTED, criticality=3)
@@ -86,11 +111,31 @@ def populated_scene(
             2,
             ObjectClass.OBJECT_BAG,
             at=(0.2, 0.6),
+            size=(40.0, 30.0),
             hits=30,
             age_frames=30,
             in_zones=["dock"],
             dwell_ms={"dock": 60_000.0},
+            # A bag that has been in a dock for a minute is only *abandoned* if it is also
+            # still and someone was once beside it. The scene said neither, which meant it
+            # described a bag nothing could have an opinion about. Both are now stated, so the
+            # fixture represents the situation it was always reaching for.
+            flags=[TrackFlag.STATIONARY],
+            stationary_since_ms=0.0,
             first_seen_ms=0.0,
+        )
+        .with_track(
+            # The bag's owner, standing beside it. Ownership is the condition that separates a
+            # dropped bag from the furniture, so a scene with no plausible owner anywhere cannot
+            # exercise it at all.
+            3,
+            ObjectClass.PERSON,
+            at=(0.22, 0.62),
+            hits=12,
+            age_frames=12,
+            in_zones=["dock"],
+            dwell_ms={"dock": 4000.0},
+            first_seen_ms=1000.0,
         )
         .with_capabilities(capabilities)
         .with_epoch(epoch)
@@ -99,7 +144,7 @@ def populated_scene(
     )
 
 
-@pytest.mark.parametrize("registration", REGISTRATIONS, ids=ids)
+@pytest.mark.parametrize("registration", OBSERVING, ids=ids)
 class TestDetectionModuleContract:
     def test_the_descriptor_is_well_formed(self, registration: ModuleRegistration) -> None:
         descriptor = registration.descriptor
@@ -347,10 +392,118 @@ def _module_state(module: DetectionModule) -> dict[str, object]:
     return dict(getattr(module, "__dict__", {}))
 
 
-def test_the_contract_suite_covers_every_registered_module() -> None:
-    """A module that escaped the suite would be the one nobody checked."""
+@pytest.mark.parametrize("registration", DECLARED, ids=ids)
+class TestDeclarationOnlyModuleContract:
+    """The contract for a module that declares a missing capability instead of detecting.
+
+    These modules exist so that an absent capability is *reported* rather than inferred from a
+    missing directory. The contract is that they stay honest about it and cannot drift into
+    looking operational.
+    """
+
+    def test_the_descriptor_is_well_formed(self, registration: ModuleRegistration) -> None:
+        descriptor = registration.descriptor
+        assert descriptor.module_id and descriptor.module_id.islower()
+        assert isinstance(descriptor.event_type, EventType)
+        assert descriptor.version.count(".") == 2
+        assert descriptor.description.strip()
+        assert not descriptor.requires & descriptor.optional
+
+    def test_the_module_reports_its_own_descriptor(
+        self, registration: ModuleRegistration, log: LoggerLike
+    ) -> None:
+        assert bind(registration, log).descriptor == registration.descriptor
+
+    def test_it_requires_something_this_build_cannot_grant(
+        self, registration: ModuleRegistration
+    ) -> None:
+        """The reason it never runs, stated in the descriptor rather than in a comment."""
+        assert ungrantable(registration.descriptor.requires)
+
+    def test_the_registry_reports_it_unavailable_with_an_actionable_reason(
+        self, registration: ModuleRegistration
+    ) -> None:
+        """D-008: listed in `modules.enabled`, on a fully capable camera, it still cannot run."""
+        availability = REGISTRY.availability(
+            registration.module_id,
+            camera_id=CAMERA,
+            available=FULL_CAPABILITIES,
+            enabled_ids=[registration.module_id],
+        )
+        assert availability.status is Availability.UNAVAILABLE
+        assert not availability.will_run
+        assert availability.reason
+        for capability in ungrantable(registration.descriptor.requires):
+            assert capability.value in availability.reason
+
+    def test_observe_raises_rather_than_reporting_nothing(
+        self, registration: ModuleRegistration, log: LoggerLike
+    ) -> None:
+        """An empty sequence is indistinguishable from a confident "nothing is happening"."""
+        module = bind(registration, log)
+        with pytest.raises(CapabilityError) as caught:
+            module.observe(populated_scene())
+        message = str(caught.value).lower()
+        assert registration.module_id in message
+        for capability in ungrantable(registration.descriptor.requires):
+            assert capability.value in message
+
+    def test_observe_raises_on_an_empty_scene_too(
+        self, registration: ModuleRegistration, log: LoggerLike
+    ) -> None:
+        """Nothing about the scene makes the answer knowable, so no scene can change it."""
+        module = bind(registration, log)
+        with pytest.raises(CapabilityError):
+            module.observe(SceneStateBuilder(camera_id=CAMERA).build())
+
+    def test_it_ships_no_parameters_and_no_version(self, registration: ModuleRegistration) -> None:
+        """Plausible-looking thresholds are the first step towards looking implemented, and a
+        1.x would make the dismissal-rate-per-version metric name an algorithm that never ran."""
+        assert registration.descriptor.default_params == {}
+        assert registration.descriptor.version == "0.0.0"
+
+    def test_the_description_says_it_is_not_implemented(
+        self, registration: ModuleRegistration
+    ) -> None:
+        """The description is what the API and the console render, so it carries the truth."""
+        assert "NOT IMPLEMENTED" in registration.descriptor.description
+
+    def test_release_then_bind_is_safe(
+        self, registration: ModuleRegistration, log: LoggerLike
+    ) -> None:
+        module = bind(registration, log)
+        module.release()
+        module.bind(ModuleContext(camera_id=CAMERA, params={}, logger=log))
+        module.release()
+        module.release()  # idempotent
+
+    def test_the_module_reads_no_clock_and_no_io(self, registration: ModuleRegistration) -> None:
+        source = _module_source(registration)
+        for forbidden in ("time.time", "datetime.now", "open(", "requests.", "socket."):
+            assert forbidden not in source, f"{registration.module_id} uses {forbidden}"
+
+    def test_has_a_readme_saying_it_is_not_implemented(
+        self, registration: ModuleRegistration
+    ) -> None:
+        readme = _module_dir(registration) / "README.md"
+        assert readme.is_file(), f"{registration.module_id} has no README.md"
+        text = readme.read_text(encoding="utf-8").lower()
+        assert "not implemented" in text
+        # Still required: the failure modes a real implementation would have to beat, so the
+        # next person starts from the problem rather than from the architecture.
+        assert "false positive" in text
+        assert "cannot" in text or "limitation" in text
+
+
+def test_every_module_is_in_exactly_one_half() -> None:
+    """A module that escaped both suites would be the one nobody checked."""
     assert REGISTRATIONS
-    assert {r.module_id for r in REGISTRATIONS} == set(REGISTRY.ids())
+    assert OBSERVING, "no module can run in this build at all"
+    assert DECLARED, "P6 ships fire and smoke as declarations; they must land in this half"
+    ids_observing = {r.module_id for r in OBSERVING}
+    ids_declared = {r.module_id for r in DECLARED}
+    assert not ids_observing & ids_declared
+    assert ids_observing | ids_declared == set(REGISTRY.ids())
 
 
 def test_every_observation_is_attributed_to_a_registered_module() -> None:
@@ -358,7 +511,7 @@ def test_every_observation_is_attributed_to_a_registered_module() -> None:
     log = get_logger("test.contract")
     scene = populated_scene()
     emitted: list[Observation] = []
-    for registration in REGISTRATIONS:
+    for registration in OBSERVING:
         emitted.extend(bind(registration, log).observe(scene))
     assert emitted
     assert {o.module_id for o in emitted} <= set(REGISTRY.ids())

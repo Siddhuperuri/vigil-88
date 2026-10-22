@@ -75,7 +75,10 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
     @api.get("/system/health", response_model=HealthOut)
     def health() -> HealthOut:
         snap = application.snapshot()
+        response = application.response
         return HealthOut(
+            persists_incidents=response is not None,
+            schema_version=None if response is None else response.migration.version,
             state=snap.state.value,
             level=snap.health.level.value,
             issues=list(snap.health.issues),
@@ -217,6 +220,8 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             headers={"Cache-Control": "no-store"},
         )
 
+    _mount_incident_routes(api, application)
+
     app = FastAPI(title="VIGIL-88", version=__version__, docs_url="/api/docs", redoc_url=None)
     app.include_router(api)
 
@@ -225,3 +230,62 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
         return VIEWER_HTML
 
     return app
+
+
+def _mount_incident_routes(api: APIRouter, application: Application) -> None:
+    """Mount the P4 routes, and only the ones that can actually work.
+
+    With `storage.enabled = false` there is no incident store, so these routes are **absent**
+    rather than present and failing: an endpoint that exists and 500s is worse than one that was
+    never offered, because a client cannot tell the difference between "not configured" and
+    "broken" (08 §8). `GET /system/health` reports `persists_incidents` either way, so the
+    console knows which it is looking at.
+    """
+    from vigil.api.routers import analytics as analytics_router
+    from vigil.api.routers import events as events_router
+    from vigil.api.routers import incidents as incidents_router
+    from vigil.api.routers import modules as modules_router
+    from vigil.api.routers import mutes as mutes_router
+
+    analysis = application.analysis
+    response = application.response
+    if analysis is not None:
+        api.include_router(
+            modules_router.build_router(
+                bindings=analysis.bindings,
+                channel_status=() if response is None else response.alerts.status(),
+                zone_issues=analysis.zone_issues,
+            )
+        )
+    if response is None:
+        return
+    max_page = application.settings.storage.max_page_size
+    api.include_router(
+        incidents_router.build_router(
+            incidents=response.incidents,
+            evidence=response.evidence,
+            actions=response.actions,
+            evidence_root=response.evidence_root,
+            max_page_size=max_page,
+        )
+    )
+    api.include_router(
+        events_router.build_router(
+            candidates=response.candidates,
+            health=response.health_events,
+            incidents=response.incidents,
+            evidence=response.evidence,
+            clock=application.clock,
+            max_page_size=max_page,
+        )
+    )
+    api.include_router(mutes_router.build_router(mutes=response.mutes, clock=application.clock))
+    api.include_router(
+        analytics_router.build_router(
+            analytics=response.analytics,
+            reports=response.reports,
+            exports_dir=application.paths.exports_dir,
+            clock=application.clock,
+            ulids=application.ulids,
+        )
+    )

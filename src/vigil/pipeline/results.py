@@ -30,11 +30,16 @@ class LatestDetections:
         self._latest: dict[str, AnalysedFrame] = {}
         self._versions: dict[str, int] = {}
 
-    def publish(self, frame: Frame, result: DetectionSet, completed_monotonic_ns: int) -> None:
+    def publish(
+        self, frame: Frame, result: DetectionSet, completed_monotonic_ns: int
+    ) -> AnalysedFrame:
+        """Store the pair and return it, so the caller can forward it without re-reading."""
         cam = result.frame_meta.camera_id
+        analysed = AnalysedFrame(frame, result, completed_monotonic_ns)
         with self._lock:
-            self._latest[cam] = AnalysedFrame(frame, result, completed_monotonic_ns)
+            self._latest[cam] = analysed
             self._versions[cam] = self._versions.get(cam, 0) + 1
+        return analysed
 
     def latest(self, camera_id: str) -> AnalysedFrame | None:
         with self._lock:

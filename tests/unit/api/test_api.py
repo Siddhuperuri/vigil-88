@@ -89,12 +89,28 @@ def test_the_viewer_page_is_served_and_loads_nothing_external(running) -> None: 
     assert "innerHTML" not in page.text  # data reaches the DOM through textContent only
 
 
+def test_the_viewer_offers_an_export_only_through_a_control_it_can_honour(running) -> None:  # type: ignore[no-untyped-def]
+    """PDF ships disabled in the markup and is enabled only by the formats route, so a failed
+    probe leaves a control that cannot deliver visibly unavailable (08 §8)."""
+    _, _, client = running
+    page = client.get("/").text
+    assert '<button id="export-pdf" disabled>' in page
+    assert "/api/v1/analytics/formats" in page
+
+
 def test_health_reports_the_real_detector_and_grants_detection(running) -> None:  # type: ignore[no-untyped-def]
     _, _, client = running
     body = client.get("/api/v1/system/health").json()
     assert body["state"] == "running" and body["detector"]["backend"] == "onnxruntime"
     available = {c["capability"] for c in body["capabilities"] if c["available"]}
-    assert available == {"detection"}  # and nothing else: tracking, zones, ... stay unavailable
+    # DETECTION from the detector; TRACKING, VELOCITY and SCENE_STABILITY from the engines that
+    # supply them. ZONES is per camera and this fixture defines no zone file, so it stays
+    # unavailable -- which is what a module requiring it will be told.
+    assert available == {"detection", "tracking", "velocity", "scene_stability"}
+    unavailable = {
+        c["capability"]: c["how_to_provide"] for c in body["capabilities"] if not c["available"]
+    }
+    assert unavailable["zones"]  # an unavailable capability always says what would provide it
     assert body["detector"]["weights_sha256"]
 
 

@@ -12,13 +12,19 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-
-import cv2
-import numpy as np
+from typing import TYPE_CHECKING
 
 from vigil.core.errors import VigilError
+from vigil.core.optional import optional_import, require
 from vigil.domain.enums import ObjectClass
 from vigil.pipeline.results import AnalysedFrame
+
+if TYPE_CHECKING:  # the real modules, for type checking only
+    import cv2
+    import numpy as np
+else:  # at run time they are optional: see `core/optional.py`
+    cv2, _ = optional_import("cv2")
+    np, _ = optional_import("numpy")
 
 OVERLAY_TOKENS = ("boxes", "labels", "info")
 STALE_AFTER_MS = 2000.0
@@ -111,6 +117,7 @@ def render_jpeg(
 ) -> bytes:
     """Annotate (on a copy) and JPEG-encode. `age_ms` is how old the analysis is; a stale
     frame is marked as such rather than shown as if it were live."""
+    require("cv2", "numpy")
     frame, result = analysed.frame, analysed.result
     meta = frame.meta
     pixels = np.frombuffer(frame.pixels.buffer(), dtype=np.uint8)

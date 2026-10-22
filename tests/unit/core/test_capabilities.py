@@ -56,7 +56,9 @@ def test_unavailable_names_the_missing_capability_and_the_fix() -> None:
     r = resolve_availability({C.DETECTION, C.GROUND_PLANE}, set(), frozenset({C.DETECTION}))
     assert r.status is Availability.UNAVAILABLE
     assert r.missing_required == {C.GROUND_PLANE}
-    assert "ground_plane" in (r.reason or "") and "homography" in (r.reason or "")
+    # The fix names the key to set and the file to write, not the mathematics: an operator
+    # cannot act on the word "homography".
+    assert "ground_plane" in (r.reason or "") and "calibration_ref" in (r.reason or "")
 
 
 def test_missing_required_outranks_missing_optional() -> None:

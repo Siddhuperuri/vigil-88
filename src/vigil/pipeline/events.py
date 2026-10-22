@@ -127,6 +127,7 @@ def build_camera_pipeline(
         logger=logger,
         metrics=metrics,
         camera_trust_ratio=camera.trust_ratio,
+        extend_interval_ms=float(settings.storage.incident_extend_interval_ms),
     )
     return (pipeline, report)
 

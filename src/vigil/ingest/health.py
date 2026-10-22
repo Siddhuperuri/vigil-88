@@ -72,6 +72,8 @@ class CameraHealthTracker:
         self._last_frame_mono: int | None = None
         self._online_mono: int | None = None
         self._expected_fps: float | None = None
+        self._adopted_fps: float | None = None
+        self._frames_this_epoch = 0
         self._frame_times: deque[int] = deque(maxlen=health.fps_window_frames)
         self._error_times: deque[int] = deque()
         self._degraded_by_evaluate = False
@@ -107,10 +109,16 @@ class CameraHealthTracker:
         self.transition(S.INITIALIZING, detail)
 
     def mark_online(self, *, epoch: int, expected_fps: float | None) -> None:
+        """`expected_fps` of None keeps whatever rate is already known: a mid-stream
+        format change re-marks ONLINE without re-probing the driver, and discarding
+        the rate there silently disabled the low-fps check for the rest of the run."""
         with self._lock:
             self._epoch = epoch
             self._reconnect_attempts = 0
-            self._expected_fps = expected_fps if expected_fps and expected_fps > 0 else None
+            if expected_fps and expected_fps > 0:
+                self._expected_fps = expected_fps
+            self._adopted_fps = None
+            self._frames_this_epoch = 0
             self._frame_times.clear()
             self._error_times.clear()
             self._last_frame_mono = None
@@ -139,6 +147,7 @@ class CameraHealthTracker:
     def record_frame(self, t_monotonic_ns: int, wall_utc: datetime) -> None:
         with self._lock:
             self._received += 1
+            self._frames_this_epoch += 1
             self._last_frame_mono = t_monotonic_ns
             self._last_frame_wall = wall_utc
             self._frame_times.append(t_monotonic_ns)
@@ -147,9 +156,12 @@ class CameraHealthTracker:
         with self._lock:
             self._skipped += 1
 
-    def record_dropped(self) -> None:
+    def record_dropped(self, count: int = 1) -> None:
+        """Frames the pipeline could not accept. *Dropped* is failure, *skipped* is
+        design (05 §4) -- and this counter stayed at zero in every snapshot and every
+        persisted metric until P6, because nothing in production called it."""
         with self._lock:
-            self._dropped += 1
+            self._dropped += count
 
     def record_decode_error(self, t_monotonic_ns: int) -> None:
         with self._lock:
@@ -188,6 +200,40 @@ class CameraHealthTracker:
                 self._detail = "; ".join(reasons)
         self._publish(event)
 
+    def _fps_expectation(self) -> float | None:
+        """The rate this camera is held to for the low-fps check.
+
+        It starts as the driver's *claim* (`CAP_PROP_FPS`), which is frequently
+        optimistic: a webcam that advertises 30 fps delivers about 14 in ordinary
+        indoor light. Holding it to the claim marks it DEGRADED for its whole life,
+        and DEGRADED makes verification reject every candidate -- so an optimistic
+        driver silenced the entire system, with `low fps` as the only symptom.
+
+        07 §5's justification for suppressing on DEGRADED is *irregular* frame
+        spacing, which makes temporal reasoning unsound. A steady 14 fps is not
+        irregular; the accumulator decays by frame timestamps and does not care what
+        the driver promised. So once the camera has demonstrated a sustained rate it
+        is held to that instead, and `min_absolute_fps` stays as the floor below
+        which the spacing really is too coarse to reason over.
+
+        Adopted once per stream epoch, from the first sustained period after the
+        stream came up: re-adopting continuously would track a dying camera all the
+        way down and never report anything.
+        """
+        if self._adopted_fps is None and self._frames_this_epoch >= (
+            self._cfg.adopt_measured_fps_after_frames
+        ):
+            measured = self._measured_fps()
+            if measured is not None:
+                self._adopted_fps = measured
+        if self._adopted_fps is None:
+            return self._expected_fps
+        if self._expected_fps is None:
+            return self._adopted_fps
+        # Never raise the bar: a camera that briefly beat its claim is not then held
+        # to the better number.
+        return min(self._expected_fps, self._adopted_fps)
+
     def _degraded_reasons(self, now_ns: int) -> list[str]:
         reasons: list[str] = []
         if self._watch_stall:
@@ -203,12 +249,24 @@ class CameraHealthTracker:
                 if silent_ms > threshold_ms:
                     reasons.append(f"stalled: no frame for {silent_ms:.0f} ms")
             fps = self._measured_fps()
-            if (
+            expected = self._fps_expectation()
+            if fps is not None and fps < self._cfg.min_absolute_fps:
+                reasons.append(
+                    f"below the absolute floor: {fps:.1f} fps measured, "
+                    f"{self._cfg.min_absolute_fps:.1f} is the minimum temporal "
+                    "reasoning is sound over"
+                )
+            elif (
                 fps is not None
-                and self._expected_fps is not None
-                and fps < self._cfg.min_fps_ratio * self._expected_fps
+                and expected is not None
+                and fps < self._cfg.min_fps_ratio * expected
             ):
-                reasons.append(f"low fps: {fps:.1f} measured vs {self._expected_fps:.1f} expected")
+                claimed = (
+                    ""
+                    if self._adopted_fps is None or self._expected_fps is None
+                    else f" (driver claimed {self._expected_fps:.1f})"
+                )
+                reasons.append(f"low fps: {fps:.1f} measured vs {expected:.1f} expected{claimed}")
         window_ns = ms_to_ns(self._cfg.decode_error_window_ms)
         while self._error_times and now_ns - self._error_times[0] > window_ns:
             self._error_times.popleft()

@@ -24,6 +24,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `paths.evidence_dir` | Path | NoneType | `None` |  |
 | `paths.db_dir` | Path | NoneType | `None` |  |
 | `paths.bench_dir` | Path | NoneType | `None` |  |
+| `paths.exports_dir` | Path | NoneType | `None` |  |
 
 ## `logging`
 
@@ -193,6 +194,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `pipeline.min_inference_fps` | float | `2.0` | gt=0 |
 | `pipeline.shutdown_timeout_ms` | int | `5000` | ge=100 |
 | `pipeline.worker_idle_wait_ms` | int | `20` | ge=1 |
+| `pipeline.worker_stall_timeout_ms` | int | `30000` | ge=1000 |
 
 ## `ingest`
 
@@ -204,6 +206,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `ingest.max_reconnect_attempts` | int | `0` | ge=0 |
 | `ingest.max_initial_open_attempts` | int | `3` | ge=1 |
 | `ingest.max_consecutive_read_failures` | int | `3` | ge=1 |
+| `ingest.reconnect_reset_frames` | int | `10` | ge=1 |
 | `ingest.glitch_wait_ms` | int | `10` | ge=0 |
 | `ingest.watchdog_interval_ms` | int | `1000` | ge=50 |
 | `ingest.stall_timeout_ms` | int | `5000` | ge=100 |
@@ -214,6 +217,8 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | key | type | default | constraints |
 |-----|------|---------|-------------|
 | `health.min_fps_ratio` | float | `0.5` | gt=0.0, le=1.0 |
+| `health.adopt_measured_fps_after_frames` | int | `90` | ge=10 |
+| `health.min_absolute_fps` | float | `1.0` | gt=0.0 |
 | `health.fps_window_frames` | int | `30` | ge=5 |
 | `health.min_frames_for_fps` | int | `10` | ge=2 |
 | `health.decode_error_window_ms` | int | `60000` | ge=1000 |
@@ -223,10 +228,14 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 
 | key | type | default | constraints |
 |-----|------|---------|-------------|
+| `evidence.enabled` | bool | `True` |  |
 | `evidence.preroll_seconds` | float | `5.0` | gt=0 |
 | `evidence.preroll_max_mb` | int | `64` | ge=1 |
 | `evidence.postroll_seconds` | float | `10.0` | ge=0 |
 | `evidence.snapshot_quality` | int | `90` | ge=1, le=100 |
+| `evidence.preroll_fps` | float | `5.0` | gt=0, le=30 |
+| `evidence.clips_enabled` | bool | `True` |  |
+| `evidence.max_concurrent_captures` | int | `8` | ge=1, le=64 |
 
 ## `retention`
 
@@ -238,6 +247,31 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `retention.candidate_days` | int | `7` | ge=1 |
 | `retention.metric_days` | int | `14` | ge=1 |
 | `retention.sweep_interval_s` | int | `3600` | ge=60 |
+
+## `storage`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `storage.enabled` | bool | `True` |  |
+| `storage.database_file` | Path | NoneType | `None` |  |
+| `storage.busy_timeout_ms` | int | `5000` | ge=100 |
+| `storage.synchronous` | one of 'normal', 'full' | `'full'` |  |
+| `storage.page_cache_kb` | int | `8192` | ge=256 |
+| `storage.handoff_timeout_ms` | int | `250` | ge=0 |
+| `storage.max_page_size` | int | `200` | ge=1, le=1000 |
+| `storage.incident_extend_interval_ms` | int | `1000` | ge=0 |
+
+## `alerts`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `alerts.enabled` | bool | `True` |  |
+| `alerts.channels` | tuple[Literal['console', 'jsonl', 'webhook'], ...] | `('console',)` |  |
+| `alerts.min_severity` | one of 'INFO', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL' | `'MODERATE'` |  |
+| `alerts.jsonl_file` | Path | NoneType | `None` |  |
+| `alerts.webhook_url` | str | NoneType | `None` |  |
+| `alerts.webhook_timeout_ms` | int | `3000` | ge=100, le=30000 |
+| `alerts.webhook_max_attempts` | int | `3` | ge=1, le=10 |
 
 ## `api`
 
@@ -285,6 +319,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `cameras[].priority` | int | `5` | ge=0, le=9 |
 | `cameras[].enabled` | bool | `True` |  |
 | `cameras[].zones_ref` | str | NoneType | `None` |  |
+| `cameras[].calibration_ref` | str | NoneType | `None` |  |
 | `cameras[].target_inference_fps` | float | `5.0` | gt=0 |
 | `cameras[].tags` | tuple[str, ...] | `()` |  |
 | `cameras[].module_params` | collections.abc.Mapping[str, collections.abc.Mapping[str, object]] | `{}` |  |

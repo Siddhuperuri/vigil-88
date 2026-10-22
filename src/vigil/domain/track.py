@@ -109,6 +109,11 @@ class TrackedObject:
         return None if self.velocity_px_s is None else self.velocity_px_s.magnitude
 
     @property
+    def speed_m_s(self) -> float | None:
+        """Ground speed, or `None` on an uncalibrated camera. Never derived from `speed_px_s`."""
+        return None if self.velocity_m_s is None else self.velocity_m_s.magnitude
+
+    @property
     def heading_deg(self) -> float | None:
         """Direction of travel in image space, degrees in [0, 360): 0 = right (+x), 90 = down
         (+y, image rows grow downward), 180 = left, 270 = up. None where a direction is not

@@ -56,14 +56,19 @@ def fake_package(name: str, **attrs: object) -> ModuleType:
 # ------------------------------------------------------------------ discovery
 
 
-def test_the_builtin_intrusion_module_is_discovered() -> None:
+# Every module in `events/builtin/`, in discovery order. `fire` and `smoke` are
+# declaration-only (ADR 0015): discovered and reported, never runnable.
+SHIPPED = ("abandoned_object", "fire", "intrusion", "person_down", "smoke")
+
+
+def test_every_builtin_module_is_discovered() -> None:
     found = discover_builtin()
-    assert [r.module_id for r in found] == ["intrusion"]
-    assert found[0].source == "builtin:intrusion"
+    assert [r.module_id for r in found] == list(SHIPPED)
+    assert {r.source for r in found} == {f"builtin:{mid}" for mid in SHIPPED}
 
 
 def test_discovery_is_deterministic() -> None:
-    assert build_registry(include_entry_points=False).ids() == ("intrusion",)
+    assert build_registry(include_entry_points=False).ids() == SHIPPED
 
 
 def test_a_package_without_a_descriptor_is_a_loud_failure() -> None:
@@ -164,7 +169,10 @@ def test_an_unavailable_module_s_reason_names_the_fix() -> None:
     )
     assert entry.reason is not None
     assert "zones" in entry.reason
-    assert "zone definitions loaded for this camera" in entry.reason
+    # The reason has to be actionable, not merely accurate: it names the config key and the
+    # file an operator has to create (04 §4).
+    assert "zones_ref" in entry.reason
+    assert "config/zones/" in entry.reason
 
 
 def test_a_module_missing_only_an_optional_capability_is_degraded() -> None:
@@ -214,7 +222,8 @@ def test_the_table_covers_every_discovered_module_in_order() -> None:
 
 def test_the_table_exposes_metadata_the_ui_needs() -> None:
     registry = build_registry(include_entry_points=False)
-    entry = registry.table(camera_id="cam-01", available=FULL, enabled_ids=("intrusion",))[0]
+    table = registry.table(camera_id="cam-01", available=FULL, enabled_ids=("intrusion",))
+    entry = next(e for e in table if e.module_id == "intrusion")
     assert entry.event_type is EventType.INTRUSION
     assert entry.version == "1.0.0"
     assert "restricted zone" in entry.description
@@ -284,7 +293,7 @@ def test_entry_point_discovery_is_sorted(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_build_registry_can_combine_builtin_and_extra(monkeypatch: pytest.MonkeyPatch) -> None:
     extra = registration(descriptor("injected"), "test:injected")
     registry = build_registry(include_entry_points=False, extra=[extra])
-    assert registry.ids() == ("injected", "intrusion")
+    assert registry.ids() == tuple(sorted((*SHIPPED, "injected")))
 
 
 class _StubEntryPoint:

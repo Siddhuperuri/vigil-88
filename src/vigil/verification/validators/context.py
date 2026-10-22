@@ -17,42 +17,15 @@ from dataclasses import dataclass, field
 from vigil.config.schema.modules import VerificationConfig
 from vigil.core.capabilities import Availability
 from vigil.domain.camera import CameraHealth
-from vigil.domain.enums import EventType, ValidatorOutcome
+from vigil.domain.enums import ValidatorOutcome
 from vigil.domain.event import ValidatorVerdict
+
+# Re-exported: `Mute` moved to domain/ so response/ and verification/ can share it without
+# importing each other (01 §5). Importers of this module keep working.
+from vigil.domain.mute import Mute as Mute
 from vigil.domain.observation import SubjectKey
 from vigil.domain.scene import SceneState
 from vigil.verification.ledger import SuppressionLedger
-
-
-@dataclass(frozen=True, slots=True)
-class Mute:
-    """An operator saying "I know, the contractors are working there until 5" (06 §10).
-
-    A mute is never silent: it is visible on the status bar with a countdown, because a muted
-    camera that looks normal is how a real incident gets missed.
-    """
-
-    camera_id: str
-    event_type: EventType | None = None
-    zone_id: str | None = None
-    expires_monotonic_ns: int | None = None
-    reason: str = "operator mute"
-
-    def covers(
-        self,
-        *,
-        camera_id: str,
-        event_type: EventType,
-        zone_ids: frozenset[str],
-        now_ns: int,
-    ) -> bool:
-        if self.camera_id != camera_id:
-            return False
-        if self.expires_monotonic_ns is not None and now_ns >= self.expires_monotonic_ns:
-            return False
-        if self.event_type is not None and self.event_type is not event_type:
-            return False
-        return not (self.zone_id is not None and self.zone_id not in zone_ids)
 
 
 @dataclass(frozen=True, slots=True)

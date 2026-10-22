@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from vigil.core.redaction import (
+    MAX_INLINE_BYTES,
     REDACTED,
     contains_inline_credentials,
     is_sensitive_key,
     redact_text,
     redact_value,
+    summarise_opaque,
 )
 
 
@@ -83,3 +87,91 @@ def test_redact_value_leaves_non_strings_alone() -> None:
     assert redact_value(5) == 5
     assert redact_value(None) is None
     assert redact_value(b"bytes") == b"bytes"
+
+
+# ------------------------------------------------------------------ image data (01 §10)
+#
+# "No full image frames in logs" held until P6 only because no caller happened to log one --
+# `redact_value` passed bytes and arrays straight through. That is a statement about today's
+# callers, and the caller that matters is the one added next year. A single 1080p frame is
+# 6.2 MB, so the operational argument agrees with the privacy one.
+
+
+def test_a_jpeg_sized_blob_is_summarised_rather_than_rendered() -> None:
+    blob = b"\xff\xd8\xff\xe0" + b"\x00" * 60_000
+    rendered = redact_value({"clip": blob})
+    assert isinstance(rendered, dict)
+    assert rendered["clip"] == f"<bytes: {len(blob)} bytes>"
+    assert "\xff" not in str(rendered["clip"])
+
+
+@pytest.mark.parametrize("kind", [bytes, bytearray, memoryview])
+def test_every_bytes_like_type_is_covered(kind: type) -> None:
+    value = kind(b"x" * 1000)
+    summarised = summarise_opaque(value)
+    assert summarised is not None
+    assert "1000 bytes" in summarised
+
+
+def test_a_short_blob_stays_readable() -> None:
+    """A hash, a nonce or a short header is useful in a log line and is not image data."""
+    assert summarise_opaque(b"deadbeef") is None
+    assert redact_value({"sha": b"deadbeef"}) == {"sha": b"deadbeef"}
+
+
+def test_the_threshold_is_where_it_says_it_is() -> None:
+    assert summarise_opaque(b"x" * MAX_INLINE_BYTES) is None
+    assert summarise_opaque(b"x" * (MAX_INLINE_BYTES + 1)) is not None
+
+
+def test_a_decoded_frame_is_summarised_by_its_shape() -> None:
+    """Duck-typed on `shape`, because `core/` must not import numpy (the domain-purity contract)
+    and the thing being guarded against is any array-like, not one library's type."""
+
+    class FakeFrame:
+        shape = (1080, 1920, 3)
+
+    rendered = redact_value({"pixels": FakeFrame()})
+    assert isinstance(rendered, dict)
+    assert rendered["pixels"] == "<FakeFrame shape=(1080, 1920, 3)>"
+
+
+def test_a_real_numpy_array_is_summarised() -> None:
+    np = pytest.importorskip("numpy")
+    frame = np.zeros((48, 64, 3), dtype=np.uint8)
+    assert summarise_opaque(frame) == "<ndarray shape=(48, 64, 3)>"
+
+
+def test_an_array_interface_without_a_shape_is_still_caught() -> None:
+    class Exotic:
+        __array_interface__: ClassVar[dict[str, object]] = {"shape": (4,), "typestr": "|u1"}
+
+    assert summarise_opaque(Exotic()) == "<Exotic array>"
+
+
+def test_an_ordinary_object_with_no_shape_is_left_alone() -> None:
+    """The guard must not swallow the structured context a log line exists to carry."""
+    assert summarise_opaque(42) is None
+    assert summarise_opaque("a string") is None
+    assert summarise_opaque({"a": 1}) is None
+    assert summarise_opaque(None) is None
+
+
+def test_a_class_object_is_not_mistaken_for_an_array() -> None:
+    """A class whose *instances* have a shape has `shape` as a descriptor, not a value."""
+
+    class HasShapeAttribute:
+        shape: tuple[int, ...]
+
+    assert summarise_opaque(HasShapeAttribute) is None
+
+
+def test_image_data_nested_inside_a_structure_is_still_summarised() -> None:
+    nested = {"evidence": {"frames": [b"y" * 5000, b"z" * 5000]}}
+    rendered = redact_value(nested)
+    assert rendered == {"evidence": {"frames": ["<bytes: 5000 bytes>", "<bytes: 5000 bytes>"]}}
+
+
+def test_a_sensitive_key_still_wins_over_the_summary() -> None:
+    """Order matters: a 4 KB token must be `***`, not `<bytes: 4096 bytes>`."""
+    assert redact_value({"api_token": b"t" * 4096}) == {"api_token": REDACTED}

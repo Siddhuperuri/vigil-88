@@ -142,12 +142,22 @@ def test_frames_flow_from_a_source_through_the_null_detector(make_config: MakeCo
     assert snap.detector is not None and snap.detector.name == "null"
 
 
-def test_null_detector_grants_no_capabilities(make_config: MakeConfig) -> None:
+def test_null_detector_grants_no_detection(make_config: MakeConfig) -> None:
+    """A capability is granted by the component that supplies it, and by nothing else (D-008).
+
+    The null detector supplies no detections, so DETECTION stays ungranted however much else is
+    running. The tracking and scene engines are present from P2, so they do grant theirs -- and
+    a module needing DETECTION is still reported UNAVAILABLE, which is the point.
+    """
     app = app_for(make_config({"cameras": [SYNTH]}))
     app.start()
     try:
-        assert app.capabilities.available() == frozenset()
-        assert not any(s.available for s in app.snapshot().capabilities)
+        available = app.capabilities.available()
+        assert Capability.DETECTION not in available
+        assert Capability.ZONES not in available  # this camera has no zone file
+        assert {Capability.TRACKING, Capability.VELOCITY} <= available
+        granted = {s.capability: s.provider for s in app.snapshot().capabilities if s.available}
+        assert granted[Capability.TRACKING]  # the provider is named, never blank
     finally:
         app.stop()
 

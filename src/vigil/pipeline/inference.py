@@ -20,7 +20,7 @@ from vigil.domain.detection import PreparedFrame
 from vigil.domain.frame import Frame
 from vigil.ingest.buffers import FrameChannel
 from vigil.observability.metrics import MetricsRegistry
-from vigil.pipeline.results import LatestDetections
+from vigil.pipeline.results import AnalysedFrame, LatestDetections
 from vigil.pipeline.scheduler import InferenceScheduler
 
 
@@ -39,6 +39,7 @@ class InferenceWorker:
         max_batch_size: int,
         idle_wait_ms: int,
         fps_window_s: float,
+        analysis_sink: Callable[[AnalysedFrame], None] | None = None,
     ) -> None:
         self._detector = detector
         self._channels = dict(channels)
@@ -52,6 +53,9 @@ class InferenceWorker:
         self._idle_s = idle_wait_ms / 1000.0
         self._fps_window_ns = int(fps_window_s * NS_PER_S)
         self._done_times: deque[int] = deque()
+        # Where an analysed frame goes next. Optional, because the inference worker must stay
+        # runnable with no analysis stage at all (a bench run, `--selftest`).
+        self._analysis_sink = analysis_sink
 
     def _collect(self) -> list[Frame]:
         batch: list[Frame] = []
@@ -89,7 +93,11 @@ class InferenceWorker:
         now = self._clock.monotonic_ns()
         for frame, result in zip(batch, outputs, strict=True):
             cam = frame.meta.camera_id
-            self._results.publish(frame, result, now)
+            analysed = self._results.publish(frame, result, now)
+            if self._analysis_sink is not None:
+                # Hand-off only: the sink enqueues and returns. Analysis never runs on this
+                # thread, because this thread is the one holding the GPU.
+                self._analysis_sink(analysed)
             self._metrics.counter("vigil_frames_inferred_total", camera=cam).inc()
             self._metrics.counter("vigil_detections_total", camera=cam).inc(len(result.detections))
             self._metrics.histogram("vigil_inference_latency_ms").observe(

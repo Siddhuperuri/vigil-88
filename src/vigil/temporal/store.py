@@ -125,8 +125,32 @@ class AccumulatorStore:
         ]
 
     def reset(self) -> None:
-        """Forget everything. Called on a tracker epoch change: identities no longer mean what
-        they meant, so evidence keyed by them is worthless and keeping it would attribute one
-        object's history to another (04 §3.2)."""
+        """Forget everything. Rarely what an epoch change wants — see `reset_tracks`."""
         self._evicted += len(self._accumulators)
         self._accumulators.clear()
+
+    def reset_tracks(self) -> tuple[AccumulatorKey, ...]:
+        """Discard `track:` accumulators and keep every other subject (07 §5).
+
+        07 §5 calls this "the subtle one", and it is. A `track:` subject does not survive a
+        stream gap: track 7 before the gap is not track 7 after it, and reusing the identity
+        attributes one object's history to another — which fabricates a trajectory, then a
+        velocity, then an incident (04 §3.2).
+
+        A `zone:`, `region:` or `camera:` subject *does* survive, because it names a place
+        rather than an identity. Its evidence is therefore **decayed across the gap, not
+        discarded**: a fire does not stop burning because the network blipped. The decay needs
+        no extra work — accumulators decay by frame timestamps, so the first observation after
+        the gap applies every elapsed half-life by itself.
+
+        Before P6 the epoch path called `reset()` and discarded all of them. No shipped module
+        could notice, because `intrusion`, `person_down` and `abandoned_object` all use `track:`
+        subjects; it would have been silently wrong for the first module that did not.
+
+        Returns the keys it dropped, so the caller can forget its own state for them.
+        """
+        dropped = tuple(key for key in self.keys() if key[1].kind == "track")
+        for key in dropped:
+            del self._accumulators[key]
+        self._evicted += len(dropped)
+        return dropped

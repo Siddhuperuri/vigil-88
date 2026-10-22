@@ -1,47 +1,31 @@
 """A minimal live viewer served at `/`.
 
-Provisional by design: it exists so the P1 stream and metrics can be looked at, not to stand in
-for the operations console (08). Every control does what it says: the overlay checkboxes
-change the server-side stream, and there is nothing else to click. All data reaches the DOM
-through `textContent`, never `innerHTML`.
+Provisional by design: it exists so the stream, the metrics and the incident record can be
+looked at, not to stand in for the operations console (08). It follows the console's rules even
+so, because they are the rules that stop an interface lying:
+
+  * **Every control does what it says.** The overlay checkboxes change the server-side stream;
+    acknowledge, dismiss, escalate and annotate call the real endpoints and re-render from the
+    server's answer. An action the lifecycle forbids is **disabled with its reason** from the
+    API's `permissions` block -- never enabled-then-error (08 §8).
+  * **Nothing is faked.** With no incident store the desk says so rather than showing an empty
+    list as if that were good news. An evidence file served with an integrity mismatch is
+    labelled; a capability that is unavailable names what would provide it.
+  * **All data reaches the DOM through `textContent`,** never `innerHTML`: an operator note and
+    a validator reason are untrusted text as far as the browser is concerned.
 """
 
-VIEWER_HTML = r"""<!doctype html>
+from vigil.api.viewer_analytics import VIEWER_SCRIPT_ANALYTICS
+from vigil.api.viewer_script import VIEWER_SCRIPT_LIVE
+from vigil.api.viewer_styles import VIEWER_STYLES
+
+_DOCUMENT = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VIGIL-88 Live</title>
-<style>
-  :root {
-    --void:#0a0b0d; --panel:#12141a; --raised:#1a1d25; --line:#262a35;
-    --text:#e6e9ef; --text2:#9aa3b2; --dim:#6b7383; --signal:#2dd4bf;
-    --warn:#e0a93b; --bad:#e5484d;
-    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--void); color:var(--text);
-         font:13px/1.4 system-ui, "Segoe UI", sans-serif; }
-  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
-  #strip { display:flex; gap:20px; align-items:center; flex-wrap:wrap; padding:10px 16px;
-           background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; }
-  #strip .brand { font-weight:700; letter-spacing:.12em; }
-  #strip .k { color:var(--dim); margin-right:6px; }
-  #strip .warn { color:var(--warn); } #strip .bad { color:var(--bad); }
-  #grid { display:grid; gap:12px; padding:16px;
-          grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); }
-  .tile { background:var(--panel); border:1px solid var(--line); border-radius:2px; }
-  .tile header { display:flex; justify-content:space-between; gap:8px; padding:6px 10px;
-                 border-bottom:1px solid var(--line); }
-  .tile .state { text-transform:uppercase; letter-spacing:.06em; font-size:11px; }
-  .state.online { color:var(--signal); } .state.degraded,.state.reconnecting { color:var(--warn); }
-  .state.failed,.state.offline { color:var(--bad); }
-  .tile img { display:block; width:100%; background:#000; min-height:120px; }
-  .tile footer { display:flex; gap:14px; padding:6px 10px; border-top:1px solid var(--line);
-                 color:var(--text2); flex-wrap:wrap; }
-  label { cursor:pointer; user-select:none; }
-  #empty, #note { color:var(--dim); padding:16px; }
-</style>
+__VIGIL_STYLES__
 </head>
 <body>
 <div id="strip">
@@ -53,78 +37,61 @@ VIEWER_HTML = r"""<!doctype html>
   <span><span class="k">GPU</span><span id="s-gpu" class="num">-</span></span>
   <span><span class="k">CPU</span><span id="s-cpu" class="num">-</span></span>
   <span><span class="k">model</span><span id="s-model" class="num">-</span></span>
+  <span><span class="k">mutes</span><span id="s-mutes" class="num">-</span></span>
 </div>
 <div id="grid"></div>
 <div id="empty" hidden>No cameras are configured and enabled.</div>
-<div id="note">Provisional live viewer. The overlay is drawn on the server from the detections made
-on that exact frame. The operations console arrives in a later phase.</div>
-<script>
-const $ = (id) => document.getElementById(id);
-const fmt = (v, d = 1, unit = "") => (v === null || v === undefined) ? "n/a" : v.toFixed(d) + unit;
-const tiles = new Map();
+<div id="desk">
+  <h2>Incidents <span id="desk-count" class="num pill"></span>
+      <span id="desk-note" class="num warnbox"></span></h2>
+  <table>
+    <thead><tr>
+      <th>Reference</th><th>When</th><th>Severity</th><th>Type</th><th>Camera</th>
+      <th>Status</th><th>Confidence</th><th>Latency</th><th>Evidence</th>
+    </tr></thead>
+    <tbody id="desk-rows"></tbody>
+  </table>
+  <div id="desk-empty" hidden>No incidents have been recorded.</div>
+  <div id="detail" hidden></div>
 
-function overlayQuery(tile) {
-  const on = ["boxes", "labels", "info"].filter((k) => tile.checks[k].checked);
-  return on.length ? on.join(",") : "none";
-}
-function setStream(tile) {
-  tile.img.src = `/api/v1/cameras/${encodeURIComponent(tile.id)}/stream.mjpeg?overlay=${overlayQuery(tile)}`;
-}
-function makeTile(id) {
-  const root = document.createElement("div"); root.className = "tile";
-  const head = document.createElement("header");
-  const name = document.createElement("span"); name.className = "num"; name.textContent = id;
-  const state = document.createElement("span"); state.className = "state num";
-  head.append(name, state);
-  const img = document.createElement("img"); img.alt = "live stream for " + id;
-  const foot = document.createElement("footer");
-  const stats = document.createElement("span"); stats.className = "num";
-  const checks = {};
-  for (const k of ["boxes", "labels", "info"]) {
-    const l = document.createElement("label"); const c = document.createElement("input");
-    c.type = "checkbox"; c.checked = true; checks[k] = c;
-    l.append(c, " " + k); foot.append(l);
-  }
-  foot.append(stats); root.append(head, img, foot);
-  const tile = { id, root, img, state, stats, checks };
-  for (const c of Object.values(checks)) c.addEventListener("change", () => setStream(tile));
-  setStream(tile); $("grid").append(root); tiles.set(id, tile);
-}
-async function pollCameras() {
-  try {
-    const cams = await (await fetch("/api/v1/cameras")).json();
-    $("empty").hidden = cams.length > 0;
-    for (const c of cams) {
-      if (!tiles.has(c.camera_id)) makeTile(c.camera_id);
-      const t = tiles.get(c.camera_id);
-      t.state.textContent = c.state; t.state.className = "state num " + c.state;
-      t.stats.textContent = `${fmt(c.measured_fps, 1)} fps  rx ${c.frames_received}  ` +
-        `skipped ${c.frames_skipped}  dropped ${c.frames_dropped}` + (c.detail ? "  | " + c.detail : "");
-    }
-  } catch (e) { $("s-state").textContent = "unreachable"; $("s-state").className = "num bad"; }
-}
-async function pollMetrics() {
-  try {
-    const [h, m] = await Promise.all([
-      fetch("/api/v1/system/health").then((r) => r.json()),
-      fetch("/api/v1/system/metrics").then((r) => r.json())]);
-    const s = $("s-state"); s.textContent = `${h.state} / ${h.level}`;
-    s.className = "num " + (h.level === "ok" ? "" : h.level === "failed" ? "bad" : "warn");
-    $("s-fps").textContent = fmt(m.pipeline_fps, 1, " fps");
-    $("s-lat").textContent = `${fmt(m.inference_latency.p50_ms)} / ${fmt(m.inference_latency.p95_ms)} ms`;
-    const e2e = Object.values(m.end_to_end)[0];
-    $("s-e2e").textContent = e2e ? fmt(e2e.p95_ms, 1, " ms") : "n/a";
-    const sy = m.system;
-    $("s-gpu").textContent = sy && sy.gpu_utilization_percent !== null
-      ? `${fmt(sy.gpu_utilization_percent, 0, "%")} ${fmt(sy.gpu_memory_used_mb, 0, " MB")} ${fmt(sy.gpu_temperature_c, 0, "C")}`
-      : "n/a";
-    $("s-gpu").className = "num " + (sy && sy.gpu_throttle_reasons.length ? "warn" : "");
-    $("s-cpu").textContent = sy ? fmt(sy.cpu_percent, 0, "%") : "n/a";
-    $("s-model").textContent = h.detector ? `${h.detector.name} ${h.detector.input_size_px || ""}px ${h.detector.device}` : "none";
-  } catch (e) { /* the camera poll already reports an unreachable server */ }
-}
-setInterval(pollCameras, 1500); setInterval(pollMetrics, 1000); pollCameras(); pollMetrics();
-</script>
+  <h2>Analytics <span id="stat-window" class="num pill"></span></h2>
+  <div id="stat-controls">
+    <label>window
+      <select id="stat-days">
+        <option value="1">24 hours</option>
+        <option value="7" selected>7 days</option>
+        <option value="30">30 days</option>
+        <option value="365">1 year</option>
+      </select>
+    </label>
+    <label>bucket
+      <select id="stat-bucket">
+        <option value="hour">hour</option>
+        <option value="day" selected>day</option>
+        <option value="week">week</option>
+        <option value="month">month</option>
+      </select>
+    </label>
+    <button id="export-csv">export CSV</button>
+    <button id="export-json">export JSON</button>
+    <button id="export-pdf" disabled>export PDF</button>
+  </div>
+  <div id="stats"></div>
+  <ul id="stat-caveats"></ul>
+</div>
+<div id="note">Provisional viewer. The overlay is drawn on the server from the detections made on
+that exact frame, and every incident control calls the real API. The operations console arrives in
+a later phase.</div>
+__VIGIL_SCRIPT__
 </body>
 </html>
 """
+
+# One `<script>` element, assembled from the live half (which opens the tag) and the analytics
+# half (which closes it). They are separate files because they are separate concerns -- live
+# view and operator desk against reporting -- not because the browser cares.
+_SCRIPT = VIEWER_SCRIPT_LIVE + "\n" + VIEWER_SCRIPT_ANALYTICS
+
+VIEWER_HTML = _DOCUMENT.replace("__VIGIL_STYLES__", VIEWER_STYLES).replace(
+    "__VIGIL_SCRIPT__", _SCRIPT
+)

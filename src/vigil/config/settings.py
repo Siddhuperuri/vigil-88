@@ -8,6 +8,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from vigil.config.schema.alerts import AlertsConfig
 from vigil.config.schema.api import ApiConfig
 from vigil.config.schema.base import ConfigModel
 from vigil.config.schema.camera import CameraConfig
@@ -22,6 +23,7 @@ from vigil.config.schema.modules import (
 from vigil.config.schema.pipeline import EvidenceConfig, HealthConfig, IngestConfig, PipelineConfig
 from vigil.config.schema.retention import RetentionConfig
 from vigil.config.schema.severity import SeverityConfig
+from vigil.config.schema.storage import StorageConfig
 from vigil.config.schema.system import LoggingConfig, ObservabilityConfig, PathsConfig
 from vigil.config.schema.vision import VisionConfig
 
@@ -43,6 +45,8 @@ class Settings(ConfigModel):
     health: HealthConfig = Field(default_factory=HealthConfig)
     evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+    alerts: AlertsConfig = Field(default_factory=AlertsConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
     modules: ModulesConfig = Field(default_factory=ModulesConfig)
     cameras: tuple[CameraConfig, ...] = ()

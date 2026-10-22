@@ -463,8 +463,14 @@ def test_a_camera_without_zones_runs_no_intrusion_module() -> None:
     """Unavailable functionality stays explicitly unavailable; it does not quietly do nothing."""
     run = replay(available=frozenset({Capability.DETECTION, Capability.TRACKING}))
     assert run.report.runnable_ids == ()
-    assert len(run.report.unavailable) == 1
-    assert "zones" in (run.report.unavailable[0].reason or "")
+    # `intrusion` is unavailable for want of a zone file -- which an operator can
+    # fix -- while `fire` and `smoke` are unavailable for want of a capability this
+    # build cannot grant at all (ADR 0015). The two reasons must not read alike.
+    by_id = {a.module_id: a for a in run.report.unavailable}
+    assert set(by_id) == {"fire", "intrusion", "smoke"}
+    assert "zones" in (by_id["intrusion"].reason or "")
+    for declared in ("fire", "smoke"):
+        assert "classification" in (by_id[declared].reason or "")
     result = run.run(walk(inside_until_ms=None, duration_ms=20_000.0))
     assert result.observations_total == 0
     assert result.scored == []

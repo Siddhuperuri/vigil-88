@@ -45,6 +45,13 @@ api = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
 ]
+# Printable PDF reports. An extra rather than a core dependency: 10-roadmap §8 asks for PDF
+# export, 03 §1 rule 1 says every dependency is a liability, and a renderer is a large one for
+# formatting. Without it JSON and CSV still work and the PDF format reports itself unavailable
+# with the install command (ADR 0014 §C).
+reports = [
+    "reportlab>=4.2",
+]
 
 [project.scripts]
 vigil = "vigil.cli.main:app"
@@ -62,6 +69,7 @@ dev = [
     "types-psutil",
     "onnx>=1.17",   # builds tiny real ONNX graphs for backend tests; never shipped
     "httpx>=0.27",  # FastAPI TestClient
+    "reportlab>=4.2",  # so the gate always exercises the PDF path, not only `--extra reports`
 ]
 
 [tool.uv]
@@ -96,7 +104,18 @@ ignore = ["S101"]  # assert is fine in tests; src is checked by mypy instead
 "tests/**" = ["S105", "S106", "S108", "S311", "T20", "BLE001", "PT011", "PT018", "C408"]
 "scripts/**" = ["T20"]
 "src/vigil/cli/**" = ["T20"]
-"src/vigil/api/viewer.py" = ["E501"]  # embedded HTML/JS
+"src/vigil/api/viewer.py" = ["E501"]  # embedded HTML
+"src/vigil/api/viewer_styles.py" = ["E501"]  # embedded CSS
+"src/vigil/api/viewer_script.py" = ["E501"]  # embedded JS
+"src/vigil/api/viewer_analytics.py" = ["E501"]  # embedded JS
+# S608 flags every f-string that contains SQL. In these two layers the interpolated text is
+# always either a column tuple declared in the same module or a run of `?` placeholders whose
+# count comes from `len(values)`; a caller's value is never interpolated, only bound. That rule
+# is enforced directly by tests/unit/persistence/test_query_safety.py, which feeds hostile
+# identifiers and filter values through the builders and asserts they never reach the statement
+# text -- a stronger check than the lint can make, and one that cannot be satisfied by a noqa.
+"src/vigil/persistence/**" = ["S608"]
+"src/vigil/analytics/**" = ["S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["vigil"]
@@ -115,8 +134,8 @@ module = ["vigil.core.*", "vigil.domain.*"]
 disallow_any_explicit = true  # 01 §12: domain/ and core/ forbid Any
 
 [[tool.mypy.overrides]]
-module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*"]
-ignore_missing_imports = true
+module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*", "reportlab.*"]
+ignore_missing_imports = true  # none of these publish stubs; `reportlab` is also optional
 
 # ---------------------------------------------------------------- pytest
 [tool.pytest.ini_options]
@@ -153,8 +172,13 @@ type = "layers"
 layers = [
     "vigil.cli",
     "vigil.api | vigil.bench",
-    "vigil.pipeline",
-    "vigil.ingest | vigil.vision | vigil.tracking | vigil.scene | vigil.temporal | vigil.events | vigil.verification | vigil.severity",
+    # 01 §5 puts pipeline/ and analytics/ on one layer. `:` rather than `|` (which would
+    # enforce independence) because pipeline builds the analytics objects as part of the
+    # response stack: constructing engines is pipeline's job, and the API is a client of what
+    # it is handed rather than a thing that assembles its own.
+    "vigil.pipeline : vigil.analytics",
+    "vigil.ingest | vigil.vision | vigil.tracking | vigil.scene | vigil.temporal | vigil.events | vigil.verification | vigil.severity | vigil.response",
+    "vigil.persistence",
     "vigil.domain",
     "vigil.config : vigil.observability",
     "vigil.core",
@@ -177,6 +201,7 @@ modules = [
     "vigil.events",
     "vigil.verification",
     "vigil.severity",
+    "vigil.response",
 ]
 
 [[tool.importlinter.contracts]]

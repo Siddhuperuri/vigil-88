@@ -81,6 +81,13 @@ class CaptureWorker:
         self._ever_online = False
         self._open_attempts = 0
         self._glitches = 0
+        # Reconnect *cycles*, which is what the backoff escalates over and what
+        # `max_reconnect_attempts` limits. Distinct from `_open_attempts` (consecutive
+        # failures to open) because a cycle can also fail after a successful open, by
+        # failing the read -- and that case previously reset both counters, so the
+        # delay never grew and the limit was never reached.
+        self._cycles = 0
+        self._frames_since_open = 0
 
     # ------------------------------------------------------------------ one step
 
@@ -102,6 +109,11 @@ class CaptureWorker:
         self._ever_online = True
         self._open_attempts = 0
         self._glitches = 0
+        # The cycle counter is NOT cleared here. An open that succeeds and is
+        # followed by a failing read has not recovered anything, and clearing it here
+        # is what made a flapping camera retry at the base delay for ever. It clears
+        # in `_read` once the stream has actually delivered frames.
+        self._frames_since_open = 0
         self._health.mark_online(epoch=self._epoch, expected_fps=info.fps)
         self._log.info(
             "source opened",
@@ -128,13 +140,15 @@ class CaptureWorker:
             return StepResult(StepKind.FAILED)
         self._health.mark_reconnecting(f"open failed (attempt {attempts}): {exc.message}")
         self._metrics.counter("vigil_reconnect_attempts_total", camera=self._camera_id).inc()
-        return StepResult(StepKind.OPEN_FAILED, self._backoff(attempts - 1))
+        return StepResult(StepKind.OPEN_FAILED, self._backoff(max(attempts - 1, self._cycles)))
 
     def _gave_up(self, attempts: int) -> bool:
         if not self._ever_online:
             return attempts >= self._cfg.max_initial_open_attempts
         limit = self._cfg.max_reconnect_attempts
-        return limit > 0 and attempts >= limit
+        # Counted in cycles, so a camera that fails on read rather than on open still
+        # reaches the limit instead of retrying for ever.
+        return limit > 0 and max(attempts, self._cycles) >= limit
 
     def _backoff(self, attempt: int) -> float:
         return reconnect_delay_ms(
@@ -159,6 +173,11 @@ class CaptureWorker:
             return StepResult(StepKind.END_OF_STREAM)
 
         self._glitches = 0
+        self._frames_since_open += 1
+        if self._frames_since_open >= self._cfg.reconnect_reset_frames:
+            # The reconnect worked: this stream is delivering, so the next failure
+            # starts its escalation from the base delay again.
+            self._cycles = 0
         if self._seek is not None and raw.source_pts_ms is not None:
             self._seek(raw.source_pts_ms)
         t_mono = self._clock.monotonic_ns()  # stamp immediately after read() returns
@@ -214,9 +233,14 @@ class CaptureWorker:
             return StepResult(StepKind.FAILED)
         self._open_attempts = 0
         self._glitches = 0
+        self._cycles += 1
+        if self._gave_up(0):
+            self._health.mark_failed(f"gave up after {self._cycles} reconnects: {exc.message}")
+            self._log.error("camera failed", reconnect_cycles=self._cycles)
+            return StepResult(StepKind.FAILED)
         self._health.mark_reconnecting(f"read failed: {exc.message}")
         self._metrics.counter("vigil_reconnect_attempts_total", camera=self._camera_id).inc()
-        return StepResult(StepKind.READ_FAILED, self._backoff(0))
+        return StepResult(StepKind.READ_FAILED, self._backoff(self._cycles - 1))
 
     # ------------------------------------------------------------------ loop
 

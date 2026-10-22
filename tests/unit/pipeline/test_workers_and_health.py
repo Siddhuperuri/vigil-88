@@ -13,7 +13,7 @@ from vigil.core.errors import LifecycleError
 from vigil.domain import CameraHealth, CameraState
 from vigil.observability.logging import get_logger
 from vigil.observability.metrics import MetricsRegistry
-from vigil.pipeline.health import HealthLevel, aggregate_health
+from vigil.pipeline.health import HealthLevel, aggregate_health, stalled_workers
 from vigil.pipeline.workers import THREAD_PREFIX, ThreadWorker, WorkerHealth
 
 
@@ -110,17 +110,32 @@ def cam(state: CameraState, cid: str = "cam-a", detail: str | None = None) -> Ca
     return CameraHealth(cid, state, T0, 1, 0, None, None, 0, 0, 0, 0, detail)
 
 
-def worker(crashed: bool = False, alive: bool = True) -> WorkerHealth:
-    return WorkerHealth("w", True, alive, crashed, "boom" if crashed else None, 1.0)
+# The default stall budget. Generous on purpose: a worker beats once per loop iteration and the
+# slowest legitimate beat is the watchdog's one per second.
+STALL_MS = 30_000.0
+
+
+def worker(
+    crashed: bool = False,
+    alive: bool = True,
+    *,
+    name: str = "w",
+    beat_age_ms: float | None = 1.0,
+) -> WorkerHealth:
+    return WorkerHealth(name, True, alive, crashed, "boom" if crashed else None, beat_age_ms)
+
+
+def health(cameras: list[CameraHealth], workers: list[WorkerHealth], *, stall_ms: float = STALL_MS):
+    return aggregate_health(cameras, workers, worker_stall_timeout_ms=stall_ms)
 
 
 def test_healthy_system_is_ok() -> None:
-    r = aggregate_health([cam(CameraState.ONLINE)], [worker()])
+    r = health([cam(CameraState.ONLINE)], [worker()])
     assert r.level is HealthLevel.OK and r.issues == ()
 
 
 def test_quiet_states_are_not_problems() -> None:
-    r = aggregate_health([cam(CameraState.DISABLED), cam(CameraState.OFFLINE, "cam-b")], [])
+    r = health([cam(CameraState.DISABLED), cam(CameraState.OFFLINE, "cam-b")], [])
     assert r.level is HealthLevel.OK
 
 
@@ -128,27 +143,80 @@ def test_quiet_states_are_not_problems() -> None:
     "state", [CameraState.DEGRADED, CameraState.RECONNECTING, CameraState.ANALYSIS_SUSPENDED]
 )
 def test_unhealthy_camera_states_degrade_the_system(state: CameraState) -> None:
-    r = aggregate_health([cam(state, detail="why")], [worker()])
+    r = health([cam(state, detail="why")], [worker()])
     assert r.level is HealthLevel.DEGRADED and "why" in r.issues[0]
 
 
 def test_one_failed_camera_among_healthy_ones_is_degraded_not_failed() -> None:
-    r = aggregate_health([cam(CameraState.FAILED), cam(CameraState.ONLINE, "cam-b")], [])
+    r = health([cam(CameraState.FAILED), cam(CameraState.ONLINE, "cam-b")], [])
     assert r.level is HealthLevel.DEGRADED
 
 
 def test_every_active_camera_failed_is_failed() -> None:
-    r = aggregate_health([cam(CameraState.FAILED), cam(CameraState.DISABLED, "cam-b")], [])
+    r = health([cam(CameraState.FAILED), cam(CameraState.DISABLED, "cam-b")], [])
     assert r.level is HealthLevel.FAILED
 
 
 def test_a_crashed_worker_fails_the_system() -> None:
-    r = aggregate_health([cam(CameraState.ONLINE)], [worker(crashed=True, alive=False)])
+    r = health([cam(CameraState.ONLINE)], [worker(crashed=True, alive=False)])
     assert r.level is HealthLevel.FAILED and "crashed" in r.issues[0]
 
 
 def test_a_worker_that_finished_cleanly_is_fine() -> None:
-    assert aggregate_health([], [worker(alive=False)]).level is HealthLevel.OK
+    assert health([], [worker(alive=False)]).level is HealthLevel.OK
+
+
+# ------------------------------------------------------------------ worker stall (07 §9)
+#
+# The heartbeat beacon existed from P0 and nothing read it until P6, so a worker that was alive
+# but no longer progressing -- a decode that never returns (ADR 0011), a deadlock, a disk that
+# stopped answering -- reported `alive=True, crashed=False` and the application's health stayed
+# **OK** while part of the pipeline had quietly stopped. A crash was at least visible.
+
+
+def test_a_worker_whose_heartbeat_is_stale_fails_the_system() -> None:
+    r = health([cam(CameraState.ONLINE)], [worker(beat_age_ms=STALL_MS + 1)])
+    assert r.level is HealthLevel.FAILED
+    assert "has not made progress" in r.issues[0]
+    # And it says there is no automatic restart, because there is not (LIMITATIONS).
+    assert "restart" in r.issues[0]
+
+
+def test_a_worker_inside_the_stall_budget_is_fine() -> None:
+    r = health([cam(CameraState.ONLINE)], [worker(beat_age_ms=STALL_MS - 1)])
+    assert r.level is HealthLevel.OK
+
+
+def test_a_finished_worker_is_not_stalled() -> None:
+    """End of stream leaves an old heartbeat behind; the thread is not alive, so it is not hung."""
+    r = health([cam(CameraState.ONLINE)], [worker(alive=False, beat_age_ms=STALL_MS * 10)])
+    assert r.level is HealthLevel.OK
+    assert stalled_workers([worker(alive=False, beat_age_ms=1e9)], stall_timeout_ms=STALL_MS) == ()
+
+
+def test_a_worker_that_has_never_beaten_is_not_reported_as_stalled() -> None:
+    """No heartbeat yet is a worker that has not started looping, not one that has stopped."""
+    assert stalled_workers([worker(beat_age_ms=None)], stall_timeout_ms=STALL_MS) == ()
+
+
+def test_the_stall_budget_comes_from_configuration() -> None:
+    workers = [worker(beat_age_ms=5_000.0)]
+    assert health([], workers, stall_ms=10_000.0).level is HealthLevel.OK
+    assert health([], workers, stall_ms=1_000.0).level is HealthLevel.FAILED
+
+
+def test_every_stalled_worker_is_named() -> None:
+    """One line per worker: "something is stuck" is not an actionable report."""
+    r = health(
+        [],
+        [
+            worker(name="capture:cam-a", beat_age_ms=STALL_MS + 1),
+            worker(name="analysis", beat_age_ms=STALL_MS + 1),
+            worker(name="respond"),
+        ],
+    )
+    assert len(r.issues) == 2
+    assert {"capture:cam-a", "analysis"} == {i.split()[1] for i in r.issues}
 
 
 def test_ingest_and_health_configs_are_used_by_the_tracker_defaults() -> None:

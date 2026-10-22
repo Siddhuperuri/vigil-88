@@ -38,17 +38,58 @@ class Availability(StrEnum):
 HOW_TO_PROVIDE: Mapping[Capability, str] = MappingProxyType(
     {
         Capability.DETECTION: "a detector backend that produces detections (not the null detector)",
-        Capability.CLASSIFICATION: "a classifier model and engine (planned: P6)",
+        Capability.CLASSIFICATION: (
+            "a classifier model and engine. P6 searched for one and found none it could use: "
+            "every fire/smoke model with usable accuracy is AGPL-3.0, unlicensed, or has "
+            "training data of unknown provenance (ADR 0015). Supplying one means sourcing "
+            "weights with a compatible licence and evaluating them on a labelled held-out set"
+        ),
         Capability.SEGMENTATION: "a segmentation model and engine (not planned)",
-        Capability.TRACKING: "the tracking engine (planned: P2)",
-        Capability.VELOCITY: "the tracking engine with enough history (planned: P2)",
+        Capability.TRACKING: "the tracking engine, enabled by tracking.enabled",
+        Capability.VELOCITY: (
+            "the tracking engine; a velocity is reported once a track has "
+            "tracking.min_history_for_velocity matched points"
+        ),
         Capability.POSE: "a pose model (not planned)",
-        Capability.ZONES: "zone definitions loaded for this camera (planned: P2)",
-        Capability.GROUND_PLANE: "a calibrated homography for this camera (planned: P5)",
+        Capability.ZONES: (
+            "a zone file for this camera: set cameras.<id>.zones_ref and create "
+            "config/zones/<ref>.zones.yaml with at least one zone"
+        ),
+        Capability.GROUND_PLANE: (
+            "a calibration file for this camera: set cameras.<id>.calibration_ref and "
+            "create config/calibration/<ref>.calib.yaml with four measured points"
+        ),
         Capability.OPTICAL_FLOW: "an optical-flow stage (not planned)",
-        Capability.SCENE_STABILITY: "the scene analyzer (planned: P2)",
+        Capability.SCENE_STABILITY: (
+            "the scene analyzer with an array backend installed (the capture extra), "
+            "and scene.stability_enabled"
+        ),
     }
 )
+
+
+# Capabilities **no component in this build can grant**, whatever the configuration says, with
+# the reason. This is a stronger statement than "not currently granted": a `ZONES` gap closes by
+# writing a zone file, while nothing an operator can do closes these, because the code that would
+# supply them does not exist here.
+#
+# It is a declared fact rather than a comment so that three things can be mechanical: the module
+# API and `vigil doctor` can say "this build cannot grant it" instead of implying a missing file;
+# the contract suite can tell a module that *observes* from one that only *declares*; and a module
+# shipped as a declaration cannot drift into looking operational.
+UNGRANTABLE: Mapping[Capability, str] = MappingProxyType(
+    {
+        Capability.CLASSIFICATION: "no classifier engine exists in this build (ADR 0015)",
+        Capability.SEGMENTATION: "no segmentation engine exists in this build; not planned",
+        Capability.POSE: "no pose model or engine exists in this build; not planned",
+        Capability.OPTICAL_FLOW: "no optical-flow stage exists in this build; not planned",
+    }
+)
+
+
+def ungrantable(requires: Iterable[Capability]) -> frozenset[Capability]:
+    """Which of `requires` nothing in this build can supply. Empty means it could run here."""
+    return frozenset(requires) & frozenset(UNGRANTABLE)
 
 
 @dataclass(frozen=True, slots=True)
