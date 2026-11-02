@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -27,10 +28,10 @@ interface AxeResults {
 async function launch(): Promise<Launched> {
   const root = mkdtempSync(path.join(tmpdir(), "vigil-e2e-"));
   const config = path.join(root, "config");
-  mkdirSync(config, { recursive: true });
+  mkdirSync(path.join(config, "cameras"), { recursive: true });
   writeFileSync(
     path.join(config, "vigil.yaml"),
-    "version: 1\npaths:\n  data_dir: ./var\ncameras: []\nlogging:\n  level: ERROR\n",
+    "version: 1\npaths:\n  data_dir: ./var\ncameras:\n  - $include: cameras/*.yaml\nlogging:\n  level: ERROR\n",
   );
   const app = await electron.launch({
     args: [DESKTOP, `--user-data-dir=${path.join(root, "user")}`],
@@ -41,6 +42,38 @@ async function launch(): Promise<Launched> {
   app.process().stdout?.on("data", (chunk: Buffer) => stdout.push(chunk.toString("utf8")));
   const page = await app.firstWindow();
   return { app, page, marker: config, stdout };
+}
+
+/** A short moving clip, made with the engine's own OpenCV so the test needs no fixture file. */
+function makeClip(dir: string): string {
+  const python = path.resolve(DESKTOP, "..", ".venv", "Scripts", "python.exe");
+  if (!existsSync(python)) throw new Error(`the engine's Python is not at ${python}`);
+  const clip = path.join(dir, "clip.avi");
+  execFileSync(python, [
+    "-c",
+    [
+      "import cv2, numpy as np, sys",
+      "w = cv2.VideoWriter(sys.argv[1], cv2.VideoWriter_fourcc(*'MJPG'), 10, (320, 240))",
+      "for i in range(60):",
+      "    f = np.zeros((240, 320, 3), np.uint8)",
+      "    cv2.rectangle(f, (10 + i * 4, 80), (60 + i * 4, 180), (200, 200, 200), -1)",
+      "    w.write(f)",
+      "w.release()",
+    ].join("\n"),
+    clip,
+  ]);
+  return clip;
+}
+
+async function createAdministrator(page: Page): Promise<void> {
+  await expect(setupHeading(page)).toBeVisible();
+  await page.getByLabel("Administrator username").fill("alice");
+  await page.getByLabel("Password", { exact: true }).fill(PASSPHRASE);
+  await page.getByLabel("Repeat the password").fill(PASSPHRASE);
+  await page.getByRole("button", { name: "Create administrator" }).click();
+  await page.getByRole("checkbox", { name: /stored these codes/ }).check();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Live wall" })).toBeVisible();
 }
 
 const setupHeading = (page: Page) => page.getByRole("heading", { name: "Set up VIGIL-88" });
@@ -233,5 +266,80 @@ test.describe("the real app", () => {
     }
     expect(pidsMatching(session.marker)).toEqual([]);
     expect(session.stdout.join("")).toContain('"shell":"engine-stopped"');
+  });
+
+  test("adds a camera from the console, applies it by restart without signing out, and it comes up online", async () => {
+    const page = session.page;
+    const clip = makeClip(path.dirname(session.marker));
+    await createAdministrator(page);
+
+    await page.getByRole("link", { name: "Cameras" }).click();
+    await expect(page.getByText("No cameras yet")).toBeVisible();
+    await page.getByRole("link", { name: "Add a camera" }).click();
+
+    // A bad name is refused in place, before anything is sent.
+    await page.getByLabel("Camera name").fill("Bad Name");
+    await page.getByRole("button", { name: "Save camera" }).click();
+    await expect(page.getByText(/Use lower-case letters/)).toBeVisible();
+
+    await page.getByLabel("Camera name").fill("clip");
+    await page.getByLabel("Kind of source").selectOption("video_file");
+    await page.getByLabel("Video file path").fill(clip);
+    await page.getByRole("button", { name: "Test connection" }).click();
+    await expect(page.getByText(/320x240/)).toBeVisible({ timeout: 30_000 });
+    expect(await violations(page)).toEqual([]);
+    await page.getByRole("button", { name: "Save camera" }).click();
+
+    // Saved, listed, and honest that it is not running yet.
+    await expect(page.getByRole("rowheader", { name: "clip" })).toBeVisible();
+    await expect(page.getByText("Saved. Starts when monitoring restarts.")).toBeVisible();
+    await expect(page.getByText("1 saved change is waiting")).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    // The cost is stated, and declining changes nothing.
+    await page.getByRole("button", { name: /Apply and restart/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Restart monitoring?" });
+    await expect(dialog).toContainText("Anything that happens in that time is not seen");
+    await dialog.getByRole("button", { name: "Not now" }).click();
+    await expect(page.getByText("1 saved change is waiting")).toBeVisible();
+
+    const pidsBefore = pidsMatching(session.marker);
+    await page.getByRole("button", { name: /Apply and restart/ }).click();
+    const started = Date.now();
+    await page.getByRole("dialog").getByRole("button", { name: "Restart now" }).click();
+    await expect(page.getByText(/Restarting monitoring…/)).toBeVisible();
+
+    // Back, with the camera running, nothing pending, and still signed in.
+    await expect(page.getByText(/saved change/)).toHaveCount(0, { timeout: 90_000 });
+    await expect(page.getByRole("row", { name: /clip/ })).toContainText("ONLINE", {
+      timeout: 90_000,
+    });
+    const restartMs = Date.now() - started;
+    test.info().annotations.push({ type: "restart-ms", description: String(restartMs) });
+    console.log(`apply-by-restart took ${String(restartMs)} ms (click to camera ONLINE)`);
+    expect(pidsMatching(session.marker).some((pid) => pidsBefore.includes(pid))).toBe(false);
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    expect(page.url()).toContain("#/cameras"); // back on the screen the change was applied from
+
+    // Zones: draw one on the running camera, save, and the keyboard moves a point.
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Zones" })
+      .click();
+    await page
+      .getByRole("navigation", { name: "Cameras" })
+      .getByRole("link", { name: "clip" })
+      .click();
+    await page.getByRole("button", { name: "Add a zone" }).click();
+    const point = page.getByRole("button", { name: /Point 1 of zone-1/ });
+    await point.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByLabel("Point 1 across")).toHaveValue("0.31");
+    expect(await violations(page)).toEqual([]);
+    await page.getByRole("button", { name: "Save zones" }).click();
+    await expect(
+      page.getByText("Saved zones are waiting for monitoring to restart."),
+    ).toBeVisible();
+    await expect(page.getByText(/2 saved changes are waiting/)).toBeVisible();
   });
 });

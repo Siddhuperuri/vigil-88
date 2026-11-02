@@ -55,15 +55,30 @@ function fromEngineOrigin(event: IpcMainInvokeEvent): boolean {
   }
 }
 
+/** The console view the person was on (its hash route), kept across an engine restart so applying a
+ * change returns them to the screen they applied it from rather than to the first one. */
+let lastRoute = "";
+
+function rememberRoute(win: BrowserWindow): void {
+  try {
+    const current = new URL(win.webContents.getURL());
+    if (current.protocol === "http:") lastRoute = current.hash;
+  } catch {
+    // The window had no page yet: there is nothing to remember.
+  }
+}
+
 function show(state: EngineState): void {
   const win = window;
   if (win === null || win.isDestroyed()) return;
   win.webContents.send(SHELL_CHANNEL.state, state);
   if (state.kind === "running") {
-    const target = new URL(existsUi() ? "/app/" : "/", state.url).toString();
-    void win.loadURL(target);
-    milestone("engine-running", { url: target });
+    const target = new URL(existsUi() ? "/app/" : "/", state.url);
+    target.hash = lastRoute;
+    void win.loadURL(target.toString());
+    milestone("engine-running", { url: target.toString() });
   } else {
+    rememberRoute(win);
     void win.loadURL(statusPage(state));
   }
 }
