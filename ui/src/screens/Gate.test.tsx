@@ -5,6 +5,8 @@ import { AuthProvider } from "../state/auth";
 import { authStatus, bodyOf, json, mockFetch, stubObjectUrls } from "../test-support";
 import { Lock, Login, Setup } from "./Gate";
 
+const PASSPHRASE = "correct horse battery";
+const SETUP = "tok-123";
 const wrap = (ui: React.ReactElement) => render(<AuthProvider>{ui}</AuthProvider>);
 const post = (calls: { url: string; init: RequestInit | undefined }[], url: string) =>
   calls.find((c) => c.url === url && c.init?.method === "POST");
@@ -33,7 +35,7 @@ describe("Login", () => {
     const sent = post(calls, "/api/v1/auth/login");
     expect(bodyOf(sent)).toEqual({
       username: "alice",
-      password: "correct horse battery",
+      password: PASSPHRASE,
     });
     expect(sent?.init?.headers).toMatchObject({ "X-Vigil-Request": "1" });
     await waitFor(() => {
@@ -155,7 +157,7 @@ describe("Setup", () => {
       "/api/v1/auth/status": authStatus(),
     });
     wrap(<Setup />);
-    await userEvent.type(screen.getByLabelText("Setup token"), "tok-123");
+    await userEvent.type(screen.getByLabelText("Setup token"), SETUP);
     await userEvent.type(screen.getByLabelText("Administrator username"), "alice");
     await userEvent.type(
       screen.getAllByLabelText("Password")[0] as HTMLElement,
@@ -169,7 +171,7 @@ describe("Setup", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(10);
     expect(bodyOf(post(calls, "/api/v1/auth/setup"))).toMatchObject({
-      token: "tok-123",
+      token: SETUP,
       username: "alice",
     });
     const next = screen.getByRole("button", { name: "Continue" });

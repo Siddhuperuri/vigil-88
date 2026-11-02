@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Alerts } from "./components/Alerts";
 import { Announcer, Shell } from "./components/Shell";
 import { Notice } from "./components/bits";
 import { href, useRoute } from "./router";
@@ -20,6 +21,24 @@ const SHORTCUTS: [string, string][] = [
   ["?", "This list"],
   ["Esc", "Close a dialog or a reason prompt"],
 ];
+
+const SOUND_KEY = "vigil.alertSound";
+
+function storedSound(): boolean {
+  try {
+    return window.localStorage.getItem(SOUND_KEY) !== "off"; // on unless the person turned it off
+  } catch {
+    return true; // storage can be blocked; a missing preference must not silence an alarm
+  }
+}
+
+function storeSound(on: boolean): void {
+  try {
+    window.localStorage.setItem(SOUND_KEY, on ? "on" : "off");
+  } catch {
+    // Not remembering the choice is a convenience lost, not an error.
+  }
+}
 
 function Shortcuts({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -61,6 +80,7 @@ function Signed({
   const auth = useAuth();
   const [route, go] = useRoute();
   const [shortcuts, setShortcuts] = useState(false);
+  const [sound, setSound] = useState(() => storedSound());
   const open = useCallback(() => {
     setShortcuts(true);
   }, []);
@@ -80,10 +100,18 @@ function Signed({
         Skip to content
       </a>
       <Announcer muted={false} />
+      <Alerts soundOn={sound} />
       <Shell
         route={route}
         user={{ user_id: "", username, role, must_change_password: false, disabled: false }}
         onShortcuts={open}
+        sound={sound}
+        onSound={() => {
+          setSound((on) => {
+            storeSound(!on);
+            return !on;
+          });
+        }}
       >
         {route.view === "wall" && <Wall route={route} />}
         {route.view === "incidents" && (

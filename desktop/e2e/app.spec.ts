@@ -94,7 +94,7 @@ test.describe("the real app", () => {
       process: typeof (window as unknown as { process?: unknown }).process,
     }));
     expect(exposure).toEqual({
-      bridge: ["engineState", "restartEngine", "setupToken"],
+      bridge: ["engineState", "notify", "restartEngine", "setupToken"],
       require: "undefined",
       process: "undefined",
     });
@@ -199,6 +199,28 @@ test.describe("the real app", () => {
     const after = pidsMatching(session.marker);
     expect(after.length).toBeGreaterThan(0);
     expect(after.some((pid) => before.includes(pid))).toBe(false); // a new process, not the old one
+  });
+
+  test("closing the window hides it to the tray and monitoring continues; quitting stops the engine", async () => {
+    await expect(setupHeading(session.page)).toBeVisible();
+    await session.app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.close();
+    });
+    const visible = await session.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]?.isVisible(),
+    );
+    expect(visible).toBe(false);
+    expect(pidsMatching(session.marker).length).toBeGreaterThan(0); // the engine is still watching
+    expect(session.stdout.join("")).toContain('"shell":"window-hidden"');
+
+    await session.app.evaluate(({ app }) => {
+      app.quit();
+    });
+    const deadline = Date.now() + 20_000;
+    while (pidsMatching(session.marker).length > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    expect(pidsMatching(session.marker)).toEqual([]);
   });
 
   test("quitting stops the engine, so no process is left holding the camera", async () => {

@@ -32,6 +32,7 @@ DEGRADED for ever — which made it reject every candidate and therefore **detec
 | Evidence capture with pre-roll and post-roll, hashed, with missing items named rather than faked | |
 | Analytics and reports over persisted records; JSON, CSV and (with `--extra reports`) PDF export | |
 | Local accounts, roles and an audit log on the desktop engine (`vigil serve`, API only so far); an Electron shell that supervises the engine, verified by real-app tests ([D0 report](docs/D0-REPORT.md)) | |
+| Desktop console: first-run setup, sign-in and lock, live wall, incident desk with keyboard triage and evidence integrity, system view, tray and native notifications ([D1 report](docs/D1-REPORT.md)) | |
 | Optional four-point ground-plane calibration: velocity in m/s, px/s and labelled px/s without it | |
 | Benchmark tooling that measures sustained load; results in [PERFORMANCE.md](docs/PERFORMANCE.md) | |
 | A measured multi-camera ceiling: four cameras served in full at 10 fps each, saturating near 52 inferences/s | |

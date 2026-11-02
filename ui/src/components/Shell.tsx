@@ -100,11 +100,15 @@ export function Shell({
   user,
   children,
   onShortcuts,
+  sound,
+  onSound,
 }: {
   route: Route;
   user: User;
   children: ReactNode;
   onShortcuts: () => void;
+  sound: boolean;
+  onSound: () => void;
 }) {
   const auth = useAuth();
   return (
@@ -129,6 +133,9 @@ export function Shell({
             <br />
             <span className="k">{user.role}</span>
           </p>
+          <button type="button" aria-pressed={sound} onClick={onSound}>
+            Alert sound: {sound ? "on" : "off"}
+          </button>
           <button type="button" onClick={onShortcuts}>
             Shortcuts
           </button>

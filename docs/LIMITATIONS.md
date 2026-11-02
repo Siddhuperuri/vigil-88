@@ -415,6 +415,26 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
 - **No UI for any of it yet**: setup, sign-in and user management are API-only until D1.
 - **The shared bearer token acts as an Operator** named `api-client` when accounts are on.
 
+## Desktop console (D1)
+
+- **Overlays are boxes, labels and info only.** Track IDs, trails and zone outlines are not drawn:
+  tracks and zones exist only after the analysis stage, and the stream path never sees them. The
+  wall offers only what works.
+- **No notification while the console is locked.** Locking closes the live channel (4423), so a new
+  incident raises no toast, tone or announcement until it is unlocked. The decision to notify with
+  severity and camera only while locked is recorded (ADR 0016) and is **not built**.
+- **Worker restart is not built.** The shell restarts the whole engine with backoff; a stalled or
+  crashed worker inside a running engine is still only reported.
+- **Cameras and zones cannot be added in the console.** The wall says so when there are none.
+- **The console follows the operating system's light or dark setting**; there is no manual switch.
+- **Keyboard shortcuts apply on the Incident Desk only.** There is no command palette.
+- **The alert sound is a generated tone**, with a single on/off switch and no per-severity or
+  per-camera rules, no quiet hours and no chosen sounds.
+- **Accessibility is automated plus the author's own checks.** axe at WCAG 2.2 AA passes on every
+  screen in jsdom and, with colour contrast, in Chromium. **No screen-reader pass (NVDA) was done.**
+- **The live channel polls the engine twice a second** and pushes differences; it is not driven by
+  the incident event itself.
+
 ## Other
 
 - **No automatic worker restart.** A crashed worker is logged, counted and makes the application

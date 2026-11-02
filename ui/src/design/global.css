@@ -519,3 +519,10 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 }
+
+.facts + button {
+  margin-top: var(--vg-s2);
+}
+.rail-foot button {
+  text-align: center;
+}
