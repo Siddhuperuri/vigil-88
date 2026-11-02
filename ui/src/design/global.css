@@ -526,3 +526,128 @@ dialog::backdrop {
 .rail-foot button {
   text-align: center;
 }
+
+/* ---- D2: cameras, zones, pending changes ------------------------------------------------ */
+.pending-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--vg-signal);
+  border-left-width: 0.35rem;
+  border-radius: 0.4rem;
+  background: var(--vg-raised);
+}
+.pending-bad {
+  border-color: var(--vg-sev-critical);
+}
+.field-error {
+  color: var(--vg-sev-critical);
+  margin: 0.25rem 0 0;
+}
+.state-ok {
+  color: var(--vg-signal);
+}
+button.danger {
+  border-color: var(--vg-sev-critical);
+  color: var(--vg-sev-critical);
+}
+a.button {
+  display: inline-block;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--vg-line-strong);
+  border-radius: 0.35rem;
+  text-decoration: none;
+}
+a.button.primary {
+  background: var(--vg-signal);
+  color: var(--vg-void);
+  border-color: var(--vg-signal);
+}
+.row.between {
+  justify-content: space-between;
+  align-items: center;
+}
+.row.actions {
+  margin: 0.75rem 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.chips a {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--vg-line-strong);
+  border-radius: 999px;
+  text-decoration: none;
+}
+.chips a[aria-current="page"] {
+  border-color: var(--vg-signal);
+  font-weight: 600;
+}
+.zones-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+  gap: 1.25rem;
+}
+@media (max-width: 60rem) {
+  .zones-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.zone-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--vg-raised);
+  border: 1px solid var(--vg-line-strong);
+  touch-action: none;
+}
+.zone-frame img,
+.zone-frame svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.zone {
+  fill: color-mix(in srgb, var(--vg-signal) 15%, transparent);
+  stroke: var(--vg-text-2);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.zone-on {
+  fill: color-mix(in srgb, var(--vg-signal) 30%, transparent);
+  stroke: var(--vg-signal);
+  stroke-dasharray: none;
+  stroke-width: 3;
+}
+.handle {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid var(--vg-signal);
+  background: var(--vg-panel);
+  cursor: grab;
+}
+.zone-note {
+  position: absolute;
+  inset: auto 0.75rem 0.5rem;
+  margin: 0;
+}
+.zone-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+}

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alerts } from "./components/Alerts";
+import { PendingBar } from "./components/PendingBar";
 import { Announcer, Shell } from "./components/Shell";
 import { Notice } from "./components/bits";
 import { href, useRoute } from "./router";
 import { Login, Lock, Setup } from "./screens/Gate";
+import { Cameras } from "./screens/Cameras";
 import { Incidents } from "./screens/Incidents";
 import { System } from "./screens/System";
 import { Wall } from "./screens/Wall";
+import { Zones } from "./screens/Zones";
 import { AuthProvider, useAuth } from "./state/auth";
+import { PendingProvider } from "./state/pending";
 import { TelemetryProvider } from "./state/telemetry";
 
 const SHORTCUTS: [string, string][] = [
@@ -89,44 +93,49 @@ function Signed({
   }, []);
   return (
     <TelemetryProvider onEnded={auth.refresh}>
-      <a
-        className="skip"
-        href="#main"
-        onClick={(e) => {
-          e.preventDefault();
-          document.getElementById("main")?.focus();
-        }}
-      >
-        Skip to content
-      </a>
-      <Announcer muted={false} />
-      <Alerts soundOn={sound} />
-      <Shell
-        route={route}
-        user={{ user_id: "", username, role, must_change_password: false, disabled: false }}
-        onShortcuts={open}
-        sound={sound}
-        onSound={() => {
-          setSound((on) => {
-            storeSound(!on);
-            return !on;
-          });
-        }}
-      >
-        {route.view === "wall" && <Wall route={route} />}
-        {route.view === "incidents" && (
-          <Incidents
-            route={route}
-            role={role}
-            onShortcuts={open}
-            onNavigate={(id) => {
-              go({ view: "incidents", id });
-            }}
-          />
-        )}
-        {route.view === "system" && <System role={role} />}
-      </Shell>
-      <Shortcuts open={shortcuts} onClose={close} />
+      <PendingProvider>
+        <a
+          className="skip"
+          href="#main"
+          onClick={(e) => {
+            e.preventDefault();
+            document.getElementById("main")?.focus();
+          }}
+        >
+          Skip to content
+        </a>
+        <Announcer muted={false} />
+        <Alerts soundOn={sound} />
+        <Shell
+          route={route}
+          user={{ user_id: "", username, role, must_change_password: false, disabled: false }}
+          onShortcuts={open}
+          sound={sound}
+          onSound={() => {
+            setSound((on) => {
+              storeSound(!on);
+              return !on;
+            });
+          }}
+        >
+          <PendingBar role={role} />
+          {route.view === "wall" && <Wall route={route} />}
+          {route.view === "incidents" && (
+            <Incidents
+              route={route}
+              role={role}
+              onShortcuts={open}
+              onNavigate={(id) => {
+                go({ view: "incidents", id });
+              }}
+            />
+          )}
+          {route.view === "cameras" && <Cameras route={route} role={role} go={go} />}
+          {route.view === "zones" && <Zones route={route} role={role} />}
+          {route.view === "system" && <System role={role} />}
+        </Shell>
+        <Shortcuts open={shortcuts} onClose={close} />
+      </PendingProvider>
     </TelemetryProvider>
   );
 }

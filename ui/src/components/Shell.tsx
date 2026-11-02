@@ -9,6 +9,8 @@ import { readout } from "./bits";
 const NAV: { label: string; route: Route }[] = [
   { label: "Live wall", route: { view: "wall", camera: null } },
   { label: "Incident desk", route: { view: "incidents", id: null } },
+  { label: "Cameras", route: { view: "cameras", id: null } },
+  { label: "Zones", route: { view: "zones", camera: null } },
   { label: "System", route: { view: "system" } },
 ];
 

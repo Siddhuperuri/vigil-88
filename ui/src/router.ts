@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 export type Route =
   | { view: "wall"; camera: string | null }
   | { view: "incidents"; id: string | null }
+  | { view: "cameras"; id: string | null }
+  | { view: "zones"; camera: string | null }
   | { view: "system" };
 
 /** A malformed escape in a hand-edited URL must not take the console down. */
@@ -21,6 +23,10 @@ export function parse(hash: string): Route {
   switch (parts[0]) {
     case "incidents":
       return { view: "incidents", id: parts[1] ?? null };
+    case "cameras":
+      return { view: "cameras", id: parts[1] ?? null };
+    case "zones":
+      return { view: "zones", camera: parts[1] ?? null };
     case "system":
       return { view: "system" };
     default:
@@ -34,6 +40,10 @@ export function href(route: Route): string {
       return route.camera === null ? "#/wall" : `#/wall/${encodeURIComponent(route.camera)}`;
     case "incidents":
       return route.id === null ? "#/incidents" : `#/incidents/${encodeURIComponent(route.id)}`;
+    case "cameras":
+      return route.id === null ? "#/cameras" : `#/cameras/${encodeURIComponent(route.id)}`;
+    case "zones":
+      return route.camera === null ? "#/zones" : `#/zones/${encodeURIComponent(route.camera)}`;
     case "system":
       return "#/system";
   }
