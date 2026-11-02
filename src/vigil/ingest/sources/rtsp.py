@@ -36,8 +36,8 @@ from vigil.ingest.credentials import (
 )
 from vigil.ingest.pixel_buffer import NumpyPixelBuffer
 
-OPEN_TIMEOUT_MS = 8_000
-READ_TIMEOUT_MS = 6_000
+OPEN_TIMEOUT_MS = 4_000
+READ_TIMEOUT_MS = 4_000
 _COLOR_NDIM = 3
 _GRAY_NDIM = 2
 

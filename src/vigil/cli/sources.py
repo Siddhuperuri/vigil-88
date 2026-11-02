@@ -2,8 +2,8 @@
 
 webcam:<index>          a local webcam
 synthetic[:<frames>]    the deterministic test pattern
-rtsp://... | rtsps://...  accepted by the grammar; the application reports the camera
-                        as FAILED because RTSP capture is not implemented yet
+rtsp://... | rtsps://...  a network camera; one that cannot be reached is reported as
+                        reconnecting, not as an error of the command
 """
 
 from __future__ import annotations

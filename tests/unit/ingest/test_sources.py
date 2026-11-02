@@ -103,14 +103,18 @@ def test_synthetic_close_is_idempotent() -> None:
 # ------------------------------------------------------------------ factory
 
 
-@pytest.mark.parametrize("kind", [SourceKind.RTSP, SourceKind.VIDEO_FILE, SourceKind.IMAGE])
-def test_unimplemented_kinds_fail_loudly_with_an_explanation(kind: SourceKind) -> None:
+def test_the_one_unimplemented_kind_fails_loudly_with_an_explanation() -> None:
     with pytest.raises(CapabilityError, match="not implemented"):
-        build_source(SourceSpec(kind, "x", {}))
+        build_source(SourceSpec(SourceKind.IMAGE, "x", {}))
 
 
 def test_implemented_kinds_build() -> None:
-    assert {SourceKind.WEBCAM, SourceKind.SYNTHETIC} == IMPLEMENTED_KINDS
+    assert {
+        SourceKind.WEBCAM,
+        SourceKind.SYNTHETIC,
+        SourceKind.VIDEO_FILE,
+        SourceKind.RTSP,
+    } == IMPLEMENTED_KINDS
     assert isinstance(
         build_source(SourceSpec(SourceKind.SYNTHETIC, "synthetic", {})), SyntheticSource
     )

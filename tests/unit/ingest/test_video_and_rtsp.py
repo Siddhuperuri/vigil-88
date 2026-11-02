@@ -400,3 +400,12 @@ def test_the_factory_now_builds_both_kinds_and_only_image_remains_unimplemented(
     assert isinstance(build_source(rtsp_spec()), RtspSource)
     with pytest.raises(CapabilityError):
         build_source(SourceSpec(SourceKind.IMAGE, "image:x.png", {}))
+
+
+def test_the_camera_timeouts_fit_inside_the_shutdown_budget() -> None:
+    # A capture worker blocked in a camera open or read cannot be interrupted, so a stop waits
+    # for the timeout. Over the budget, a stop would report stragglers and exit "incomplete".
+    from vigil.config.schema.pipeline import PipelineConfig
+
+    budget = PipelineConfig().shutdown_timeout_ms
+    assert budget > max(OPEN_TIMEOUT_MS, READ_TIMEOUT_MS)
