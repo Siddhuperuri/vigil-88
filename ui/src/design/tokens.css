@@ -1,0 +1,100 @@
+/*
+ * Design tokens (08 §6). Dark is the default because the console is watched in dim rooms for long
+ * periods; light is a full second theme, not a promise. `scripts/check-contrast.mjs` reads this
+ * file and fails the gate if any text colour falls below 4.5:1 on any surface it can appear on.
+ *
+ * Colour is information: --vg-signal means "live and nominal", severity colours mean severity, and
+ * nothing is coloured for decoration. Severity is never colour alone (icon and label as well).
+ */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* surfaces */
+  --vg-void: #0a0b0d;
+  --vg-panel: #12141a;
+  --vg-raised: #1a1d25;
+  --vg-line: #262a35;
+  --vg-line-strong: #3a404f;
+
+  /* text */
+  --vg-text: #e6e9ef;
+  --vg-text-2: #a4adbc;
+  --vg-text-dim: #8a93a3;
+
+  /* the one non-severity accent */
+  --vg-signal: #2dd4bf;
+  --vg-focus: #5eead4;
+
+  /* severity: the only other colour in the system */
+  --vg-sev-info: #6aa3e0;
+  --vg-sev-low: #9aabbf;
+  --vg-sev-moderate: #e0a93b;
+  --vg-sev-high: #ee8a45;
+  --vg-sev-critical: #f2676b;
+
+  /* type */
+  --vg-font-ui: "Segoe UI", "Inter", system-ui, sans-serif;
+  --vg-font-mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  /* 8 px grid */
+  --vg-s1: 4px;
+  --vg-s2: 8px;
+  --vg-s3: 12px;
+  --vg-s4: 16px;
+  --vg-s5: 24px;
+  --vg-s6: 32px;
+  --vg-s7: 48px;
+
+  --vg-radius: 2px;
+  --vg-hairline: 1px solid var(--vg-line);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --vg-void: #f4f5f7;
+  --vg-panel: #ffffff;
+  --vg-raised: #eceef2;
+  --vg-line: #d3d8e0;
+  --vg-line-strong: #aab2c0;
+
+  --vg-text: #14171c;
+  --vg-text-2: #444d5c;
+  --vg-text-dim: #566071;
+
+  --vg-signal: #0a6b5d;
+  --vg-focus: #0b57d0;
+
+  /* retuned per theme: a hue that reads as urgent on charcoal reads as pastel on white */
+  --vg-sev-info: #17569b;
+  --vg-sev-low: #4a5b72;
+  --vg-sev-moderate: #8a5600;
+  --vg-sev-high: #a8420a;
+  --vg-sev-critical: #b3202a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --vg-void: #f4f5f7;
+    --vg-panel: #ffffff;
+    --vg-raised: #eceef2;
+    --vg-line: #d3d8e0;
+    --vg-line-strong: #aab2c0;
+
+    --vg-text: #14171c;
+    --vg-text-2: #444d5c;
+    --vg-text-dim: #566071;
+
+    --vg-signal: #0a6b5d;
+    --vg-focus: #0b57d0;
+
+    --vg-sev-info: #17569b;
+    --vg-sev-low: #4a5b72;
+    --vg-sev-moderate: #8a5600;
+    --vg-sev-high: #a8420a;
+    --vg-sev-critical: #b3202a;
+  }
+}

@@ -1,0 +1,84 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 13px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--vg-void);
+  color: var(--vg-text);
+  font-family: var(--vg-font-ui);
+  line-height: 1.4;
+}
+
+/* Numerals are monospaced and tabular so a readout whose digits change never makes the row jitter. */
+.num {
+  font-family: var(--vg-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--vg-s4);
+  background: var(--vg-panel);
+  border-bottom: var(--vg-hairline);
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.page {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--vg-s5) var(--vg-s4);
+}
+
+.muted {
+  color: var(--vg-text-2);
+}
+
+.notice {
+  padding: var(--vg-s4);
+  background: var(--vg-raised);
+  border: 1px solid var(--vg-line-strong);
+  border-left: 4px solid var(--vg-sev-high);
+  border-radius: var(--vg-radius);
+}
+
+button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: var(--vg-s2) var(--vg-s4);
+  color: var(--vg-text);
+  font: inherit;
+  background: var(--vg-raised);
+  border: 1px solid var(--vg-line-strong);
+  border-radius: var(--vg-radius);
+  cursor: pointer;
+}
+
+/* A focus ring is never removed (08 §9); it is drawn on every focusable element. */
+:focus-visible {
+  outline: 2px solid var(--vg-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
