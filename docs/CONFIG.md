@@ -313,6 +313,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `cameras[].source.url` | str | NoneType | `None` |  |
 | `cameras[].source.username_env` | str | NoneType | `None` |  |
 | `cameras[].source.password_env` | str | NoneType | `None` |  |
+| `cameras[].source.credential_ref` | str | NoneType | `None` |  |
 | `cameras[].source.path` | Path | NoneType | `None` |  |
 | `cameras[].source.loop` | bool | `False` |  |
 | `cameras[].source.frame_count` | int | NoneType | `None` | ge=1 |

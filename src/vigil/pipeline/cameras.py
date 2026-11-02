@@ -31,7 +31,11 @@ def _options(src: SourceConfig) -> dict[str, SourceOption]:
             }
         case "rtsp":
             # Names of environment variables, never their values.
-            candidates = {"username_env": src.username_env, "password_env": src.password_env}
+            candidates = {
+                "username_env": src.username_env,
+                "password_env": src.password_env,
+                "credential_ref": src.credential_ref,
+            }
         case "video_file" | "image":
             candidates = {"loop": src.loop}
     return {k: v for k, v in candidates.items() if v is not None}

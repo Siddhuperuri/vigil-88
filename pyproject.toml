@@ -54,6 +54,10 @@ api = [
 reports = [
     "reportlab>=4.2",
 ]
+# Camera passwords in Windows Credential Manager (camera files hold only a name).
+credentials = [
+    "keyring>=25.0",
+]
 
 [project.scripts]
 vigil = "vigil.cli.main:app"
@@ -136,7 +140,7 @@ module = ["vigil.core.*", "vigil.domain.*"]
 disallow_any_explicit = true  # 01 §12: domain/ and core/ forbid Any
 
 [[tool.mypy.overrides]]
-module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*", "reportlab.*"]
+module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*", "reportlab.*", "keyring", "keyring.*"]
 ignore_missing_imports = true  # none of these publish stubs; `reportlab` is also optional
 
 # ---------------------------------------------------------------- pytest
