@@ -9,6 +9,8 @@ type Phase = "idle" | "applying" | "failed";
 
 interface PendingState {
   pending: Pending | null;
+  /** Counts completed reads of the pending state, so a screen can re-read when it changes. */
+  settled: number;
   phase: Phase;
   error: string | null;
   /** Re-read what differs between the saved files and the running engine. */
@@ -30,6 +32,7 @@ export function PendingProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [settled, setSettled] = useState(0);
   // A reconnect after an engine restart is when the answer changes, so it re-reads too.
   const generation = link === "live" ? (snapshot?.state ?? null) : null;
 
@@ -38,6 +41,7 @@ export function PendingProvider({ children }: { children: ReactNode }) {
     getJson<Pending>("/api/v1/config/pending", controller.signal).then(
       (p) => {
         setPending(p);
+        setSettled((n) => n + 1);
       },
       (e: unknown) => {
         if (!(e instanceof DOMException && e.name === "AbortError")) setError(messageOf(e));
@@ -79,8 +83,8 @@ export function PendingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ pending, phase, error, refresh, apply }),
-    [pending, phase, error, refresh, apply],
+    () => ({ pending, settled, phase, error, refresh, apply }),
+    [pending, settled, phase, error, refresh, apply],
   );
   return <PendingContext.Provider value={value}>{children}</PendingContext.Provider>;
 }

@@ -381,10 +381,11 @@ function Editor({
 
 export function Zones({ route, role }: { route: Extract<Route, { view: "zones" }>; role: Role }) {
   const [cameras] = useFetch<AdminCamera[]>("/api/v1/config/cameras");
+  const { settled } = usePending();
   const [zones, reload] = useFetch<ZonesOut>(
     route.camera === null
       ? null
-      : `/api/v1/config/cameras/${encodeURIComponent(route.camera)}/zones`,
+      : `/api/v1/config/cameras/${encodeURIComponent(route.camera)}/zones?after=${String(settled)}`,
   );
   const list = cameras.state === "ready" ? cameras.data : [];
   return (

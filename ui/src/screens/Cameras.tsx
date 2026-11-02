@@ -5,6 +5,7 @@ import { messageOf, useFetch } from "../api/useFetch";
 import { Notice, StateLabel } from "../components/bits";
 import { href, type Route } from "../router";
 import { usePending } from "../state/pending";
+import { useTelemetry } from "../state/telemetry";
 import { CameraForm } from "./CameraForm";
 
 const PENDING_WORDS: Record<string, string> = {
@@ -97,8 +98,15 @@ export function Cameras({
   role: Role;
   go: (r: Route) => void;
 }) {
-  const [list, reload] = useFetch<AdminCamera[]>("/api/v1/config/cameras");
   const pending = usePending();
+  // Re-read whenever the pending state is re-read: after an apply the list must show what runs now.
+  const [list, reload] = useFetch<AdminCamera[]>(
+    `/api/v1/config/cameras?after=${String(pending.settled)}`,
+  );
+  const { snapshot } = useTelemetry();
+  // The running state comes from the live channel; the fetched one is only the fallback.
+  const live = (c: AdminCamera): string | null =>
+    snapshot?.cameras.find((x) => x.camera_id === c.config.camera_id)?.state ?? c.state;
   const [removing, setRemoving] = useState<AdminCamera | null>(null);
   const canEdit = role === "administrator";
   const cameras =
@@ -211,10 +219,10 @@ export function Cameras({
                   </th>
                   <td>{SOURCE_WORDS[c.config.source.kind] ?? c.config.source.kind}</td>
                   <td>
-                    {c.state === null ? (
+                    {live(c) === null ? (
                       <span className="muted">Not running</span>
                     ) : (
-                      <StateLabel state={c.state} />
+                      <StateLabel state={live(c) ?? ""} />
                     )}
                     {!c.config.enabled && <span className="muted"> (monitoring off)</span>}
                   </td>
