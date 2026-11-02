@@ -436,6 +436,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply
+         * @description Restart the engine so it loads what is on disk. Monitoring stops for a few seconds.
+         */
+        post: operations["apply_api_v1_config_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cameras */
+        get: operations["cameras_api_v1_config_cameras_get"];
+        put?: never;
+        /** Add Camera */
+        post: operations["add_camera_api_v1_config_cameras_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Camera
+         * @description Open the source, read one frame, close it. Does not save anything.
+         */
+        post: operations["test_camera_api_v1_config_cameras_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras/{camera_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Camera */
+        put: operations["update_camera_api_v1_config_cameras__camera_id__put"];
+        post?: never;
+        /** Remove Camera */
+        delete: operations["remove_camera_api_v1_config_cameras__camera_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras/{camera_id}/zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Zones */
+        get: operations["get_zones_api_v1_config_cameras__camera_id__zones_get"];
+        /** Put Zones */
+        put: operations["put_zones_api_v1_config_cameras__camera_id__zones_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/credentials/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credential Status */
+        get: operations["credential_status_api_v1_config_credentials__ref__get"];
+        /** Set Credential */
+        put: operations["set_credential_api_v1_config_credentials__ref__put"];
+        post?: never;
+        /** Delete Credential */
+        delete: operations["delete_credential_api_v1_config_credentials__ref__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Devices */
+        get: operations["devices_api_v1_config_devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending */
+        get: operations["pending_api_v1_config_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events/candidates": {
         parameters: {
             query?: never;
@@ -890,6 +1037,21 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
+        /** AdminCamera */
+        AdminCamera: {
+            config: components["schemas"]["CameraConfig"];
+            /** Credential Stored */
+            credential_stored: boolean | null;
+            /** Editable */
+            editable: boolean;
+            /**
+             * Pending
+             * @enum {unknown}
+             */
+            pending: "added" | "changed" | "removed" | null;
+            /** State */
+            state: string | null;
+        };
         /** AnalyticsSummaryOut */
         AnalyticsSummaryOut: {
             acknowledgement: components["schemas"]["DurationOut"];
@@ -978,6 +1140,51 @@ export interface components {
          * @enum {string}
          */
         Bucket: "hour" | "day" | "week" | "month";
+        /** CameraConfig */
+        CameraConfig: {
+            /** Calibration Ref */
+            calibration_ref?: string | null;
+            /** Camera Id */
+            camera_id: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Location */
+            location?: string | null;
+            /** Module Params */
+            module_params?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Name */
+            name?: string | null;
+            /**
+             * Priority
+             * @default 5
+             */
+            priority: number;
+            source: components["schemas"]["SourceConfig"];
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /**
+             * Target Inference Fps
+             * @default 5
+             */
+            target_inference_fps: number;
+            /**
+             * Trust Ratio
+             * @default 1
+             */
+            trust_ratio: number;
+            /** Zones Ref */
+            zones_ref?: string | null;
+        };
         /** CameraOut */
         CameraOut: {
             /** Camera Id */
@@ -1062,6 +1269,20 @@ export interface components {
             /** Key */
             key: string;
         };
+        /** CredentialIn */
+        CredentialIn: {
+            /** Password */
+            password: string;
+            /** Username */
+            username: string;
+        };
+        /** CredentialOut */
+        CredentialOut: {
+            /** Ref */
+            ref: string;
+            /** Stored */
+            stored: boolean;
+        };
         /** DetectionOut */
         DetectionOut: {
             bbox: components["schemas"]["BoxOut"];
@@ -1091,6 +1312,24 @@ export interface components {
             wall_utc: string;
             /** Width Px */
             width_px: number;
+        };
+        /** DeviceOut */
+        DeviceOut: {
+            /** Backend */
+            backend: string;
+            /** Index */
+            index: number;
+            /** Name */
+            name: string;
+        };
+        /** DevicesOut */
+        DevicesOut: {
+            /** Available */
+            available: boolean;
+            /** Devices */
+            devices: components["schemas"]["DeviceOut"][];
+            /** Reason */
+            reason: string | null;
         };
         /** DismissalRateOut */
         DismissalRateOut: {
@@ -1487,6 +1726,49 @@ export interface components {
             /** New */
             new: string;
         };
+        /** PendingChange */
+        PendingChange: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "added" | "changed" | "removed";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "camera" | "zones";
+            /** Target */
+            target: string;
+        };
+        /** PendingOut */
+        PendingOut: {
+            /** Can Restart */
+            can_restart: boolean;
+            /** Changes */
+            changes: components["schemas"]["PendingChange"][];
+            /** Pending */
+            pending: boolean;
+        };
+        /** ProbeOut */
+        ProbeOut: {
+            /** Backend */
+            backend: string | null;
+            /** Detail */
+            detail: string | null;
+            /** Fps */
+            fps: number | null;
+            /** Height Px */
+            height_px: number | null;
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
+            /** Timed Out */
+            timed_out: boolean;
+            /** Width Px */
+            width_px: number | null;
+        };
         /** RecoverIn */
         RecoverIn: {
             /** Code */
@@ -1506,6 +1788,26 @@ export interface components {
          * @enum {string}
          */
         Role: "administrator" | "operator" | "viewer";
+        /**
+         * ScheduleConfig
+         * @description When a zone is in force. A window may wrap midnight: 18:00 to 06:00 is overnight.
+         */
+        ScheduleConfig: {
+            /** End */
+            end: string;
+            /** Start */
+            start: string;
+            /**
+             * Utc Offset Minutes
+             * @default 0
+             */
+            utc_offset_minutes: number;
+            /**
+             * Weekdays
+             * @default []
+             */
+            weekdays: number[];
+        };
         /** SessionOut */
         SessionOut: {
             /** Idle Timeout S */
@@ -1549,6 +1851,60 @@ export interface components {
             raw_value: number;
             /** Weight */
             weight: number;
+        };
+        /** SourceConfig */
+        SourceConfig: {
+            /**
+             * Backend
+             * @default auto
+             * @enum {string}
+             */
+            backend: "auto" | "msmf" | "dshow";
+            /** Credential Ref */
+            credential_ref?: string | null;
+            /** Device Index */
+            device_index?: number | null;
+            /**
+             * Fourcc
+             * @default MJPG
+             */
+            fourcc: string | null;
+            /** Fps */
+            fps?: number | null;
+            /** Frame Count */
+            frame_count?: number | null;
+            /** Height Px */
+            height_px?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "webcam" | "rtsp" | "video_file" | "image" | "synthetic";
+            /**
+             * Loop
+             * @default false
+             */
+            loop: boolean;
+            /** Password Env */
+            password_env?: string | null;
+            /** Path */
+            path?: string | null;
+            /**
+             * Realtime
+             * @default false
+             */
+            realtime: boolean;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /** Url */
+            url?: string | null;
+            /** Username Env */
+            username_env?: string | null;
+            /** Width Px */
+            width_px?: number | null;
         };
         /** StatusOut */
         StatusOut: {
@@ -1679,6 +2035,53 @@ export interface components {
             reason: string;
             /** Validator Id */
             validator_id: string;
+        };
+        /** ZoneConfig */
+        ZoneConfig: {
+            /**
+             * Criticality
+             * @default 0
+             */
+            criticality: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "restricted" | "exclusion" | "counting" | "crossing_line" | "region_of_interest";
+            /** Label */
+            label?: string | null;
+            /** Polygon */
+            polygon: [
+                number,
+                number
+            ][];
+            schedule?: components["schemas"]["ScheduleConfig"] | null;
+            /** Zone Id */
+            zone_id: string;
+        };
+        /** ZoneSetConfig */
+        ZoneSetConfig: {
+            /**
+             * Version
+             * @default 1
+             * @constant
+             */
+            version: 1;
+            /**
+             * Zones
+             * @default []
+             */
+            zones: components["schemas"]["ZoneConfig"][];
+        };
+        /** ZonesOut */
+        ZonesOut: {
+            /** Editable */
+            editable: boolean;
+            /** Pending */
+            pending: boolean;
+            zones: components["schemas"]["ZoneSetConfig"];
+            /** Zones Ref */
+            zones_ref: string | null;
         };
     };
     responses: never;
@@ -2393,6 +2796,377 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_api_v1_config_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingOut"];
+                };
+            };
+        };
+    };
+    cameras_api_v1_config_cameras_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCamera"][];
+                };
+            };
+        };
+    };
+    add_camera_api_v1_config_cameras_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCamera"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_camera_api_v1_config_cameras_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_camera_api_v1_config_cameras__camera_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCamera"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_camera_api_v1_config_cameras__camera_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_zones_api_v1_config_cameras__camera_id__zones_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_zones_api_v1_config_cameras__camera_id__zones_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZoneSetConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ZonesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    credential_status_api_v1_config_credentials__ref__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_credential_api_v1_config_credentials__ref__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_credential_api_v1_config_credentials__ref__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    devices_api_v1_config_devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicesOut"];
+                };
+            };
+        };
+    };
+    pending_api_v1_config_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingOut"];
                 };
             };
         };

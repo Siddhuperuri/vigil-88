@@ -36,7 +36,8 @@ const MINIMAL_CONFIG = `# Written by the VIGIL-88 desktop shell on first launch.
 version: 1
 paths:
   data_dir: ./var # incidents, evidence and accounts live beside this folder, per user
-cameras: []
+cameras:
+  - $include: cameras/*.yaml # cameras added in the console are files in that folder
 `;
 
 /** The per-user configuration folder, created with a minimal file only if it has none. */
@@ -44,7 +45,7 @@ export function ensureEngineConfig(userDataDir: string): string {
   const configDir = path.join(userDataDir, "engine", "config");
   const file = path.join(configDir, "vigil.yaml");
   if (!existsSync(file)) {
-    mkdirSync(configDir, { recursive: true });
+    mkdirSync(path.join(configDir, "cameras"), { recursive: true });
     writeFileSync(file, MINIMAL_CONFIG, { encoding: "utf8", flag: "wx" });
   }
   return configDir;

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -18,7 +18,8 @@ describe("ensureEngineConfig", () => {
     expect(configDir).toBe(path.join(dir, "engine", "config"));
     const text = readFileSync(path.join(configDir, "vigil.yaml"), "utf8");
     expect(text).toContain("version: 1");
-    expect(text).toContain("cameras: []");
+    expect(text).toContain("$include: cameras/*.yaml");
+    expect(existsSync(path.join(configDir, "cameras"))).toBe(true);
     expect(text).toContain("data_dir: ./var");
   });
 

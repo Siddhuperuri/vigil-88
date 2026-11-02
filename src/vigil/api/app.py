@@ -4,7 +4,7 @@ the results store's short critical section, so a slow or hung browser cannot sta
 from __future__ import annotations
 
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -68,6 +68,7 @@ def create_app(
     *,
     accounts: AuthService | None = None,
     ui_dir: Path | None = None,
+    restart: Callable[[], None] | None = None,
 ) -> FastAPI:
     """`accounts` switches on cookie sessions and roles (ADR 0016). Without it the API behaves as
     it did before accounts existed: open on loopback, or behind the one shared bearer token."""
@@ -245,10 +246,11 @@ def create_app(
 
     api.include_router(system)
     _mount_incident_routes(api, application)
-    from vigil.api.routers import system_ops
+    from vigil.api.routers import config_admin, system_ops
     from vigil.api.routers import telemetry as telemetry_router
 
     api.include_router(system_ops.build_router(paths=application.paths))
+    api.include_router(config_admin.build_router(application=application, restart=restart))
 
     response = application.response
     api.include_router(

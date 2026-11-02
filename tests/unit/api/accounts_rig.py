@@ -38,6 +38,8 @@ class Rig:
     service: AuthService
     base: str
     app: Application
+    restarts: list[str]
+    config_dir: Path
 
     def client(self) -> httpx.Client:
         return httpx.Client(base_url=self.base, timeout=15)
@@ -46,11 +48,25 @@ class Rig:
         return {**CSRF, "Origin": self.base}
 
 
-@pytest.fixture
-def rig(make_config: MakeConfig, tmp_path: Path) -> Iterator[Rig]:
+@contextmanager
+def build_rig(
+    make_config: MakeConfig,
+    tmp_path: Path,
+    *,
+    extra: dict[str, object] | None = None,
+    can_restart: bool = False,
+    seed: Callable[[Path], None] | None = None,
+) -> Iterator[Rig]:
     cfg = make_config(
-        {"api.auth.enabled": True, "api.auth.token": TOKEN, "api.accounts.enabled": True}
+        {
+            "api.auth.enabled": True,
+            "api.auth.token": TOKEN,
+            "api.accounts.enabled": True,
+            **(extra or {}),
+        }
     )
+    if seed is not None:
+        seed(cfg.paths.config_dir)  # files that exist before the engine starts
     hub = StreamHub()
     app = Application(cfg.settings, cfg.paths, stream_hub=hub)
     app.start()
@@ -67,19 +83,32 @@ def rig(make_config: MakeConfig, tmp_path: Path) -> Iterator[Rig]:
     ui.mkdir()
     (ui / "index.html").write_text("<!doctype html><title>console</title>", encoding="utf-8")
     (tmp_path / "secret.txt").write_text("not for the web", encoding="utf-8")
+    restarts: list[str] = []
     server = ApiServer(
-        create_app(app, hub, accounts=service, ui_dir=ui),
+        create_app(
+            app,
+            hub,
+            accounts=service,
+            ui_dir=ui,
+            restart=(lambda: restarts.append("restart")) if can_restart else None,
+        ),
         host="127.0.0.1",
         port=0,
         logger=get_logger("t"),
     )
     server.start()
     try:
-        yield Rig(server, service, server.url, app)
+        yield Rig(server, service, server.url, app, restarts, cfg.paths.config_dir)
     finally:
         server.stop()
         app.stop()
         store.close()
+
+
+@pytest.fixture
+def rig(make_config: MakeConfig, tmp_path: Path) -> Iterator[Rig]:
+    with build_rig(make_config, tmp_path) as made:
+        yield made
 
 
 @contextmanager

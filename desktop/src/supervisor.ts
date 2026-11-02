@@ -236,6 +236,11 @@ export class EngineSupervisor extends EventEmitter {
         this.lastFailure = typeof message === "string" ? message : "the engine reported a failure";
         break;
       }
+      case "restart_requested":
+        // The engine is applying saved configuration. Its exit is a request, not a failure, so
+        // it is relaunched at once and the backoff penalty does not apply.
+        this.restartNow = true;
+        break;
       case "health":
         this.emit("health", parsed["level"], parsed["issues"]);
         break;

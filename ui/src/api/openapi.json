@@ -49,6 +49,57 @@
         "title": "ActionPermissionOut",
         "type": "object"
       },
+      "AdminCamera": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/CameraConfig"
+          },
+          "credential_stored": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Stored"
+          },
+          "editable": {
+            "title": "Editable",
+            "type": "boolean"
+          },
+          "pending": {
+            "enum": [
+              "added",
+              "changed",
+              "removed",
+              null
+            ],
+            "title": "Pending"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "required": [
+          "config",
+          "editable",
+          "state",
+          "pending",
+          "credential_stored"
+        ],
+        "title": "AdminCamera",
+        "type": "object"
+      },
       "AnalyticsSummaryOut": {
         "properties": {
           "acknowledgement": {
@@ -324,6 +375,109 @@
         "title": "Bucket",
         "type": "string"
       },
+      "CameraConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "calibration_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Ref"
+          },
+          "camera_id": {
+            "title": "Camera Id",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "module_params": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Module Params",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "priority": {
+            "default": 5,
+            "maximum": 9.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceConfig"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "target_inference_fps": {
+            "default": 5.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Target Inference Fps",
+            "type": "number"
+          },
+          "trust_ratio": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Trust Ratio",
+            "type": "number"
+          },
+          "zones_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones Ref"
+          }
+        },
+        "required": [
+          "camera_id",
+          "source"
+        ],
+        "title": "CameraConfig",
+        "type": "object"
+      },
       "CameraOut": {
         "properties": {
           "camera_id": {
@@ -586,6 +740,46 @@
         "title": "CountOut",
         "type": "object"
       },
+      "CredentialIn": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 256,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "CredentialIn",
+        "type": "object"
+      },
+      "CredentialOut": {
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "stored": {
+            "title": "Stored",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "stored"
+        ],
+        "title": "CredentialOut",
+        "type": "object"
+      },
       "DetectionOut": {
         "properties": {
           "bbox": {
@@ -666,6 +860,62 @@
           "detections"
         ],
         "title": "DetectionsOut",
+        "type": "object"
+      },
+      "DeviceOut": {
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "backend"
+        ],
+        "title": "DeviceOut",
+        "type": "object"
+      },
+      "DevicesOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "devices"
+        ],
+        "title": "DevicesOut",
         "type": "object"
       },
       "DismissalRateOut": {
@@ -1958,6 +2208,147 @@
         "title": "PasswordIn",
         "type": "object"
       },
+      "PendingChange": {
+        "properties": {
+          "change": {
+            "enum": [
+              "added",
+              "changed",
+              "removed"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "camera",
+              "zones"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "change"
+        ],
+        "title": "PendingChange",
+        "type": "object"
+      },
+      "PendingOut": {
+        "properties": {
+          "can_restart": {
+            "title": "Can Restart",
+            "type": "boolean"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PendingChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pending",
+          "changes",
+          "can_restart"
+        ],
+        "title": "PendingOut",
+        "type": "object"
+      },
+      "ProbeOut": {
+        "properties": {
+          "backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          },
+          "height_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Px"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "timed_out": {
+            "title": "Timed Out",
+            "type": "boolean"
+          },
+          "width_px": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Px"
+          }
+        },
+        "required": [
+          "ok",
+          "message",
+          "width_px",
+          "height_px",
+          "fps",
+          "backend",
+          "detail",
+          "timed_out"
+        ],
+        "title": "ProbeOut",
+        "type": "object"
+      },
       "RecoverIn": {
         "additionalProperties": false,
         "properties": {
@@ -2012,6 +2403,41 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "ScheduleConfig": {
+        "additionalProperties": false,
+        "description": "When a zone is in force. A window may wrap midnight: 18:00 to 06:00 is overnight.",
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          },
+          "utc_offset_minutes": {
+            "default": 0,
+            "maximum": 840.0,
+            "minimum": -840.0,
+            "title": "Utc Offset Minutes",
+            "type": "integer"
+          },
+          "weekdays": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ScheduleConfig",
+        "type": "object"
       },
       "SessionOut": {
         "properties": {
@@ -2121,6 +2547,183 @@
           "contribution"
         ],
         "title": "SeverityFactorOut",
+        "type": "object"
+      },
+      "SourceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "msmf",
+              "dshow"
+            ],
+            "title": "Backend",
+            "type": "string"
+          },
+          "credential_ref": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,38}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Ref"
+          },
+          "device_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Index"
+          },
+          "fourcc": {
+            "anyOf": [
+              {
+                "maxLength": 4,
+                "minLength": 4,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "MJPG",
+            "title": "Fourcc"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          },
+          "frame_count": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Count"
+          },
+          "height_px": {
+            "anyOf": [
+              {
+                "minimum": 16.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height Px"
+          },
+          "kind": {
+            "enum": [
+              "webcam",
+              "rtsp",
+              "video_file",
+              "image",
+              "synthetic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "loop": {
+            "default": false,
+            "title": "Loop",
+            "type": "boolean"
+          },
+          "password_env": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Env"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "format": "path",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "realtime": {
+            "default": false,
+            "title": "Realtime",
+            "type": "boolean"
+          },
+          "seed": {
+            "default": 0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "username_env": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username Env"
+          },
+          "width_px": {
+            "anyOf": [
+              {
+                "minimum": 16.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Px"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SourceConfig",
         "type": "object"
       },
       "StatusOut": {
@@ -2512,6 +3115,133 @@
           "reason"
         ],
         "title": "VerdictOut",
+        "type": "object"
+      },
+      "ZoneConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "criticality": {
+            "default": 0,
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Criticality",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "restricted",
+              "exclusion",
+              "counting",
+              "crossing_line",
+              "region_of_interest"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "polygon": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Polygon",
+            "type": "array"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zone_id": {
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone_id",
+          "kind",
+          "polygon"
+        ],
+        "title": "ZoneConfig",
+        "type": "object"
+      },
+      "ZoneSetConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": 1,
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "zones": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ZoneConfig"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "title": "ZoneSetConfig",
+        "type": "object"
+      },
+      "ZonesOut": {
+        "properties": {
+          "editable": {
+            "title": "Editable",
+            "type": "boolean"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "boolean"
+          },
+          "zones": {
+            "$ref": "#/components/schemas/ZoneSetConfig"
+          },
+          "zones_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones Ref"
+          }
+        },
+        "required": [
+          "zones_ref",
+          "zones",
+          "pending",
+          "editable"
+        ],
+        "title": "ZonesOut",
         "type": "object"
       }
     },
@@ -4012,6 +4742,569 @@
         "summary": "Zone Status",
         "tags": [
           "modules"
+        ]
+      }
+    },
+    "/api/v1/config/apply": {
+      "post": {
+        "description": "Restart the engine so it loads what is on disk. Monitoring stops for a few seconds.",
+        "operationId": "apply_api_v1_config_apply_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Apply",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras": {
+      "get": {
+        "operationId": "cameras_api_v1_config_cameras_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminCamera"
+                  },
+                  "title": "Response Cameras Api V1 Config Cameras Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Cameras",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "post": {
+        "operationId": "add_camera_api_v1_config_cameras_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCamera"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Add Camera",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras/test": {
+      "post": {
+        "description": "Open the source, read one frame, close it. Does not save anything.",
+        "operationId": "test_camera_api_v1_config_cameras_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Test Camera",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras/{camera_id}": {
+      "delete": {
+        "operationId": "remove_camera_api_v1_config_cameras__camera_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Remove Camera",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "put": {
+        "operationId": "update_camera_api_v1_config_cameras__camera_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCamera"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Update Camera",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras/{camera_id}/zones": {
+      "get": {
+        "operationId": "get_zones_api_v1_config_cameras__camera_id__zones_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZonesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Get Zones",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "put": {
+        "operationId": "put_zones_api_v1_config_cameras__camera_id__zones_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZoneSetConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZonesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Put Zones",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/credentials/{ref}": {
+      "delete": {
+        "operationId": "delete_credential_api_v1_config_credentials__ref__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Delete Credential",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "get": {
+        "operationId": "credential_status_api_v1_config_credentials__ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Credential Status",
+        "tags": [
+          "configuration"
+        ]
+      },
+      "put": {
+        "operationId": "set_credential_api_v1_config_credentials__ref__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Set Credential",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/devices": {
+      "get": {
+        "operationId": "devices_api_v1_config_devices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Devices",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/pending": {
+      "get": {
+        "operationId": "pending_api_v1_config_pending_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Pending",
+        "tags": [
+          "configuration"
         ]
       }
     },

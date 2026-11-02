@@ -268,6 +268,25 @@ describe("restarting with backoff", () => {
     expect(s.state).toEqual({ kind: "starting", attempt: 1 });
   });
 
+  it("relaunches at once, with no penalty, when the engine says it is restarting to apply changes", async () => {
+    const s = make();
+    s.start();
+    for (let i = 0; i < 3; i++) {
+      last().exit(1);
+      await flush();
+      await vi.advanceTimersByTimeAsync((s.state as { retryInMs: number }).retryInMs);
+    }
+    last().ready();
+    await flush();
+    const before = children.length;
+    last().say({ event: "restart_requested" });
+    last().say({ event: "stopped", clean: true });
+    last().exit(0);
+    await flush();
+    expect(children).toHaveLength(before + 1);
+    expect(s.state).toEqual({ kind: "starting", attempt: 1 }); // the earlier failures are forgiven
+  });
+
   it("forwards the engine's health lines", async () => {
     const s = make();
     const got: unknown[] = [];

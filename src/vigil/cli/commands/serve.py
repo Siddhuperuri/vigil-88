@@ -119,6 +119,15 @@ def serve(
     if stop_on_stdin_eof:
         _stop_when_stdin_closes(stop)
 
+    restart_requested = threading.Event()
+    restart_hook = None
+    if stop_on_stdin_eof:
+        # Only a supervised engine may restart itself: without a parent to start it again, it
+        # would simply exit and stay down, which is not what "apply" means.
+        def restart_hook() -> None:
+            restart_requested.set()
+            stop.set()
+
     exit_code = EXIT_OK
     hub: StreamHub | None = None
     api_server = None
@@ -144,7 +153,7 @@ def serve(
             typer.echo(f"setup token (shown once): {accounts.setup_token_to_print}", err=True)
         api_cfg = loaded.settings.api
         api_server = ApiServer(
-            create_app(app, hub, accounts=accounts, ui_dir=ui_dir),
+            create_app(app, hub, accounts=accounts, ui_dir=ui_dir, restart=restart_hook),
             host=api_cfg.bind_host,
             port=api_cfg.bind_port,
             logger=get_logger("api"),
@@ -182,6 +191,8 @@ def serve(
         report = app.stop() if app is not None else None
         shutdown_logging()
     clean = report.clean if report is not None else True
+    if restart_requested.is_set():
+        emit("restart_requested")  # the supervisor relaunches at once, with no failure penalty
     emit(
         "stopped",
         clean=clean and api_stopped,
