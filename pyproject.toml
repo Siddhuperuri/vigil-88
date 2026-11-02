@@ -42,6 +42,7 @@ onnx-gpu = [
 ]
 # Live annotated stream and metrics over HTTP (loopback by default).
 api = [
+    "argon2-cffi>=23.1",
     "fastapi>=0.115",
     "uvicorn>=0.30",
 ]
@@ -172,6 +173,9 @@ type = "layers"
 layers = [
     "vigil.cli",
     "vigil.api | vigil.bench",
+    # ADR 0016: accounts sit between the API and the pipeline. api/ and cli/ may import them; the
+    # pipeline and every engine below may not, which the layer order enforces.
+    "vigil.auth",
     # 01 §5 puts pipeline/ and analytics/ on one layer. `:` rather than `|` (which would
     # enforce independence) because pipeline builds the analytics objects as part of the
     # response stack: constructing engines is pipeline's job, and the API is a client of what
@@ -209,3 +213,26 @@ name = "domain-purity"
 type = "forbidden"
 source_modules = ["vigil.domain", "vigil.core"]
 forbidden_modules = ["numpy", "cv2", "torch", "pydantic", "sqlalchemy", "structlog", "yaml", "psutil", "typer", "rich"]
+
+# ADR 0016: accounts know nothing of the engine. They are built from `core` and `config` only, so a
+# change to detection can never reach authentication and authentication can never reach detection.
+[[tool.importlinter.contracts]]
+name = "auth-is-self-contained"
+type = "forbidden"
+source_modules = ["vigil.auth"]
+forbidden_modules = [
+    "vigil.api",
+    "vigil.pipeline",
+    "vigil.analytics",
+    "vigil.persistence",
+    "vigil.domain",
+    "vigil.ingest",
+    "vigil.vision",
+    "vigil.tracking",
+    "vigil.scene",
+    "vigil.temporal",
+    "vigil.events",
+    "vigil.verification",
+    "vigil.severity",
+    "vigil.response",
+]

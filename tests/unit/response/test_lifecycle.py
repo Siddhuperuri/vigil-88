@@ -444,6 +444,25 @@ def test_acknowledge_dismiss_annotate_and_escalate(
     )
 
 
+def test_a_named_actor_is_recorded_and_survives_being_read_back(
+    manager: IncidentManager, actions: OperatorActions, store: Database
+) -> None:
+    """ADR 0016. The row mapper used to coerce any actor that was not "operator" to "system",
+    which would have silently turned every named user back into the pipeline on read."""
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    assert actions.acknowledge(created.incident_id, actor="carol").actor == "carol"
+    stored = IncidentRepository(store).transitions(created.incident_id)
+    assert [t.actor for t in stored if t.to_status is IncidentStatus.ACTIVE] == ["carol"]
+    assert {t.actor for t in stored} == {"system", "carol"}  # the pipeline's rows are unchanged
+
+
+def test_without_an_account_layer_the_actor_is_the_historical_default(
+    manager: IncidentManager, actions: OperatorActions
+) -> None:
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    assert actions.acknowledge(created.incident_id).actor == "operator"
+
+
 def test_an_over_long_note_is_refused(manager: IncidentManager, actions: OperatorActions) -> None:
     created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
     with pytest.raises(PersistenceError, match="2000 characters"):

@@ -27,13 +27,23 @@ class AuthConfig(ConfigModel):
     token: SecretStr | None = None  # reference via ${env:VIGIL_API_TOKEN}
 
 
+class AccountsConfig(ConfigModel):
+    """Local accounts and cookie sessions (ADR 0016). Off for `vigil run --serve`, which keeps its
+    optional shared token; `vigil serve`, the desktop engine, always turns it on."""
+
+    enabled: bool = False
+    idle_timeout_minutes: int = Field(default=15, ge=5, le=480)
+    absolute_lifetime_hours: int = Field(default=12, ge=1, le=72)
+
+
 class ApiConfig(ConfigModel):
     bind_host: str = "127.0.0.1"
-    bind_port: int = Field(default=8088, ge=1, le=65535)
+    bind_port: int = Field(default=8088, ge=0, le=65535)  # 0: the OS picks (`vigil serve`)
     push_interval_ms: int = Field(default=100, ge=10)
     stream_fps: float = Field(default=10.0, gt=0, le=60)
     stream_jpeg_quality: int = Field(default=70, ge=1, le=100)
     auth: AuthConfig = AuthConfig()
+    accounts: AccountsConfig = AccountsConfig()
 
     @model_validator(mode="after")
     def _non_loopback_requires_auth(self) -> Self:

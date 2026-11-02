@@ -278,12 +278,15 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | key | type | default | constraints |
 |-----|------|---------|-------------|
 | `api.bind_host` | str | `'127.0.0.1'` |  |
-| `api.bind_port` | int | `8088` | ge=1, le=65535 |
+| `api.bind_port` | int | `8088` | ge=0, le=65535 |
 | `api.push_interval_ms` | int | `100` | ge=10 |
 | `api.stream_fps` | float | `10.0` | gt=0, le=60 |
 | `api.stream_jpeg_quality` | int | `70` | ge=1, le=100 |
 | `api.auth.enabled` | bool | `False` |  |
 | `api.auth.token` | SecretStr | NoneType | `None` |  |
+| `api.accounts.enabled` | bool | `False` |  |
+| `api.accounts.idle_timeout_minutes` | int | `15` | ge=5, le=480 |
+| `api.accounts.absolute_lifetime_hours` | int | `12` | ge=1, le=72 |
 
 ## `modules`
 

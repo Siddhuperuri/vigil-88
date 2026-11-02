@@ -38,6 +38,7 @@ from vigil.response.incident_manager import (
 )
 
 MAX_NOTE_LENGTH = 2000
+DEFAULT_ACTOR = "operator"  # used when no account layer is in front (headless, tests)
 ACTIONS = ("acknowledge", "dismiss", "annotate", "escalate")
 
 
@@ -63,21 +64,26 @@ class OperatorActions:
 
     # ---------------------------------------------------------------- transitions
 
-    def acknowledge(self, incident_id: str, *, note: str | None = None) -> IncidentTransition:
-        """CONFIRMED -> ACTIVE."""
+    def acknowledge(
+        self, incident_id: str, *, note: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> IncidentTransition:
+        """CONFIRMED -> ACTIVE. `actor` is whoever the caller says it is; this layer never looks
+        one up (ADR 0016), so it stays independent of accounts."""
         return self._manager.transition(
             incident_id,
             IncidentStatus.ACTIVE,
-            actor="operator",
+            actor=actor,
             reason=_clean(note) or "acknowledged by the operator",
         )
 
-    def dismiss(self, incident_id: str, *, reason: str | None = None) -> IncidentTransition:
+    def dismiss(
+        self, incident_id: str, *, reason: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> IncidentTransition:
         """Terminal DISMISSED, and the measured false-positive signal."""
         transition = self._manager.transition(
             incident_id,
             IncidentStatus.DISMISSED,
-            actor="operator",
+            actor=actor,
             reason=_clean(reason) or "dismissed as a false positive",
         )
         self._metrics.counter("vigil_incidents_dismissed_total").inc()
@@ -85,7 +91,7 @@ class OperatorActions:
 
     # ---------------------------------------------------------------- annotation
 
-    def annotate(self, incident_id: str, note: str | None) -> bool:
+    def annotate(self, incident_id: str, note: str | None, *, actor: str = DEFAULT_ACTOR) -> bool:
         """Attach or clear an operator note. Bounded: a note is a sentence, not a file."""
         cleaned = _clean(note)
         if cleaned is not None and len(cleaned) > MAX_NOTE_LENGTH:
@@ -97,12 +103,16 @@ class OperatorActions:
             incident_id, cleaned, now_wall_utc=self._clock.wall_utc()
         )
         if updated:
-            self._log.info("incident_annotated", incident_id=incident_id, cleared=cleaned is None)
+            self._log.info(
+                "incident_annotated", incident_id=incident_id, cleared=cleaned is None, actor=actor
+            )
         return updated
 
     # ---------------------------------------------------------------- escalation
 
-    def escalate(self, incident_id: str, *, reason: str | None = None) -> Severity:
+    def escalate(
+        self, incident_id: str, *, reason: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> Severity:
         """Raise the band by one. The score is left exactly as the severity engine computed it."""
         lifecycle = self._incidents.lifecycle(incident_id)
         if lifecycle is None:
@@ -130,6 +140,7 @@ class OperatorActions:
             from_severity=current.name,
             to_severity=raised.name,
             reason=_clean(reason) or "escalated by the operator",
+            actor=actor,
             original_score=round(lifecycle.severity_score, 2),
         )
         return raised
