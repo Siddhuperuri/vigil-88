@@ -245,6 +245,20 @@ def create_app(
 
     api.include_router(system)
     _mount_incident_routes(api, application)
+    from vigil.api.routers import system_ops
+    from vigil.api.routers import telemetry as telemetry_router
+
+    api.include_router(system_ops.build_router(paths=application.paths))
+
+    response = application.response
+    api.include_router(
+        telemetry_router.build_router(
+            application=application,
+            guard=guard,
+            incidents=None if response is None else response.incidents,
+            evidence=None if response is None else response.evidence,
+        )
+    )
     if accounts is not None:
         from vigil.api.routers import auth as auth_router
 

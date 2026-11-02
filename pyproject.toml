@@ -45,6 +45,7 @@ api = [
     "argon2-cffi>=23.1",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    "websockets>=13",
 ]
 # Printable PDF reports. An extra rather than a core dependency: 10-roadmap §8 asks for PDF
 # export, 03 §1 rule 1 says every dependency is a liability, and a renderer is a large one for

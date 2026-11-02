@@ -634,6 +634,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve */
+        post: operations["resolve_api_v1_incidents__incident_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mutes": {
         parameters: {
             query?: never;
@@ -746,6 +763,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Logs
+         * @description Recent engine log records. Redaction happens where they are written, not here.
+         */
+        get: operations["logs_api_v1_system_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/metrics": {
         parameters: {
             query?: never;
@@ -755,6 +792,23 @@ export interface paths {
         };
         /** System Metrics */
         get: operations["system_metrics_api_v1_system_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Storage */
+        get: operations["storage_api_v1_system_storage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1282,6 +1336,19 @@ export interface components {
             /** Username */
             username: string;
         };
+        /** LogsOut */
+        LogsOut: {
+            /** File Bytes */
+            file_bytes: number | null;
+            /** Lines */
+            lines: {
+                [key: string]: unknown;
+            }[];
+            /** Returned */
+            returned: number;
+            /** Truncated To Tail */
+            truncated_to_tail: boolean;
+        };
         /** MetricsOut */
         MetricsOut: {
             /** Cameras */
@@ -1500,6 +1567,23 @@ export interface components {
             /** Setup Required */
             setup_required: boolean;
             user?: components["schemas"]["UserOut"] | null;
+        };
+        /** StorageOut */
+        StorageOut: {
+            /** Database Bytes */
+            database_bytes: number;
+            /** Disk Free Bytes */
+            disk_free_bytes: number;
+            /** Disk Total Bytes */
+            disk_total_bytes: number;
+            /** Evidence Bytes */
+            evidence_bytes: number;
+            /** Evidence Files */
+            evidence_files: number;
+            /** Evidence Truncated */
+            evidence_truncated: boolean;
+            /** Logs Bytes */
+            logs_bytes: number;
         };
         /** SystemOut */
         SystemOut: {
@@ -2728,6 +2812,43 @@ export interface operations {
             };
         };
     };
+    resolve_api_v1_incidents__incident_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: string;
+                } | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     active_mutes_api_v1_mutes_get: {
         parameters: {
             query?: never;
@@ -2903,6 +3024,38 @@ export interface operations {
             };
         };
     };
+    logs_api_v1_system_logs_get: {
+        parameters: {
+            query?: {
+                lines?: number;
+                level?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     system_metrics_api_v1_system_metrics_get: {
         parameters: {
             query?: never;
@@ -2919,6 +3072,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsOut"];
+                };
+            };
+        };
+    };
+    storage_api_v1_system_storage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOut"];
                 };
             };
         };

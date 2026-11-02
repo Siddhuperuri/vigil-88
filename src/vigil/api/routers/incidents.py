@@ -266,6 +266,8 @@ def build_router(
                 actions.acknowledge(incident_id, note=text, actor=who)
             elif action == "dismiss":
                 actions.dismiss(incident_id, reason=text, actor=who)
+            elif action == "resolve":
+                actions.resolve(incident_id, note=text, actor=who)
             elif action == "escalate":
                 actions.escalate(incident_id, reason=text, actor=who)
             elif action == "annotate":
@@ -295,6 +297,12 @@ def build_router(
         request: Request, incident_id: str, body: dict[str, str] | None = None
     ) -> IncidentDetailOut:
         return _act(request, incident_id, "dismiss", body)
+
+    @router.post("/{incident_id}/resolve", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def resolve(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "resolve", body)
 
     @router.post("/{incident_id}/escalate", response_model=IncidentDetailOut, dependencies=[_ACT])
     def escalate(

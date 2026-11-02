@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from fastapi import Depends, HTTPException, Request, Response, Security, status
+from fastapi import Depends, HTTPException, Request, Response, Security, WebSocket, status
 from fastapi.security import APIKeyCookie, SecurityScopes
 from pydantic import SecretStr
+from starlette.requests import HTTPConnection
 
 from vigil.api.security import bearer_matches
 from vigil.auth.models import Principal
@@ -46,10 +47,10 @@ _cookie_scheme = APIKeyCookie(name=SESSION_COOKIE, scheme_name="vigilSession", a
 
 
 class Guard(Protocol):
-    def discipline(self, request: Request) -> None: ...
+    def discipline(self, request: HTTPConnection) -> None: ...
 
     def check(
-        self, request: Request, scopes: list[str], cookie: str | None
+        self, request: HTTPConnection, scopes: list[str], cookie: str | None
     ) -> Principal | None: ...
 
 
@@ -67,10 +68,12 @@ class LegacyGuard:
         self._enabled = enabled
         self._expected = token.get_secret_value().encode() if token else b""
 
-    def discipline(self, request: Request) -> None:
+    def discipline(self, request: HTTPConnection) -> None:
         return None
 
-    def check(self, request: Request, scopes: list[str], cookie: str | None) -> Principal | None:
+    def check(
+        self, request: HTTPConnection, scopes: list[str], cookie: str | None
+    ) -> Principal | None:
         if self._enabled and not bearer_matches(
             request.headers.get("authorization"), self._expected
         ):
@@ -97,22 +100,29 @@ class AccountsGuard:
         )
         self._loopback_only = loopback_only
 
-    def discipline(self, request: Request) -> None:
+    def discipline(self, request: HTTPConnection) -> None:
         """Host and Origin discipline (plan §5.3): a web page in an ordinary browser, or a DNS-
         rebinding trick, must not be able to drive the engine."""
         if self._loopback_only and _host_name(request.headers.get("host")) not in LOOPBACK_HOSTS:
             raise HTTPException(status_code=400, detail="unexpected Host header")
-        if request.method in SAFE_METHODS or "authorization" in request.headers:
+        if "authorization" in request.headers:
             return  # a bearer client carries no ambient credential, so there is nothing to forge
-        if request.headers.get(REQUEST_HEADER) != "1":
+        is_socket = request.scope["type"] == "websocket"
+        if not is_socket and request.scope.get("method") in SAFE_METHODS:
+            return
+        # A cookie rides along on a WebSocket upgrade exactly as on a form post, so an upgrade is
+        # held to the same Origin rule; a browser always sends one, and a missing one is refused.
+        if not is_socket and request.headers.get(REQUEST_HEADER) != "1":
             raise HTTPException(status_code=403, detail=f"missing the {REQUEST_HEADER} header")
         origin = request.headers.get("origin")
+        if origin is None and is_socket:
+            raise HTTPException(status_code=403, detail="a WebSocket needs an Origin")
         if origin is not None:
             origin_host = _host_name(origin.split("://", 1)[-1])
             if origin_host != _host_name(request.headers.get("host")):
                 raise HTTPException(status_code=403, detail="cross-origin request refused")
 
-    def principal_for(self, request: Request, cookie: str | None) -> Principal | None:
+    def principal_for(self, request: HTTPConnection, cookie: str | None) -> Principal | None:
         if cookie:
             found = self._service.authenticate(cookie)
             if found is not None:
@@ -123,7 +133,9 @@ class AccountsGuard:
             return Principal(PROGRAMMATIC_ACTOR, PROGRAMMATIC_ACTOR, Role.OPERATOR, via="token")
         return None
 
-    def check(self, request: Request, scopes: list[str], cookie: str | None) -> Principal | None:
+    def check(
+        self, request: HTTPConnection, scopes: list[str], cookie: str | None
+    ) -> Principal | None:
         if len(scopes) != 1:
             # A route with none is caught by the test; one with two is a wiring mistake. Either
             # way refuse loudly rather than guess which requirement was meant.
@@ -150,12 +162,12 @@ class AccountsGuard:
         return principal
 
 
-def _guard(request: Request) -> Guard:
+def _guard(request: HTTPConnection) -> Guard:
     guard: Guard = request.app.state.guard
     return guard
 
 
-def request_discipline(request: Request) -> None:
+def request_discipline(request: HTTPConnection) -> None:
     """App-level dependency: runs for every route, including the public ones."""
     _guard(request).discipline(request)
 
@@ -166,6 +178,17 @@ def _enforce(
     cookie: str | None = Depends(_cookie_scheme),
 ) -> Principal | None:
     return _guard(request).check(request, security_scopes.scopes, cookie)
+
+
+def _enforce_socket(websocket: WebSocket, security_scopes: SecurityScopes) -> Principal | None:
+    return _guard(websocket).check(
+        websocket, security_scopes.scopes, websocket.cookies.get(SESSION_COOKIE)
+    )
+
+
+def requires_socket(permission: Permission) -> Any:
+    """The same requirement for a WebSocket. The upgrade is refused before it is accepted."""
+    return Security(_enforce_socket, scopes=[permission.value])
 
 
 def requires(permission: Permission | None) -> Any:

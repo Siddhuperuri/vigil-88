@@ -1464,6 +1464,45 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "LogsOut": {
+        "properties": {
+          "file_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Bytes"
+          },
+          "lines": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "returned": {
+            "title": "Returned",
+            "type": "integer"
+          },
+          "truncated_to_tail": {
+            "title": "Truncated To Tail",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lines",
+          "returned",
+          "file_bytes",
+          "truncated_to_tail"
+        ],
+        "title": "LogsOut",
+        "type": "object"
+      },
       "MetricsOut": {
         "properties": {
           "cameras": {
@@ -2120,6 +2159,49 @@
           "authenticated"
         ],
         "title": "StatusOut",
+        "type": "object"
+      },
+      "StorageOut": {
+        "properties": {
+          "database_bytes": {
+            "title": "Database Bytes",
+            "type": "integer"
+          },
+          "disk_free_bytes": {
+            "title": "Disk Free Bytes",
+            "type": "integer"
+          },
+          "disk_total_bytes": {
+            "title": "Disk Total Bytes",
+            "type": "integer"
+          },
+          "evidence_bytes": {
+            "title": "Evidence Bytes",
+            "type": "integer"
+          },
+          "evidence_files": {
+            "title": "Evidence Files",
+            "type": "integer"
+          },
+          "evidence_truncated": {
+            "title": "Evidence Truncated",
+            "type": "boolean"
+          },
+          "logs_bytes": {
+            "title": "Logs Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "disk_total_bytes",
+          "disk_free_bytes",
+          "database_bytes",
+          "evidence_bytes",
+          "evidence_files",
+          "evidence_truncated",
+          "logs_bytes"
+        ],
+        "title": "StorageOut",
         "type": "object"
       },
       "SystemOut": {
@@ -4921,6 +5003,75 @@
         ]
       }
     },
+    "/api/v1/incidents/{incident_id}/resolve": {
+      "post": {
+        "operationId": "resolve_api_v1_incidents__incident_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "act_on_incidents"
+            ]
+          }
+        ],
+        "summary": "Resolve",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
     "/api/v1/mutes": {
       "get": {
         "description": "Every mute in force now, with its countdown. What the status strip renders.",
@@ -5182,6 +5333,76 @@
         "summary": "Info"
       }
     },
+    "/api/v1/system/logs": {
+      "get": {
+        "description": "Recent engine log records. Redaction happens where they are written, not here.",
+        "operationId": "logs_api_v1_system_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lines",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Lines",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(debug|info|warning|error|critical)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "diagnostics"
+            ]
+          }
+        ],
+        "summary": "Logs",
+        "tags": [
+          "system"
+        ]
+      }
+    },
     "/api/v1/system/metrics": {
       "get": {
         "operationId": "system_metrics_api_v1_system_metrics_get",
@@ -5205,6 +5426,34 @@
           }
         ],
         "summary": "System Metrics"
+      }
+    },
+    "/api/v1/system/storage": {
+      "get": {
+        "operationId": "storage_api_v1_system_storage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Storage",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/api/v1/users": {
