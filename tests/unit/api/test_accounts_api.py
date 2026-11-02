@@ -64,8 +64,15 @@ def rig(make_config: MakeConfig, tmp_path: Path) -> Iterator[Rig]:
         clock,
         setup_token=SETUP_TOKEN,
     )
+    ui = tmp_path / "ui"
+    ui.mkdir()
+    (ui / "index.html").write_text("<!doctype html><title>console</title>", encoding="utf-8")
+    (tmp_path / "secret.txt").write_text("not for the web", encoding="utf-8")
     server = ApiServer(
-        create_app(app, hub, accounts=service), host="127.0.0.1", port=0, logger=get_logger("t")
+        create_app(app, hub, accounts=service, ui_dir=ui),
+        host="127.0.0.1",
+        port=0,
+        logger=get_logger("t"),
     )
     server.start()
     try:
@@ -404,3 +411,28 @@ def test_audit_export_neutralises_spreadsheet_formulas(rig: Rig) -> None:
         rig.service.audit.record("=cmd|' /c calc'!A0", target="=1+1")
         rows = a.get("/api/v1/audit/export").text
     assert "'=cmd" in rows and ",=cmd" not in rows
+
+
+# ------------------------------------------------------------------ the built console
+
+
+def test_the_built_console_is_served_on_the_api_origin_without_a_sign_in(rig: Rig) -> None:
+    """It is static code, not data: every byte of data still passes the guard."""
+    with rig.client() as c:
+        page = c.get("/app/")
+        assert page.status_code == 200 and "<title>console</title>" in page.text
+        assert c.get("/api/v1/cameras").status_code == 401
+
+
+def test_the_static_mount_cannot_be_walked_out_of(rig: Rig) -> None:
+    with rig.client() as c:
+        for path in ("/app/../secret.txt", "/app/%2e%2e/secret.txt", "/app/..%5csecret.txt"):
+            r = c.get(path)
+            assert "not for the web" not in r.text, path
+
+
+def test_the_static_mount_is_not_an_api_route_so_it_cannot_dodge_the_permission_test(
+    rig: Rig,
+) -> None:
+    schema = httpx.get(f"{rig.base}/openapi.json").json()
+    assert not any(path.startswith("/app") for path in schema["paths"])

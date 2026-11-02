@@ -46,6 +46,26 @@ def emit(event: str, **fields: object) -> None:
     sys.stdout.flush()
 
 
+def _stop_when_stdin_closes(stop: threading.Event) -> None:
+    """A daemon thread that sets `stop` when the parent closes (or loses) our standard input.
+
+    On Windows a parent cannot deliver a polite signal to a child it did not start in a new
+    process group, and `TerminateProcess` skips the shutdown that releases the camera. Closing
+    the pipe is the one request that works the same on every platform, and it also fires if the
+    parent dies, which is exactly when an orphaned engine must not keep the camera open.
+    """
+
+    def watch() -> None:
+        try:
+            while sys.stdin.read(1):
+                pass  # the parent never writes; anything that arrives is ignored
+        except (OSError, ValueError):
+            pass  # a closed or broken pipe is the signal, not an error
+        stop.set()
+
+    threading.Thread(target=watch, name="vigil-parent-pipe", daemon=True).start()
+
+
 def serve(
     config_dir: Annotated[Path | None, typer.Option(help="Directory holding vigil.yaml.")] = None,
     detector: Annotated[
@@ -59,6 +79,16 @@ def serve(
     ] = None,
     duration: Annotated[float | None, typer.Option(help="Stop after this many seconds.")] = None,
     log_level: Annotated[str | None, typer.Option(help="Override logging.level.")] = None,
+    ui_dir: Annotated[
+        Path | None, typer.Option(help="Serve this built console under /app/ on the API origin.")
+    ] = None,
+    stop_on_stdin_eof: Annotated[
+        bool,
+        typer.Option(
+            help="Shut down cleanly when standard input closes. The supervising shell holds the "
+            "pipe, so this also covers the shell crashing, which a signal cannot on Windows."
+        ),
+    ] = False,
 ) -> None:
     overrides: dict[str, object] = {"api.accounts.enabled": True}
     if log_level:
@@ -86,6 +116,8 @@ def serve(
     for name in ("SIGINT", "SIGTERM", "SIGBREAK"):
         if (sig := getattr(signal, name, None)) is not None:
             signal.signal(sig, request_stop)
+    if stop_on_stdin_eof:
+        _stop_when_stdin_closes(stop)
 
     exit_code = EXIT_OK
     hub: StreamHub | None = None
@@ -112,7 +144,7 @@ def serve(
             typer.echo(f"setup token (shown once): {accounts.setup_token_to_print}", err=True)
         api_cfg = loaded.settings.api
         api_server = ApiServer(
-            create_app(app, hub, accounts=accounts),
+            create_app(app, hub, accounts=accounts, ui_dir=ui_dir),
             host=api_cfg.bind_host,
             port=api_cfg.bind_port,
             logger=get_logger("api"),

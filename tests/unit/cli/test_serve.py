@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -214,3 +217,68 @@ def test_reset_admin_removes_administrators_and_requires_setup_again(tmp_path: P
         assert any(e.action == "admin.reset" for e in service.audit.entries())
     finally:
         store.close()
+
+
+# ------------------------------------------------------------------ the supervisor protocol
+
+
+def _spawn(tmp_path: Path, *extra: str) -> subprocess.Popen[str]:
+    return subprocess.Popen(  # noqa: S603 - our own interpreter and module
+        [
+            sys.executable,
+            "-c",
+            "from vigil.cli.main import app; app()",
+            "serve",
+            "--config-dir",
+            _config(tmp_path),
+            "--port",
+            "0",
+            "--log-level",
+            "ERROR",
+            *extra,
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def test_closing_stdin_shuts_the_engine_down_cleanly(tmp_path: Path) -> None:
+    """Windows cannot deliver a polite signal to this child, and TerminateProcess skips the
+    shutdown that releases the camera. Closing the pipe is the request that works everywhere,
+    and it is also what the engine sees if the shell itself dies."""
+    proc = _spawn(tmp_path, "--stop-on-stdin-eof")
+    try:
+        assert proc.stdout is not None and proc.stdin is not None
+        first = json.loads(proc.stdout.readline())
+        assert first["event"] == "ready"
+        proc.stdin.close()
+        rest = proc.stdout.read()
+        assert proc.wait(timeout=20) == 0
+        last = [json.loads(line) for line in rest.splitlines() if line.startswith("{")][-1]
+        assert last["event"] == "stopped" and last["clean"] is True
+    finally:
+        proc.kill()
+        proc.wait()
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+
+def test_without_the_flag_a_closed_stdin_does_not_stop_the_engine(tmp_path: Path) -> None:
+    """Run from a terminal, closing the input is not a request to quit."""
+    proc = _spawn(tmp_path, "--duration", "3")
+    try:
+        assert proc.stdout is not None and proc.stdin is not None
+        assert json.loads(proc.stdout.readline())["event"] == "ready"
+        proc.stdin.close()
+        time.sleep(1.0)
+        assert proc.poll() is None  # still running one second after the pipe closed
+        assert proc.wait(timeout=20) == 0  # and it ends by its own --duration
+    finally:
+        proc.kill()
+        proc.wait()
+        for stream in (proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()

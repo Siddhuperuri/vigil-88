@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from vigil.api.schemas import (
@@ -61,7 +63,11 @@ def _overlay(text: str | None) -> OverlayOptions:
 
 
 def create_app(
-    application: Application, hub: StreamHub, *, accounts: AuthService | None = None
+    application: Application,
+    hub: StreamHub,
+    *,
+    accounts: AuthService | None = None,
+    ui_dir: Path | None = None,
 ) -> FastAPI:
     """`accounts` switches on cookie sessions and roles (ADR 0016). Without it the API behaves as
     it did before accounts existed: open on loopback, or behind the one shared bearer token."""
@@ -258,6 +264,11 @@ def create_app(
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def viewer() -> str:
         return VIEWER_HTML
+
+    if ui_dir is not None and ui_dir.is_dir():
+        # The built console, on the API origin so there is no CORS to configure (08 §12). Static
+        # files only: every byte of data still comes through the guarded API.
+        app.mount("/app", StaticFiles(directory=ui_dir, html=True), name="console")
 
     return app
 

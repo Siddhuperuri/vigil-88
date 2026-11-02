@@ -8,6 +8,7 @@ from vigil.cli.commands.auth import auth_app
 from vigil.cli.commands.bench import bench_app
 from vigil.cli.commands.doctor import doctor
 from vigil.cli.commands.models import models_app
+from vigil.cli.commands.openapi import openapi
 from vigil.cli.commands.run import run
 from vigil.cli.commands.serve import serve
 from vigil.version import __version__
@@ -20,6 +21,7 @@ app = typer.Typer(
 )
 app.command("run", help="Run the headless pipeline.")(run)
 app.command("serve", help="Run the engine as a service for the desktop shell.")(serve)
+app.command("openapi", help="Write the API's OpenAPI document.")(openapi)
 app.command("doctor", help="Diagnose the environment, configuration and capabilities.")(doctor)
 app.add_typer(models_app, name="models")
 app.add_typer(auth_app, name="auth")
