@@ -396,7 +396,24 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   The session flow that fixes this belongs to the full console.
 - **MJPEG only**, at most `api.stream_fps`. WebRTC sits behind the `VideoTransport` protocol if
   measurement ever demands it.
-- **One process, one operator.** No users, roles or audit trail.
+- **One process, one operator** for `vigil run --serve`, which keeps the optional shared token.
+  `vigil serve`, the desktop engine, has local accounts (ADR 0016): Argon2id passwords, cookie
+  sessions (which authenticate the live stream), lockout, roles enforced on every route, and a
+  hash-chained audit log. See "Accounts" below.
+
+## Accounts (D0)
+
+- **Tamper-evident, not tamper-proof.** The audit chain detects an edited or deleted row. Someone
+  holding the file can recompute the chain. Nothing is encrypted at rest; BitLocker is the control.
+- **An administrator on the OS, or anyone with the disk, is not stopped by login.** The last-resort
+  `vigil auth reset-admin` needs only the data directory and a typed phrase.
+- **The common-password list is small** (a few hundred entries written here), a floor against the
+  obvious rather than a strength estimate.
+- **Argon2id cost** is tuned to about 210 ms on the development machine only.
+- **The session cookie is not `Secure`.** Whether Chromium accepts that flag on the loopback origin
+  is untested.
+- **No UI for any of it yet**: setup, sign-in and user management are API-only until D1.
+- **The shared bearer token acts as an Operator** named `api-client` when accounts are on.
 
 ## Other
 

@@ -16,7 +16,7 @@ import { statusPage } from "./status-page";
 import { EngineSupervisor, type EngineState } from "./supervisor";
 
 const SHELL_CHANNEL = {
-  token: "shell:setup-token",
+  setup: "shell:setup-token",
   state: "shell:engine-state",
   restart: "shell:restart-engine",
 };
@@ -106,6 +106,9 @@ function createWindow(): BrowserWindow {
   win.webContents.on("did-finish-load", () => {
     milestone("page-loaded", { url: win.webContents.getURL().slice(0, 80) });
   });
+  win.webContents.on("page-title-updated", (_event, title) => {
+    milestone("title", { title });
+  });
   win.on("closed", () => {
     window = null;
   });
@@ -135,7 +138,7 @@ function startEngine(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle(SHELL_CHANNEL.token, (event) => {
+  ipcMain.handle(SHELL_CHANNEL.setup, (event) => {
     // Only while setup is pending, once, and only to the engine's own page.
     const state = supervisor?.state;
     if (!fromEngineOrigin(event) || state?.kind !== "running" || !state.setupRequired) return null;

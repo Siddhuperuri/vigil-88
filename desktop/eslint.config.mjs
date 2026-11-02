@@ -20,7 +20,12 @@ export default tseslint.config(
   },
   {
     ...tseslint.configs.disableTypeChecked,
-    files: ["**/*.mjs", "**/*.js"],
+    files: ["scripts/spike-ui/*.js"],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    ...tseslint.configs.disableTypeChecked,
+    files: ["**/*.mjs"],
     languageOptions: { globals: globals.node },
   },
 );

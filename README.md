@@ -31,6 +31,7 @@ DEGRADED for ever — which made it reject every candidate and therefore **detec
 | A bare install starts and degrades honestly: `vigil doctor` runs with no extras and names what is missing | A declared licence for this project — there is no `LICENSE` file, so by default no rights are granted (ADR 0015 §C5) |
 | Evidence capture with pre-roll and post-roll, hashed, with missing items named rather than faked | |
 | Analytics and reports over persisted records; JSON, CSV and (with `--extra reports`) PDF export | |
+| Local accounts, roles and an audit log on the desktop engine (`vigil serve`, API only so far); an Electron shell that supervises the engine, verified by real-app tests ([D0 report](docs/D0-REPORT.md)) | |
 | Optional four-point ground-plane calibration: velocity in m/s, px/s and labelled px/s without it | |
 | Benchmark tooling that measures sustained load; results in [PERFORMANCE.md](docs/PERFORMANCE.md) | |
 | A measured multi-camera ceiling: four cameras served in full at 10 fps each, saturating near 52 inferences/s | |

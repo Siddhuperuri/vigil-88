@@ -53,7 +53,7 @@ _TEXT_SUFFIXES = {".py", ".yaml", ".yml", ".toml", ".ps1", ".json", ".example", 
 # D0: the desktop console and shell are held to the same rules as the engine. Source only: the
 # lockfiles, build output and dependencies are not ours to police.
 _FRONTEND_SUFFIXES = {".ts", ".tsx", ".css", ".html", ".mjs", ".cjs"}
-_FRONTEND_DIRS = ("ui/src", "ui/e2e", "ui/scripts", "desktop/src", "desktop/scripts")
+_FRONTEND_DIRS = ("ui/src", "ui/scripts", "desktop/src", "desktop/e2e", "desktop/scripts")
 _SKIPPED_PARTS = {"__pycache__", ".venv", "node_modules", "dist", "out", "coverage"}
 GENERATED_SUFFIX = ".gen.ts"  # produced from the OpenAPI document; a gate proves it is current
 
