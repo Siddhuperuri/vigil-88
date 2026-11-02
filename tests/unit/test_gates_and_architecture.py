@@ -164,6 +164,32 @@ def test_size_gate(tmp_path: Path) -> None:
     assert len(found(root, "size")) == 1
 
 
+# ------------------------------------------------------------------ frontend source (D0)
+
+
+def test_size_gate_covers_typescript_and_exempts_only_generated_files(tmp_path: Path) -> None:
+    long = "export const x = 1;\n" * (gates.MAX_LINES + 1)
+    root = tree(
+        tmp_path,
+        {
+            "ui/src/Big.tsx": long,
+            "desktop/src/main.ts": long,
+            "ui/src/api/types.gen.ts": long,  # generated from OpenAPI, proven current elsewhere
+            "ui/node_modules/dep/index.ts": long,  # not ours
+            "ui/dist/bundle.ts": long,
+        },
+    )
+    assert sorted(v.file for v in found(root, "size")) == ["desktop/src/main.ts", "ui/src/Big.tsx"]
+
+
+def test_path_and_secret_gates_read_frontend_source(tmp_path: Path) -> None:
+    home = "const p = 'C:" + "\\Users\\someone';\n"
+    secret = "const password = 'hunter2hunter2';\n"
+    root = tree(tmp_path, {"ui/src/a.ts": home, "desktop/src/b.ts": secret, "ui/src/ok.ts": "x\n"})
+    assert [v.file for v in found(root, "paths")] == ["ui/src/a.ts"]
+    assert [v.file for v in found(root, "secrets")] == ["desktop/src/b.ts"]
+
+
 # ------------------------------------------------------------------ architecture
 
 
