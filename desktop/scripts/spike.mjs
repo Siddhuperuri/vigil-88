@@ -26,7 +26,7 @@ writeFileSync(
   path.join(config, "vigil.yaml"),
   `version: 1
 paths:
-  data_dir: ../var
+  data_dir: ./var
 ${models ? `  models_dir: ${models.replaceAll("\\", "/")}\n` : ""}logging:
   level: ERROR
 pipeline:

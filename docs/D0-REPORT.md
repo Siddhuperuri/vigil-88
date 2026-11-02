@@ -34,6 +34,15 @@
 
 All three met, so Electron stays and Tauri is not evaluated. **Not measured:** the spike with the real GPU detector (a run was started and stopped by the owner), so first-frame time with a model load is unknown. Reproduce with `node desktop/scripts/spike.mjs`.
 
+## A defect found by the gate
+
+The first full gate run failed the end-to-end suite: every test saw "Sign-in is required". The shell's
+minimal configuration said `data_dir: ../var`, and relative paths resolve against the folder that
+*contains* `config/`, so the data directory was one level **above** the per-user folder. The spike
+had created an administrator there, and the next run inherited it. A shipped build would have put
+every user's incidents and accounts in a shared parent directory. It is now `./var`, which lands
+beside the config under the per-user folder, and the stray directory was deleted.
+
 ## What was not verified
 
 - **F7 and F8 on the real webcam.** Both are pinned by unit tests that reproduce the mechanism; no new live run was made after the fixes. F8's cause (a wait that rounds up to the Windows timer tick) is inferred from the measured rate and the code, not observed.

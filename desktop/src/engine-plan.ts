@@ -35,7 +35,7 @@ export interface PlanInput {
 const MINIMAL_CONFIG = `# Written by the VIGIL-88 desktop shell on first launch. Edit through the app.
 version: 1
 paths:
-  data_dir: ../var # incidents, evidence and accounts live beside this folder, per user
+  data_dir: ./var # incidents, evidence and accounts live beside this folder, per user
 cameras: []
 `;
 

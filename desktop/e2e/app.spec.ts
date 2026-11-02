@@ -26,7 +26,7 @@ async function launch(): Promise<Launched> {
   mkdirSync(config, { recursive: true });
   writeFileSync(
     path.join(config, "vigil.yaml"),
-    "version: 1\npaths:\n  data_dir: ../var\ncameras: []\nlogging:\n  level: ERROR\n",
+    "version: 1\npaths:\n  data_dir: ./var\ncameras: []\nlogging:\n  level: ERROR\n",
   );
   const app = await electron.launch({
     args: [DESKTOP, `--user-data-dir=${path.join(root, "user")}`],

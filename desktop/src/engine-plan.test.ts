@@ -19,7 +19,7 @@ describe("ensureEngineConfig", () => {
     const text = readFileSync(path.join(configDir, "vigil.yaml"), "utf8");
     expect(text).toContain("version: 1");
     expect(text).toContain("cameras: []");
-    expect(text).toContain("data_dir: ../var");
+    expect(text).toContain("data_dir: ./var");
   });
 
   it("never overwrites what a person (or a later settings screen) has written", () => {
