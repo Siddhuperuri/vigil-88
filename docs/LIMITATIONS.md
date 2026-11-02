@@ -425,7 +425,7 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   severity and camera only while locked is recorded (ADR 0016) and is **not built**.
 - **Worker restart is not built.** The shell restarts the whole engine with backoff; a stalled or
   crashed worker inside a running engine is still only reported.
-- **Cameras and zones cannot be added in the console.** The wall says so when there are none.
+- **Cameras and zones are managed in the console as of D2**; see "Cameras and zones (D2)" below.
 - **The console follows the operating system's light or dark setting**; there is no manual switch.
 - **Keyboard shortcuts apply on the Incident Desk only.** There is no command palette.
 - **The alert sound is a generated tone**, with a single on/off switch and no per-severity or
@@ -434,6 +434,36 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   screen in jsdom and, with colour contrast, in Chromium. **No screen-reader pass (NVDA) was done.**
 - **The live channel polls the engine twice a second** and pushes differences; it is not driven by
   the incident event itself.
+
+## Cameras and zones (D2)
+
+- **A change takes effect only after the engine restarts** (ADR 0017). Adding a camera or drawing a
+  zone saves a file at once, and the console shows it as waiting. Applying it stops monitoring of
+  **every** camera for the length of an engine start; an event in that window is not seen. The plan's
+  "no restart" exit criterion is **not met**. Measured with a video-file camera and no detection
+  model: about 3.5 s from clicking Restart to the camera reading ONLINE. With a model to load it will
+  be longer, and that was not measured.
+- **Without the desktop shell the engine cannot restart itself.** It refuses (409) and the console says
+  to stop and start it. A change then waits for that.
+- **RTSP was never run against a real camera.** The source, its timeouts and the redaction of its
+  address are tested with fakes only. Treat network cameras as
+  unproven until one has been tried. The webcam and video-file paths ran in the real app.
+- **A network camera that does not answer holds its capture worker for up to 4 s** (the open and read
+  timeouts), because OpenCV cannot interrupt a blocked open. They are kept under the 5 s shutdown budget so a
+  stop stays clean; found when the real command left a straggler with the previous 8 s and 6 s timeouts.
+- **Credentials need the `credentials` extra** (Windows Credential Manager through `keyring`). Without it the
+  console says so and cannot store a password; it never falls back to writing one into a file.
+- **Device names need the `capture` extra** (`cv2-enumerate-cameras`); without it a device number is typed.
+- **Zones are polygons only.** `crossing_line` is a line, nothing evaluates it, and the editor does not
+  offer it. A zone schedule is preserved when a zone is saved but is edited in the zone file by hand.
+- **Zone drawing has no calibration or snapshot freshness check.** The picture behind the zones is the
+  camera's current frame, or nothing if the camera is not running yet; the zones are fractions of the frame
+  either way.
+- **Cameras defined by hand in `vigil.yaml` are shown, not edited**, and say so.
+- **Not built in D2:** users and roles screens (the API exists), the audit log screen (the API exists), an
+  analytics and report screen (the API exists), a diagnostics bundle, settings and configuration
+  import/export, alert rules and quiet hours, the degradation ladder, annotating the pre-roll gap after a
+  reconnect, the full first-run wizard, and engine worker restart.
 
 ## Other
 

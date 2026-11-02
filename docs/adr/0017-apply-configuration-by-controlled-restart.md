@@ -37,7 +37,8 @@ touches the code that decides what an operator never sees.
   exits cleanly; the supervisor relaunches it at once and without the failure penalty. Without a
   supervisor the engine **refuses** (409) rather than exit and stay down.
 - The console says so: "Saved. Takes effect when monitoring restarts", with the restart as an explicit
-  button, never a surprise. The restart time is measured and recorded in the D2 report.
+  button, never a surprise. The restart time is measured and recorded in the D2 report: about 3.5 s from the click to the
+  camera reading ONLINE, for a video-file camera with no model to load.
 
 ## Consequences
 
