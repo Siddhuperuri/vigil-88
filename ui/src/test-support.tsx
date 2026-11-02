@@ -1,5 +1,5 @@
-import { act } from "@testing-library/react";
-import { vi } from "vitest";
+import { act, waitFor } from "@testing-library/react";
+import { expect, vi } from "vitest";
 
 /** A route table for `fetch`: first matching prefix wins; the body is JSON unless a Response. */
 export type Handler = (url: string, init: RequestInit | undefined) => unknown;
@@ -66,6 +66,15 @@ export class FakeSocket {
 export function installSocket(): void {
   FakeSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeSocket);
+}
+
+/** Waits for the app to open its socket: effects run after the render a test just awaited, so under
+ * load the socket may not exist yet. Using this instead of `lastSocket` removes that race. */
+export async function liveSocket(): Promise<FakeSocket> {
+  await waitFor(() => {
+    expect(FakeSocket.instances.length).toBeGreaterThan(0);
+  });
+  return lastSocket();
 }
 
 export const lastSocket = (): FakeSocket => {

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { expectNoAccessibilityViolations } from "./test-utils";
-import { authStatus, installSocket, json, lastSocket, mockFetch, snapshot } from "./test-support";
+import { authStatus, installSocket, json, liveSocket, mockFetch, snapshot } from "./test-support";
 
 beforeEach(() => {
   installSocket();
@@ -94,8 +94,8 @@ describe("the signed-in shell", () => {
     render(<App />);
     const strip = await screen.findByRole("banner");
     expect(strip).toHaveTextContent("cameras unavailable");
-    lastSocket().open();
-    lastSocket().send(snapshot());
+    (await liveSocket()).open();
+    (await liveSocket()).send(snapshot());
     expect(await within(strip).findByText("2/2")).toBeInTheDocument();
     expect(strip).toHaveTextContent("LIVE");
     expect(strip).toHaveTextContent("41%");
@@ -106,9 +106,9 @@ describe("the signed-in shell", () => {
     signedIn();
     render(<App />);
     await screen.findByRole("banner");
-    lastSocket().open();
-    lastSocket().send(snapshot());
-    lastSocket().end(1006);
+    (await liveSocket()).open();
+    (await liveSocket()).send(snapshot());
+    (await liveSocket()).end(1006);
     expect(await screen.findByText("RECONNECTING")).toBeInTheDocument();
   });
 
@@ -130,10 +130,10 @@ describe("the signed-in shell", () => {
         status: "confirmed",
       },
     });
-    lastSocket().open();
-    lastSocket().send(notice("LOW"));
+    (await liveSocket()).open();
+    (await liveSocket()).send(notice("LOW"));
     expect(region).toHaveTextContent("");
-    lastSocket().send(notice("CRITICAL"));
+    (await liveSocket()).send(notice("CRITICAL"));
     await waitFor(() => {
       expect(region).toHaveTextContent("New CRITICAL incident INC-9 on camera cam1");
     });
@@ -152,9 +152,9 @@ describe("the signed-in shell", () => {
     signedIn();
     render(<App />);
     await screen.findByRole("banner");
-    lastSocket().open();
+    (await liveSocket()).open();
     mockFetch({ "/api/v1/auth/status": authStatus({ authenticated: false, user: null }) });
-    lastSocket().end(4401);
+    (await liveSocket()).end(4401);
     expect(
       await screen.findByRole("heading", { name: "Sign in to VIGIL-88" }, { timeout: 4000 }),
     ).toBeInTheDocument();
