@@ -72,16 +72,15 @@ def test_a_driver_that_overstates_its_rate_does_not_silence_the_camera() -> None
     t.mark_online(epoch=1, expected_fps=30.0)
     deliver(t, clock, fps=14.0, frames=20)
     t.evaluate(clock.monotonic_ns())
-    # Before it has demonstrated anything it is held to the claim, which is the honest default.
-    assert t.state is CameraState.DEGRADED
-    assert "low fps" in (t.snapshot().detail or "")
+    # D0 finding F7: before it has demonstrated anything the claim is only a claim, so it is NOT
+    # held to it. (It used to be, which made every start DEGRADED for about 8 s.)
+    assert t.state is CameraState.ONLINE
 
-    # Once it has sustained its real rate it is held to that instead, and recovers.
+    # Once it has sustained its real rate it is held to that, and stays ONLINE.
     deliver(t, clock, fps=14.0, frames=20)
     t.evaluate(clock.monotonic_ns())
     assert t.state is CameraState.ONLINE
-    detail = t.snapshot().detail or ""
-    assert "recovered" in detail
+    assert "recovered" not in (t.snapshot().detail or "")  # it was never degraded to recover
 
 
 def test_the_expectation_names_the_claim_it_replaced() -> None:
@@ -151,13 +150,15 @@ def test_a_format_change_keeps_the_rate_the_driver_reported() -> None:
     """`mark_online(expected_fps=None)` on a resolution change used to erase the known rate,
     silently disabling the low-fps check for the rest of the run."""
     clock = ManualClock()
-    t = tracker(clock, health=HealthConfig(adopt_measured_fps_after_frames=10_000))
-    t.mark_online(epoch=1, expected_fps=30.0)
+    t = tracker(clock, health=HealthConfig(adopt_measured_fps_after_frames=10))
+    t.mark_online(epoch=1, expected_fps=10.0)
     t.mark_online(epoch=2, expected_fps=None)  # what a format change does
-    deliver(t, clock, fps=5.0, frames=20)
+    deliver(t, clock, fps=30.0, frames=40)  # beats the claim
+    t.evaluate(clock.monotonic_ns())  # the watchdog's pass is what adopts the sustained rate: 30
+    deliver(t, clock, fps=4.0, frames=40)  # then falls below half of the *claimed* 10
     t.evaluate(clock.monotonic_ns())
     assert t.state is CameraState.DEGRADED
-    assert "30.0 expected" in (t.snapshot().detail or "")
+    assert "10.0 expected" in (t.snapshot().detail or "")  # the claim survived the format change
 
 
 # ------------------------------------------------------------------ F7: dropped frames
