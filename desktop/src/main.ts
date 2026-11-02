@@ -189,7 +189,12 @@ function createTray(): void {
     Menu.buildFromTemplate([
       { label: "Open VIGIL-88", click: showWindow },
       { type: "separator" },
-      { label: "Quit and stop monitoring", click: () => { app.quit(); } },
+      {
+        label: "Quit and stop monitoring",
+        click: () => {
+          app.quit();
+        },
+      },
     ]),
   );
   tray.on("click", showWindow);
