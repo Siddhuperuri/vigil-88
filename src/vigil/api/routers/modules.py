@@ -20,8 +20,15 @@ from collections.abc import Mapping, Sequence
 from fastapi import APIRouter, HTTPException
 
 from vigil.api.schemas_incidents import ChannelStatusOut, ModuleAvailabilityOut
+from vigil.api.session import requires
+from vigil.auth.roles import Permission
 from vigil.events.binding import BindingReport
 from vigil.response.channels.base import ChannelStatus
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 def _module_out(entry: object) -> ModuleAvailabilityOut:
@@ -52,21 +59,29 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(tags=["modules"])
 
-    @router.get("/cameras/{camera_id}/modules", response_model=list[ModuleAvailabilityOut])
+    @router.get(
+        "/cameras/{camera_id}/modules",
+        response_model=list[ModuleAvailabilityOut],
+        dependencies=[_VIEW],
+    )
     def camera_modules(camera_id: str) -> list[ModuleAvailabilityOut]:
         report = bindings.get(camera_id)
         if report is None:
             raise HTTPException(status_code=404, detail=f"unknown camera {camera_id!r}")
         return [_module_out(a) for a in report.availability]
 
-    @router.get("/cameras/{camera_id}/zones/status", response_model=dict[str, str | None])
+    @router.get(
+        "/cameras/{camera_id}/zones/status",
+        response_model=dict[str, str | None],
+        dependencies=[_VIEW],
+    )
     def zone_status(camera_id: str) -> dict[str, str | None]:
         """Why a camera has no zones, when it asked for some. An empty issue means they loaded."""
         if camera_id not in bindings:
             raise HTTPException(status_code=404, detail=f"unknown camera {camera_id!r}")
         return {"camera_id": camera_id, "issue": zone_issues.get(camera_id)}
 
-    @router.get("/system/channels", response_model=list[ChannelStatusOut])
+    @router.get("/system/channels", response_model=list[ChannelStatusOut], dependencies=[_VIEW])
     def channels() -> list[ChannelStatusOut]:
         """An unavailable channel is named with its reason, never quietly omitted (08 §8)."""
         return [

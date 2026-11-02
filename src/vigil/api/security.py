@@ -18,14 +18,19 @@ from fastapi import Header, HTTPException, status
 from pydantic import SecretStr
 
 
+def bearer_matches(authorization: str | None, expected: bytes) -> bool:
+    """`Authorization: Bearer <token>` against the configured token, in constant time."""
+    scheme, _, supplied = (authorization or "").partition(" ")
+    return scheme.lower() == "bearer" and hmac.compare_digest(supplied.encode(), expected)
+
+
 def make_auth_dependency(enabled: bool, token: SecretStr | None) -> Callable[..., None]:
     expected = token.get_secret_value().encode() if token else b""
 
     def require_auth(authorization: str | None = Header(default=None)) -> None:
         if not enabled:
             return
-        scheme, _, supplied = (authorization or "").partition(" ")
-        if scheme.lower() != "bearer" or not hmac.compare_digest(supplied.encode(), expected):
+        if not bearer_matches(authorization, expected):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="a valid bearer token is required",

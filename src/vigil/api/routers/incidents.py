@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, TypeVar
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
 
 from vigil.api.schemas_incidents import (
@@ -37,6 +37,8 @@ from vigil.api.schemas_incidents import (
     system_out,
     transitions_out,
 )
+from vigil.api.session import actor_name, audit_event, requires
+from vigil.auth.roles import Permission
 from vigil.core.errors import PersistenceError
 from vigil.domain.enums import EventType, IncidentStatus, Severity
 from vigil.domain.incident import Incident
@@ -59,6 +61,11 @@ _T = TypeVar("_T")
 CURSOR_SEPARATOR = "~"
 DEFAULT_PAGE_SIZE = 50
 INTEGRITY_HEADER = "X-Evidence-Integrity"
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 def _parse_cursor(cursor: str | None) -> tuple[str, str] | None:
@@ -126,7 +133,7 @@ def build_router(
             evidence_status=incidents.evidence_status(incident.incident_id),
         )
 
-    @router.get("", response_model=IncidentPageOut)
+    @router.get("", response_model=IncidentPageOut, dependencies=[_VIEW])
     def list_incidents(
         camera_id: Annotated[str | None, Query(max_length=400)] = None,
         event_type: Annotated[str | None, Query(max_length=400)] = None,
@@ -183,7 +190,7 @@ def build_router(
             page_size=size,
         )
 
-    @router.get("/{incident_id}", response_model=IncidentDetailOut)
+    @router.get("/{incident_id}", response_model=IncidentDetailOut, dependencies=[_VIEW])
     def incident_detail(incident_id: str) -> IncidentDetailOut:
         incident = _require(incident_id)
         records = evidence.for_incident(incident_id)
@@ -205,12 +212,12 @@ def build_router(
             permissions=permissions_out(actions.permissions(incident_id)),
         )
 
-    @router.get("/{incident_id}/evidence", response_model=list[EvidenceOut])
+    @router.get("/{incident_id}/evidence", response_model=list[EvidenceOut], dependencies=[_VIEW])
     def incident_evidence(incident_id: str) -> list[EvidenceOut]:
         _require(incident_id)
         return evidence_out(evidence.for_incident(incident_id))
 
-    @router.get("/{incident_id}/evidence/{evidence_id}")
+    @router.get("/{incident_id}/evidence/{evidence_id}", dependencies=[_VIEW])
     def evidence_file(incident_id: str, evidence_id: str) -> FileResponse:
         """Serve one evidence file, path-checked and hash-verified.
 
@@ -244,48 +251,70 @@ def build_router(
 
     # ---------------------------------------------------------------- operator actions
 
-    def _act(incident_id: str, action: str, body: dict[str, str] | None) -> IncidentDetailOut:
+    def _act(
+        request: Request, incident_id: str, action: str, body: dict[str, str] | None
+    ) -> IncidentDetailOut:
         _require(incident_id)
         allowed, reason = actions.can(incident_id, action)
         if not allowed:
             # 409, not 500: the request was well formed and the lifecycle simply says no.
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
         text = (body or {}).get("reason") or (body or {}).get("note")
+        who = actor_name(request)
         try:
             if action == "acknowledge":
-                actions.acknowledge(incident_id, note=text)
+                actions.acknowledge(incident_id, note=text, actor=who)
             elif action == "dismiss":
-                actions.dismiss(incident_id, reason=text)
+                actions.dismiss(incident_id, reason=text, actor=who)
             elif action == "escalate":
-                actions.escalate(incident_id, reason=text)
+                actions.escalate(incident_id, reason=text, actor=who)
             elif action == "annotate":
-                actions.annotate(incident_id, text)
+                actions.annotate(incident_id, text, actor=who)
         except TransitionRefused as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from None
         except PersistenceError as exc:
             raise HTTPException(status_code=400, detail=exc.message) from None
+        audit_event(
+            request,
+            f"incident.{action}",
+            target=incident_id,
+            detail={"note_chars": len(text or "")},
+        )
         return incident_detail(incident_id)
 
-    @router.post("/{incident_id}/acknowledge", response_model=IncidentDetailOut)
-    def acknowledge(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "acknowledge", body)
+    @router.post(
+        "/{incident_id}/acknowledge", response_model=IncidentDetailOut, dependencies=[_ACT]
+    )
+    def acknowledge(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "acknowledge", body)
 
-    @router.post("/{incident_id}/dismiss", response_model=IncidentDetailOut)
-    def dismiss(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "dismiss", body)
+    @router.post("/{incident_id}/dismiss", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def dismiss(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "dismiss", body)
 
-    @router.post("/{incident_id}/escalate", response_model=IncidentDetailOut)
-    def escalate(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "escalate", body)
+    @router.post("/{incident_id}/escalate", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def escalate(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "escalate", body)
 
-    @router.post("/{incident_id}/annotate", response_model=IncidentDetailOut)
-    def annotate(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "annotate", body)
+    @router.post("/{incident_id}/annotate", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def annotate(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "annotate", body)
 
-    @router.delete("/{incident_id}/annotate", status_code=status.HTTP_204_NO_CONTENT)
-    def clear_note(incident_id: str) -> Response:
+    @router.delete(
+        "/{incident_id}/annotate", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ACT]
+    )
+    def clear_note(request: Request, incident_id: str) -> Response:
         _require(incident_id)
-        actions.annotate(incident_id, None)
+        actions.annotate(incident_id, None, actor=actor_name(request))
+        audit_event(request, "incident.note_cleared", target=incident_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

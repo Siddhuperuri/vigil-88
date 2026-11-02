@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict
 
 from vigil.analytics.export import (
@@ -31,6 +31,8 @@ from vigil.analytics.pdf import write_pdf
 from vigil.analytics.queries import AnalyticsQueries, Bucket, Count, DurationStat, Window
 from vigil.analytics.reports import Report, ReportBuilder
 from vigil.analytics.serialise import report_to_json, write_json
+from vigil.api.session import audit_event, requires
+from vigil.auth.roles import Permission
 from vigil.core.clock import Clock
 from vigil.core.errors import PersistenceError
 from vigil.core.ids import UlidFactory
@@ -41,6 +43,11 @@ from vigil.response.paths import SAFE_COMPONENT
 DEFAULT_WINDOW_DAYS = 7
 MAX_WINDOW_DAYS = 366 * 5
 MAX_OFFSET_MINUTES = 14 * 60
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 class _Out(BaseModel):
@@ -170,7 +177,7 @@ def build_router(
         except (ValueError, KeyError) as exc:
             raise HTTPException(status_code=422, detail=f"unknown filter value: {exc}") from None
 
-    @router.get("/summary", response_model=AnalyticsSummaryOut)
+    @router.get("/summary", response_model=AnalyticsSummaryOut, dependencies=[_VIEW])
     def summary(
         since: Annotated[datetime | None, Query()] = None,
         until: Annotated[datetime | None, Query()] = None,
@@ -244,8 +251,9 @@ def build_router(
             },
         )
 
-    @router.get("/report")
+    @router.get("/report", dependencies=[_EXPORT])
     def report_json(
+        request: Request,
         since: Annotated[datetime | None, Query()] = None,
         until: Annotated[datetime | None, Query()] = None,
         days: Annotated[int, Query(ge=1, le=MAX_WINDOW_DAYS)] = DEFAULT_WINDOW_DAYS,
@@ -269,10 +277,12 @@ def build_router(
             )
         except PersistenceError as exc:
             raise HTTPException(status_code=500, detail=exc.message) from None
+        audit_event(request, "report.viewed", detail={"days": days, "bucket": bucket.value})
         return report_to_json(report)
 
-    @router.get("/export")
+    @router.get("/export", dependencies=[_EXPORT])
     def export(
+        request: Request,
         export_format: Annotated[ExportFormat, Query(alias="format")] = ExportFormat.CSV,
         since: Annotated[datetime | None, Query()] = None,
         until: Annotated[datetime | None, Query()] = None,
@@ -317,9 +327,14 @@ def build_router(
             except PersistenceError as exc:
                 raise HTTPException(status_code=400, detail=exc.message) from None
             headers["X-Export-Saved-As"] = result.path.name
+        audit_event(
+            request,
+            "export.created",
+            detail={"format": export_format.value, "saved": save, "days": days},
+        )
         return Response(body, media_type=media_type, headers=headers)
 
-    @router.get("/formats", response_model=list[ExportFormatOut])
+    @router.get("/formats", response_model=list[ExportFormatOut], dependencies=[_VIEW])
     def formats() -> list[ExportFormatOut]:
         """Which export formats this install can actually produce, and why not where it cannot.
 
