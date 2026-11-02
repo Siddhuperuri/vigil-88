@@ -1,28 +1,17 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { expectNoAccessibilityViolations } from "./test-utils";
+import { authStatus, installSocket, json, lastSocket, mockFetch, snapshot } from "./test-support";
 
-function answer(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-}
+beforeEach(() => {
+  installSocket();
+  window.location.hash = "";
+});
 
-const status = (overrides: Record<string, unknown> = {}) =>
-  answer({
-    accounts_enabled: true,
-    setup_required: false,
-    authenticated: false,
-    locked: false,
-    user: null,
-    ...overrides,
-  });
-
-describe("App", () => {
-  it("says it is connecting while it waits, and announces it politely", () => {
+describe("the gate", () => {
+  it("says it is connecting, politely, while it waits", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise<Response>(() => undefined)),
@@ -31,123 +20,162 @@ describe("App", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Connecting to the engine");
   });
 
-  it("asks for setup when the engine has no administrator yet", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(status({ setup_required: true }))),
-    );
-    render(<App />);
-    expect(await screen.findByText(/First-run setup is required/)).toBeInTheDocument();
-  });
-
-  it("asks for sign-in when setup is done and nobody is signed in", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(status())),
-    );
-    render(<App />);
-    expect(await screen.findByText(/Sign-in is required/)).toBeInTheDocument();
-  });
-
   it("says plainly when the engine cannot be reached, and lets the person try again", async () => {
-    const fetchMock = vi
+    const fn = vi
       .fn<typeof fetch>()
-      .mockRejectedValueOnce(new TypeError("network down"))
-      .mockResolvedValueOnce(status());
-    vi.stubGlobal("fetch", fetchMock);
+      .mockRejectedValueOnce(new TypeError("down"))
+      .mockResolvedValueOnce(json(authStatus({ authenticated: false, user: null })));
+    vi.stubGlobal("fetch", fn);
     render(<App />);
-
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The engine is not responding");
-    expect(alert).toHaveTextContent("starting or restarting");
-
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText(/Sign-in is required/)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("heading", { name: "Sign in to VIGIL-88" })).toBeInTheDocument();
   });
 
-  it("shows the engine's own reason when it answers with an error", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(answer({ detail: "unexpected Host header" }, { status: 400 }))),
-    );
+  it("shows setup when no administrator exists, and nothing else", async () => {
+    mockFetch({
+      "/api/v1/auth/status": authStatus({ setup_required: true, authenticated: false, user: null }),
+    });
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("unexpected Host header");
+    expect(await screen.findByRole("heading", { name: "Set up VIGIL-88" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 
-  it("describes a failure that is not an Error without leaking what it was", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(answer("not an object", { status: 500 }))),
-    );
+  it("shows the lock screen for a locked session, naming who it will unlock", async () => {
+    mockFetch({ "/api/v1/auth/status": authStatus({ locked: true }) });
     render(<App />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("The engine is not responding");
+    expect(await screen.findByRole("heading", { name: "Console locked" })).toBeInTheDocument();
+    expect(screen.getByText(/Monitoring continues/)).toHaveTextContent("alice");
   });
 
-  it("does not update after it has been unmounted while a request was in flight", async () => {
-    let resolve: (r: Response) => void = () => undefined;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init?: RequestInit) =>
-          new Promise<Response>((res, rej) => {
-            resolve = res;
-            init?.signal?.addEventListener("abort", () => {
-              rej(new DOMException("aborted", "AbortError"));
-            });
-          }),
-      ),
-    );
-    const { unmount } = render(<App />);
-    unmount();
-    resolve(status());
-    await Promise.resolve();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  it("has no WCAG 2.2 AA violations on the sign-in, setup and lock screens", async () => {
+    for (const status of [
+      authStatus({ authenticated: false, user: null }),
+      authStatus({ setup_required: true, authenticated: false, user: null }),
+      authStatus({ locked: true }),
+    ]) {
+      mockFetch({ "/api/v1/auth/status": status });
+      const { container, unmount } = render(<App />);
+      await screen.findByRole("main");
+      await expectNoAccessibilityViolations(container);
+      unmount();
+    }
   });
+});
 
-  it("shows a status line for a signed-in person", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(status({ authenticated: true }))),
-    );
+describe("the signed-in shell", () => {
+  const signedIn = () =>
+    mockFetch({
+      "/api/v1/auth/status": authStatus(),
+      "/api/v1/auth/lock": new Response(null, { status: 204 }),
+      "/api/v1/auth/logout": new Response(null, { status: 204 }),
+      "/api/v1/cameras/": new Response("", { status: 200 }),
+    });
+
+  it("lands on the live wall and offers the three views", async () => {
+    signedIn();
     render(<App />);
-    expect(await screen.findByText(/You are signed in/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Live wall" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Live wall", "Incident desk", "System"]);
+    expect(within(nav).getByRole("link", { name: "Live wall" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
-  it("sends the custom request header and same-origin credentials", async () => {
-    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(status()));
-    vi.stubGlobal("fetch", fetchMock);
+  it("shows engine state, cameras and load in the strip once the live link delivers them, and says unavailable before", async () => {
+    signedIn();
     render(<App />);
+    const strip = await screen.findByRole("banner");
+    expect(strip).toHaveTextContent("cameras unavailable");
+    lastSocket().open();
+    lastSocket().send(snapshot());
+    expect(await within(strip).findByText("2/2")).toBeInTheDocument();
+    expect(strip).toHaveTextContent("LIVE");
+    expect(strip).toHaveTextContent("41%");
+    expect(strip).toHaveTextContent("2100 MB");
+  });
+
+  it("says RECONNECTING when the link drops, and does not claim the numbers are live", async () => {
+    signedIn();
+    render(<App />);
+    await screen.findByRole("banner");
+    lastSocket().open();
+    lastSocket().send(snapshot());
+    lastSocket().end(1006);
+    expect(await screen.findByText("RECONNECTING")).toBeInTheDocument();
+  });
+
+  it("announces a new CRITICAL incident once, through an assertive live region, and not a LOW one", async () => {
+    signedIn();
+    const { container } = render(<App />);
+    await screen.findByRole("banner");
+    const region = container.querySelector('[aria-live="assertive"]');
+    expect(region).not.toBeNull();
+    const notice = (severity: string) => ({
+      kind: "incident",
+      change: "new",
+      incident: {
+        incident_id: "x",
+        display_ref: "INC-9",
+        camera_id: "cam1",
+        event_type: "intrusion",
+        severity,
+        status: "confirmed",
+      },
+    });
+    lastSocket().open();
+    lastSocket().send(notice("LOW"));
+    expect(region).toHaveTextContent("");
+    lastSocket().send(notice("CRITICAL"));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
-    });
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("/api/v1/auth/status");
-    expect(init).toMatchObject({
-      credentials: "same-origin",
-      headers: { "X-Vigil-Request": "1" },
+      expect(region).toHaveTextContent("New CRITICAL incident INC-9 on camera cam1");
     });
   });
 
-  it("has one h1, a main landmark and no WCAG 2.2 AA violations in any state", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(status())),
-    );
+  it("locks and signs out through the engine, not just on screen", async () => {
+    const { calls } = signedIn();
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Lock console" }));
+    await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    const urls = calls.filter((c) => c.init?.method === "POST").map((c) => c.url);
+    expect(urls).toEqual(["/api/v1/auth/lock", "/api/v1/auth/logout"]);
+  });
+
+  it("returns to the gate when the engine ends the session or locks it", async () => {
+    signedIn();
+    render(<App />);
+    await screen.findByRole("banner");
+    lastSocket().open();
+    mockFetch({ "/api/v1/auth/status": authStatus({ authenticated: false, user: null }) });
+    lastSocket().end(4401);
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to VIGIL-88" }, { timeout: 4000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens and closes the shortcut sheet, and is accessible", async () => {
+    signedIn();
     const { container } = render(<App />);
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("main")).toBeInTheDocument();
-    await screen.findByText(/Sign-in is required/);
+    await userEvent.click(await screen.findByRole("button", { name: "Shortcuts" }));
+    expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
     await expectNoAccessibilityViolations(container);
   });
 
-  it("is accessible when the engine has failed too", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject(new TypeError("down"))),
-    );
-    const { container } = render(<App />);
-    await screen.findByRole("alert");
-    await expectNoAccessibilityViolations(container);
+  it("has a skip link that moves focus to the main view", async () => {
+    signedIn();
+    render(<App />);
+    await userEvent.click(await screen.findByRole("link", { name: "Skip to content" }));
+    expect(document.getElementById("main")).toHaveFocus();
   });
 });

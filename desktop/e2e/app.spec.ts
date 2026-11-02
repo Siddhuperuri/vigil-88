@@ -1,7 +1,6 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { readFileSync } from "node:fs";
 import {
   type ElectronApplication,
   type Page,
@@ -12,12 +11,17 @@ import {
 import { killPids, pidsMatching } from "./processes";
 
 const DESKTOP = path.resolve(__dirname, "..");
+const PASSPHRASE = "correct horse battery staple";
 
 interface Launched {
   app: ElectronApplication;
   page: Page;
   marker: string;
   stdout: string[];
+}
+
+interface AxeResults {
+  violations: { id: string; help: string }[];
 }
 
 async function launch(): Promise<Launched> {
@@ -39,8 +43,25 @@ async function launch(): Promise<Launched> {
   return { app, page, marker: config, stdout };
 }
 
-interface AxeResults {
-  violations: { id: string; help: string }[];
+const setupHeading = (page: Page) => page.getByRole("heading", { name: "Set up VIGIL-88" });
+
+/**
+ * WCAG 2.2 AA in the real window. @axe-core/playwright opens a second page, which Electron does not
+ * support, so axe is injected directly. It is the same Chromium either way, and colour contrast,
+ * which jsdom cannot compute, is checked here.
+ */
+async function violations(page: Page): Promise<string[]> {
+  await page.evaluate(readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"));
+  const results = await page.evaluate(async () => {
+    const win = globalThis as unknown as {
+      document: unknown;
+      axe: { run(context: unknown, options: object): Promise<AxeResults> };
+    };
+    return win.axe.run(win.document, {
+      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
+    });
+  });
+  return results.violations.map((v) => `${v.id}: ${v.help}`);
 }
 
 test.describe("the real app", () => {
@@ -52,31 +73,21 @@ test.describe("the real app", () => {
     await session.app.close().catch(() => undefined);
   });
 
-  test("starts the engine and shows the console, which says setup is required", async () => {
-    await expect(session.page.getByRole("status")).toContainText("First-run setup is required");
+  test("starts the engine and shows first-run setup, with the token already in hand", async () => {
+    await expect(setupHeading(session.page)).toBeVisible();
     await expect(session.page).toHaveTitle("VIGIL-88");
     expect(session.page.url()).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/app\//);
+    // The shell handed the token over, so a person is not asked to find and paste one.
+    await expect(session.page.getByLabel("Setup token")).toHaveCount(0);
   });
 
-  test("has no WCAG 2.2 AA violations in a real browser engine, colour contrast included", async () => {
-    await expect(session.page.getByRole("status")).toContainText("setup");
-    // @axe-core/playwright opens a second page, which Electron does not support, so axe is
-    // injected into the real window directly. The engine is the same real Chromium either way.
-    await session.page.evaluate(readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"));
-    const results = await session.page.evaluate(async () => {
-      const page = globalThis as unknown as {
-        document: unknown;
-        axe: { run(context: unknown, options: object): Promise<AxeResults> };
-      };
-      return page.axe.run(page.document, {
-        runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
-      });
-    });
-    expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  test("has no WCAG 2.2 AA violations on the setup screen, colour contrast included", async () => {
+    await expect(setupHeading(session.page)).toBeVisible();
+    expect(await violations(session.page)).toEqual([]);
   });
 
   test("gives the page a narrow bridge and no Node", async () => {
-    await expect(session.page.getByRole("status")).toContainText("setup");
+    await expect(setupHeading(session.page)).toBeVisible();
     const exposure = await session.page.evaluate(() => ({
       bridge: Object.keys((window as unknown as { vigilShell: object }).vigilShell).sort(),
       require: typeof (window as unknown as { require?: unknown }).require,
@@ -89,31 +100,100 @@ test.describe("the real app", () => {
     });
   });
 
-  test("hands the one-time setup token over once, and only once", async () => {
-    await expect(session.page.getByRole("status")).toContainText("setup");
-    const first = await session.page.evaluate(() =>
+  test("the setup token is single-use: the page took it, so asking again gets nothing", async () => {
+    await expect(setupHeading(session.page)).toBeVisible();
+    const again = await session.page.evaluate(() =>
       (
         window as unknown as { vigilShell: { setupToken(): Promise<string | null> } }
       ).vigilShell.setupToken(),
     );
-    const second = await session.page.evaluate(() =>
-      (
-        window as unknown as { vigilShell: { setupToken(): Promise<string | null> } }
-      ).vigilShell.setupToken(),
-    );
-    expect(first).toMatch(/^[\w-]{30,}$/);
-    expect(second).toBeNull();
+    expect(again).toBeNull();
+  });
+
+  test("first run end to end: create the administrator, save the codes, use every view, lock, sign out, sign in", async () => {
+    const page = session.page;
+    await expect(setupHeading(page)).toBeVisible();
+
+    await page.getByLabel("Administrator username").fill("alice");
+    await page.getByLabel("Password", { exact: true }).fill(PASSPHRASE);
+    await page.getByLabel("Repeat the password").fill(PASSPHRASE);
+    await page.getByRole("button", { name: "Create administrator" }).click();
+
+    // The recovery codes appear once, and the way on is blocked until they are confirmed stored.
+    await expect(page.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
+    await expect(
+      page.getByRole("list", { name: "Recovery codes" }).getByRole("listitem"),
+    ).toHaveCount(10);
+    expect(await violations(page)).toEqual([]);
+    await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await page.getByRole("checkbox", { name: /stored these codes/ }).check();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    // Signed in, on the wall, with no camera configured said plainly, and the strip live.
+    await expect(page.getByRole("heading", { name: "Live wall" })).toBeVisible();
+    await expect(page.getByText("No cameras yet")).toBeVisible();
+    await expect(page.getByRole("banner")).toContainText("LIVE", { timeout: 30_000 });
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole("link", { name: "Incident desk" }).click();
+    await expect(page.getByText("No open incidents.")).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole("link", { name: "System" }).click();
+    await expect(page.getByRole("heading", { name: "System" })).toBeVisible();
+    await expect(page.getByText("No cameras are configured.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Storage" })).toBeVisible();
+    await expect(
+      page
+        .getByLabel("Recent log records")
+        .or(page.getByText("There is no log file yet."))
+        .or(page.getByText("No log records at this level yet.")),
+    ).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    // The keyboard sheet opens with ? from anywhere outside a field.
+    await page.getByRole("link", { name: "Incident desk" }).click();
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Lock: the console is gated, monitoring is not. The wrong password is refused in place.
+    await page.getByRole("button", { name: "Lock console" }).click();
+    await expect(page.getByRole("heading", { name: "Console locked" })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+    await page.getByLabel("Password").fill("not the password at all");
+    await page.getByRole("button", { name: "Unlock" }).click();
+    await expect(page.getByRole("alert")).toContainText("does not match");
+    await page.getByLabel("Password").fill(PASSPHRASE);
+    await page.getByRole("button", { name: "Unlock" }).click();
+    await expect(page.getByRole("link", { name: "Incident desk" })).toBeVisible();
+
+    // Sign out, and the engine really ended the session: the sign-in screen is back.
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByRole("heading", { name: "Sign in to VIGIL-88" })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    // A wrong password says the generic thing; the right one gets back in.
+    await page.getByLabel("Username").fill("alice");
+    await page.getByLabel("Password").fill("definitely wrong passphrase");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("alert")).toContainText("That username and password do not match.");
+    await page.getByLabel("Password").fill(PASSPHRASE);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    // The view the person was on is still the view they land on.
+    await expect(page.getByRole("heading", { name: "Incident desk" })).toBeVisible();
   });
 
   test("restarts the engine when it is killed, and tells the person what happened", async () => {
-    await expect(session.page.getByRole("status")).toContainText("setup");
+    await expect(setupHeading(session.page)).toBeVisible();
     const before = pidsMatching(session.marker);
     expect(before.length).toBeGreaterThan(0);
     killPids(before);
     await expect(session.page.getByRole("alert")).toContainText("The engine stopped", {
       timeout: 30_000,
     });
-    await expect(session.page.getByRole("status")).toContainText("First-run setup is required", {
+    await expect(session.page.getByRole("heading", { name: "Set up VIGIL-88" })).toBeVisible({
       timeout: 90_000,
     });
     const after = pidsMatching(session.marker);
@@ -122,7 +202,7 @@ test.describe("the real app", () => {
   });
 
   test("quitting stops the engine, so no process is left holding the camera", async () => {
-    await expect(session.page.getByRole("status")).toContainText("setup");
+    await expect(setupHeading(session.page)).toBeVisible();
     expect(pidsMatching(session.marker).length).toBeGreaterThan(0);
     await session.app.close();
     const deadline = Date.now() + 20_000;
