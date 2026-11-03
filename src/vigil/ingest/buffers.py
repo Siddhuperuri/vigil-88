@@ -143,6 +143,23 @@ class EncodedFrame:
         return len(self.jpeg)
 
 
+@dataclass(frozen=True, slots=True)
+class StreamGap:
+    """A hole in a camera footage: where frames stop and resume (07, what a reconnect invalidates).
+
+    `kind` is `stream_restarted` (the stream was reopened, so what came before was discarded) or
+    `frame_gap` (the camera stayed connected but delivered nothing for longer than the threshold).
+    Times are monotonic nanoseconds, the same axis as frame metadata.
+    """
+
+    start_ns: int
+    end_ns: int
+    kind: str
+
+
+MAX_GAPS = 32
+
+
 class PreRollBuffer:
     """Per-camera ring of encoded frames, so evidence can start before the event (05 §6, Q3).
 
@@ -159,7 +176,7 @@ class PreRollBuffer:
     around pointer moves, never around an encode or a disk write (01 §8 invariant 4).
     """
 
-    __slots__ = ("_bytes", "_frames", "_lock", "_max_bytes", "_overwritten", "_window_ns")
+    __slots__ = ("_bytes", "_frames", "_gaps", "_lock", "_max_bytes", "_overwritten", "_window_ns")
 
     def __init__(self, *, window_ms: float, max_bytes: int) -> None:
         if window_ms <= 0.0:
@@ -170,6 +187,7 @@ class PreRollBuffer:
         self._max_bytes = max_bytes
         self._lock = threading.Lock()
         self._frames: deque[EncodedFrame] = deque()
+        self._gaps: deque[StreamGap] = deque(maxlen=MAX_GAPS)
         self._bytes = 0
         self._overwritten = 0
 
@@ -204,6 +222,16 @@ class PreRollBuffer:
     def latest(self) -> EncodedFrame | None:
         with self._lock:
             return self._frames[-1] if self._frames else None
+
+    def note_gap(self, gap: StreamGap) -> None:
+        """Record a hole. Kept apart from the frames, so clearing the ring does not forget it."""
+        with self._lock:
+            self._gaps.append(gap)
+
+    def gaps_in(self, *, since_ns: int, until_ns: int) -> tuple[StreamGap, ...]:
+        """Holes that overlap `[since_ns, until_ns]`, oldest first."""
+        with self._lock:
+            return tuple(g for g in self._gaps if g.end_ns >= since_ns and g.start_ns <= until_ns)
 
     def clear(self) -> None:
         """Called on a stream-epoch change: frames from before a reconnect may be a different

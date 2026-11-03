@@ -98,6 +98,10 @@ class EvidenceConfig(ConfigModel):
     # for `postroll_seconds` at a time. This bounds how many may be open at once; beyond it the
     # oldest is written early with a shorter post-roll, which is degradation, not loss.
     max_concurrent_captures: int = Field(default=8, ge=1, le=64)
+    # A camera that delivers nothing for this long, and then resumes, leaves a hole in the
+    # footage. The hole is recorded and written into the evidence manifest, so a reviewer is
+    # told a clip spans one instead of seeing a jump cut that looks like continuous video.
+    gap_threshold_ms: int = Field(default=2000, ge=250, le=60_000)
 
     @model_validator(mode="after")
     def _preroll_fits(self) -> Self:

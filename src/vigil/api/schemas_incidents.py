@@ -214,6 +214,20 @@ class ActionPermissionOut(_Out):
     reason: str | None
 
 
+class EvidenceGapOut(_Out):
+    kind: str  # stream_restarted | frame_gap
+    start_ms: float  # offsets from the first observation, the axis the clips use
+    end_ms: float
+
+
+class EvidenceAnnotationsOut(_Out):
+    """How far the evidence can be trusted to be continuous (07). Absent when no manifest exists."""
+
+    stream_interrupted: bool
+    gaps: list[EvidenceGapOut]
+    preroll_shortfall_ms: float | None
+
+
 class IncidentDetailOut(_Out):
     incident: IncidentSummaryOut
     explanation: ExplanationOut
@@ -226,6 +240,7 @@ class IncidentDetailOut(_Out):
     system: dict[str, str | float | None]
     available_transitions: list[str]
     permissions: dict[str, ActionPermissionOut]
+    evidence_annotations: EvidenceAnnotationsOut | None = None
 
 
 class IncidentPageOut(_Out):
