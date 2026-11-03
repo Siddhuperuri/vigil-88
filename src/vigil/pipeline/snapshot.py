@@ -10,6 +10,7 @@ from vigil.core.capabilities import CapabilityStatus
 from vigil.domain.camera import CameraHealth
 from vigil.domain.detection import ModelDescriptor
 from vigil.domain.metric import SystemMetric
+from vigil.pipeline.degradation import DegradationState
 from vigil.pipeline.health import HealthReport
 from vigil.pipeline.workers import WorkerHealth
 
@@ -43,3 +44,4 @@ class AppSnapshot:
     frames_inferred: int
     detections_total: int
     system: SystemMetric | None
+    degradation: DegradationState

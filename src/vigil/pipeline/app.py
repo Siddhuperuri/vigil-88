@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -26,7 +25,6 @@ from vigil.core.capabilities import CapabilityLedger
 from vigil.core.clock import Clock, SystemClock
 from vigil.core.errors import (
     LifecycleError,
-    PersistenceError,
     VigilError,
 )
 from vigil.core.ids import UlidFactory
@@ -43,57 +41,40 @@ from vigil.observability.metrics import MetricsRegistry
 from vigil.observability.probes import NvmlProbe, SystemProbe
 from vigil.pipeline import shutdown
 from vigil.pipeline.assembly import AnalysisAssembly
+from vigil.pipeline.camera_events import record_camera_state
 from vigil.pipeline.camera_runtime import (
     CameraRuntime,
     SourceFactory,
     all_drained,
     build_camera_runtime,
+    rebuild_capture_worker,
     record_analysis_drop,
 )
 from vigil.pipeline.cameras import camera_from_config
+from vigil.pipeline.degradation import NORMAL_STATE, DegradationController
+from vigil.pipeline.detector_context import (
+    DetectorContext,
+    DetectorFactory,
+    default_detector_factory,
+)
 from vigil.pipeline.health import aggregate_health
 from vigil.pipeline.inference import InferenceWorker
 from vigil.pipeline.response_stack import ResponseStack
+from vigil.pipeline.restartables import register_restartables
 from vigil.pipeline.results import AnalysedFrame, LatestDetections
 from vigil.pipeline.sampler import MetricsSampler
 from vigil.pipeline.scheduler import CameraPlan, InferenceScheduler
 from vigil.pipeline.snapshot import AppSnapshot, AppState, ShutdownReport
 from vigil.pipeline.stages import Stages, build_stages
+from vigil.pipeline.supervision import WorkerSupervisor
 from vigil.pipeline.workers import ThreadWorker
 from vigil.version import __version__
-from vigil.vision.factory import build_detector
 
 if TYPE_CHECKING:
     from vigil.pipeline.streaming import StreamHub
 
 
-@dataclass(frozen=True, slots=True)
-class DetectorContext:
-    """Everything a detector may need from the application, passed as one value so a factory
-    (production or test) never needs the application itself."""
-
-    settings: Settings
-    paths: ResolvedPaths
-    clock: Clock
-    metrics: MetricsRegistry
-    logger: LoggerLike
-    nvml: NvmlProbe | None
-
-
-DetectorFactory = Callable[[DetectorContext], Detector]
-
 _MS_PER_S = 1000.0
-
-
-def _default_detector_factory(ctx: DetectorContext) -> Detector:
-    return build_detector(
-        ctx.settings.vision,
-        ctx.clock,
-        models_dir=ctx.paths.models_dir,
-        logger=ctx.logger,
-        metrics=ctx.metrics,
-        nvml=ctx.nvml,
-    )
 
 
 class Application:
@@ -120,7 +101,7 @@ class Application:
         self.capabilities = CapabilityLedger()
         self.results = LatestDetections()
         self._log = logger or get_logger("pipeline.app")
-        self._detector_factory = detector_factory or _default_detector_factory
+        self._detector_factory = detector_factory or default_detector_factory
         self._source_factory = source_factory or (
             lambda camera: build_source(camera.source, self.clock)
         )
@@ -141,6 +122,8 @@ class Application:
         self.analysis: AnalysisAssembly | None = None
         self.response: ResponseStack | None = None
         self._stages: Stages | None = None
+        self.degradation: DegradationController | None = None
+        self.supervisor = WorkerSupervisor(clock=self.clock, logger=self._log, metrics=self.metrics)
 
     # ------------------------------------------------------------------ state
 
@@ -160,31 +143,13 @@ class Application:
         )
 
     def _on_camera_state(self, event: CameraStateChanged) -> None:
-        self.metrics.counter(
-            "vigil_camera_state_changes_total", camera=event.camera_id, state=event.new.value
-        ).inc()
-        self._log.info(
-            "camera state changed",
-            camera_id=event.camera_id,
-            old=event.old.value,
-            new=event.new.value,
-            detail=event.detail,
+        record_camera_state(
+            event,
+            response=self.response,
+            metrics=self.metrics,
+            clock=self.clock,
+            logger=self._log,
         )
-        # Health events are persisted so the timeline can put them on the same axis as
-        # incidents. "The camera was reconnecting when that fired" answers a large fraction of
-        # "why did this fire" questions (08 §3).
-        response = self.response
-        if response is None:
-            return
-        try:
-            response.health_events.record(
-                event.camera_id, event.new, self.clock.wall_utc(), event.detail
-            )
-        except PersistenceError as exc:
-            self.metrics.counter("vigil_db_errors_total", operation="health_event").inc()
-            self._log.warning(
-                "camera_health_not_recorded", camera_id=event.camera_id, error=exc.message
-            )
 
     # ------------------------------------------------------------------ startup
 
@@ -248,6 +213,15 @@ class Application:
             idle_wait_ms=cfg.pipeline.worker_idle_wait_ms,
             fps_window_s=cfg.observability.fps_window_s,
         )
+        if cfg.degradation.enabled:
+            self.degradation = DegradationController(
+                config=cfg.degradation,
+                scheduler=scheduler,
+                cameras=lambda: self._cameras,
+                metrics=self.metrics,
+                clock=self.clock,
+                logger=self._log,
+            )
         self._build_stages(detector)
         trackers = [rt.health for rt in self._cameras.values()]
         watchdog = Watchdog(trackers, interval_ms=cfg.ingest.watchdog_interval_ms)
@@ -288,8 +262,16 @@ class Application:
                     ("retention", self.response.retention.run),
                 ]
             )
+        if self.degradation is not None:
+            stage_workers.append(("degradation", self.degradation.run))
         for name, target in stage_workers:
             self._system_workers.append(self._worker(name, target))  # type: ignore[arg-type]
+        register_restartables(
+            self.supervisor,
+            system_workers=self._system_workers,
+            cameras=self._cameras,
+            rebuild_capture=self._rebuild_capture,
+        )
 
         self._started_ns = self.clock.monotonic_ns()
         self._started_wall = self.clock.wall_utc()
@@ -388,6 +370,17 @@ class Application:
             make_worker=self._worker,
         )
 
+    def _rebuild_capture(self, runtime: CameraRuntime) -> ThreadWorker:
+        return rebuild_capture_worker(
+            runtime,
+            settings=self.settings,
+            clock=self.clock,
+            metrics=self.metrics,
+            logger=self._log,
+            source_factory=self._source_factory,
+            make_worker=self._worker,
+        )
+
     def _abort_startup(self) -> None:
         for rt in self._cameras.values():
             if rt.channel is not None:
@@ -482,6 +475,7 @@ class Application:
             else ns_to_ms(self.clock.monotonic_ns() - self._started_ns)
         )
         stall_ms = self.settings.pipeline.worker_stall_timeout_ms
+        degradation = NORMAL_STATE if self.degradation is None else self.degradation.state
         return AppSnapshot(
             state=self.state,
             started_wall_utc=self._started_wall,
@@ -489,7 +483,10 @@ class Application:
             cameras=cameras,
             workers=workers,
             capabilities=self.capabilities.table(),
-            health=aggregate_health(cameras, workers, worker_stall_timeout_ms=stall_ms),
+            health=aggregate_health(
+                cameras, workers, worker_stall_timeout_ms=stall_ms, degradation=degradation
+            ),
+            degradation=degradation,
             detector=self._detector.descriptor if self._detector else None,
             frames_inferred=int(self.metrics.counter_total("vigil_frames_inferred_total")),
             detections_total=int(self.metrics.counter_total("vigil_detections_total")),

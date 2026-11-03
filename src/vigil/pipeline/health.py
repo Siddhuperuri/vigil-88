@@ -9,6 +9,7 @@ from enum import StrEnum
 
 from vigil.domain.camera import CameraHealth
 from vigil.domain.enums import CameraState
+from vigil.pipeline.degradation import DegradationState
 from vigil.pipeline.workers import WorkerHealth
 
 
@@ -61,8 +62,13 @@ def aggregate_health(
     workers: Sequence[WorkerHealth],
     *,
     worker_stall_timeout_ms: float,
+    degradation: DegradationState | None = None,
 ) -> HealthReport:
     issues: list[str] = []
+    if degradation is not None and degradation.active:
+        issues.append(
+            f"degraded to step {degradation.step} ({degradation.label}): {degradation.reason}"
+        )
     crashed = [w for w in workers if w.crashed]
     for w in crashed:
         issues.append(f"worker {w.name} crashed: {w.error}")
@@ -71,7 +77,7 @@ def aggregate_health(
         age_ms = w.heartbeat_age_ms or 0.0
         issues.append(
             f"worker {w.name} is alive but has not made progress for {age_ms / 1000:.0f} s; "
-            "there is no automatic restart, so it needs one"
+            "it can be restarted from the System view"
         )
     for c in cameras:
         if c.state in _UNHEALTHY:

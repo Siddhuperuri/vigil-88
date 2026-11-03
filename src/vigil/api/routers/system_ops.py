@@ -14,12 +14,13 @@ import shutil
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from vigil.api.session import requires
+from vigil.api.session import audit_event, requires
 from vigil.auth.roles import Permission
 from vigil.config.paths import ResolvedPaths
+from vigil.pipeline.app import Application
 
 TAIL_BYTES = 512 * 1024
 MAX_LINES = 500
@@ -42,6 +43,20 @@ class StorageOut(BaseModel):
     evidence_files: int
     evidence_truncated: bool  # the walk stopped at its ceiling, so the figures are lower bounds
     logs_bytes: int
+
+
+class WorkerOut(BaseModel):
+    name: str
+    alive: bool
+    crashed: bool
+    error: str | None
+    heartbeat_age_ms: float | None
+    restartable: bool
+
+
+class RestartOut(BaseModel):
+    ok: bool
+    detail: str
 
 
 def tail_lines(path: Path, *, lines: int, level: str | None) -> LogsOut:
@@ -105,8 +120,45 @@ def storage_of(paths: ResolvedPaths) -> StorageOut:
     )
 
 
-def build_router(*, paths: ResolvedPaths) -> APIRouter:
+def build_router(*, paths: ResolvedPaths, application: Application | None = None) -> APIRouter:
     router = APIRouter(prefix="/system", tags=["system"])
+
+    if application is not None:
+
+        @router.get(
+            "/workers", response_model=list[WorkerOut], dependencies=[requires(Permission.VIEW)]
+        )
+        def workers() -> list[WorkerOut]:
+            """Every worker with whether it can be restarted on its own."""
+            return [
+                WorkerOut(
+                    name=w.name,
+                    alive=w.alive,
+                    crashed=w.crashed,
+                    error=w.error,
+                    heartbeat_age_ms=w.heartbeat_age_ms,
+                    restartable=application.supervisor.restartable(w.name),
+                )
+                for w in application.snapshot().workers
+            ]
+
+        @router.post(
+            "/workers/{name}/restart",
+            response_model=RestartOut,
+            dependencies=[requires(Permission.CONFIGURE)],
+        )
+        def restart_worker(name: str, request: Request) -> RestartOut:
+            """Replace one worker. Refused, with the reason, when that would be unsafe."""
+            if name not in application.supervisor.names():
+                raise HTTPException(status_code=404, detail=f"no worker named {name!r}")
+            result = application.supervisor.restart(name)
+            audit_event(
+                request,
+                "worker.restart",
+                target=name,
+                detail={"ok": result.ok, "detail": result.detail},
+            )
+            return RestartOut(ok=result.ok, detail=result.detail)
 
     @router.get("/logs", response_model=LogsOut, dependencies=[requires(Permission.DIAGNOSTICS)])
     def logs(

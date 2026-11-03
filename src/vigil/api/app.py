@@ -22,6 +22,7 @@ from vigil.api.schemas import (
     MetricsOut,
     ModelOut,
     SystemOut,
+    degradation_out,
 )
 from vigil.api.session import AccountsGuard, LegacyGuard, request_discipline, requires
 from vigil.api.viewer import VIEWER_HTML
@@ -102,6 +103,7 @@ def create_app(
         response = application.response
         return HealthOut(
             persists_incidents=response is not None,
+            degradation=degradation_out(snap.degradation),
             schema_version=None if response is None else response.migration.version,
             state=snap.state.value,
             level=snap.health.level.value,
@@ -249,7 +251,7 @@ def create_app(
     from vigil.api.routers import config_admin, system_ops
     from vigil.api.routers import telemetry as telemetry_router
 
-    api.include_router(system_ops.build_router(paths=application.paths))
+    api.include_router(system_ops.build_router(paths=application.paths, application=application))
     api.include_router(config_admin.build_router(application=application, restart=restart))
 
     response = application.response
