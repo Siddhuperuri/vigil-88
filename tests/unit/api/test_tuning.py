@@ -1,4 +1,4 @@
-"""Per-camera thresholds: shown with their real bounds, validated by the module, saved per camera."""
+"""Per-camera thresholds: shown with real bounds, validated by the module, saved per camera."""
 
 from __future__ import annotations
 
