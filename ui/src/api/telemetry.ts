@@ -25,11 +25,21 @@ const system = z
   })
   .nullable();
 
+const degradation = z.object({
+  step: z.number(),
+  label: z.string(),
+  reason: z.string().nullable(),
+  since_utc: z.string().nullable(),
+  suspended_cameras: z.array(z.string()),
+});
+
 export const snapshotSchema = z.object({
   kind: z.literal("snapshot"),
   state: z.string(),
   health: z.object({ level: z.enum(["ok", "degraded", "failed"]), issues: z.array(z.string()) }),
   uptime_ms: z.number().nullable(),
+  // Absent from an engine that predates the ladder; the console then shows nothing, not a zero.
+  degradation: degradation.optional(),
   cameras: z.array(camera),
   system,
 });

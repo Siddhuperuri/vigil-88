@@ -100,6 +100,145 @@
         "title": "AdminCamera",
         "type": "object"
       },
+      "AlertPolicyDoc": {
+        "additionalProperties": false,
+        "description": "The part of the alert settings that is policy. Channels and the webhook are not included.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "min_severity": {
+            "default": "MODERATE",
+            "enum": [
+              "INFO",
+              "LOW",
+              "MODERATE",
+              "HIGH",
+              "CRITICAL"
+            ],
+            "title": "Min Severity",
+            "type": "string"
+          },
+          "quiet_hours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuietHoursConfig"
+            },
+            "title": "Quiet Hours",
+            "type": "array"
+          },
+          "rules": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleConfig"
+            },
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "title": "AlertPolicyDoc",
+        "type": "object"
+      },
+      "AlertRuleConfig": {
+        "additionalProperties": false,
+        "description": "When an incident matches, this rule's threshold and channels apply instead of the default.\n\nThe first matching rule wins. A rule narrows by camera and event type (an empty list or no\ncamera means any); it may raise or lower the severity threshold for what it matches, and may\nsend to a subset of the configured channels.",
+        "properties": {
+          "camera": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Camera"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "console",
+                    "jsonl",
+                    "webhook"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "event_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Event Types",
+            "type": "array"
+          },
+          "min_severity": {
+            "anyOf": [
+              {
+                "enum": [
+                  "INFO",
+                  "LOW",
+                  "MODERATE",
+                  "HIGH",
+                  "CRITICAL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Severity"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AlertRuleConfig",
+        "type": "object"
+      },
+      "AlertSettingsOut": {
+        "properties": {
+          "applied_live": {
+            "title": "Applied Live",
+            "type": "boolean"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/AlertPolicyDoc"
+          }
+        },
+        "required": [
+          "policy",
+          "channels",
+          "applied_live"
+        ],
+        "title": "AlertSettingsOut",
+        "type": "object"
+      },
       "AnalyticsSummaryOut": {
         "properties": {
           "acknowledgement": {
@@ -788,6 +927,57 @@
         "title": "CredentialOut",
         "type": "object"
       },
+      "DegradationOut": {
+        "description": "The ladder's state (01 \u00a79). `step` 0 is normal; anything else is the engine shedding load,\nand the console must say so on every screen that shows a camera, never only on System.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "since_utc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since Utc"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "suspended_cameras": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suspended Cameras",
+            "type": "array"
+          }
+        },
+        "required": [
+          "step",
+          "label",
+          "reason",
+          "since_utc",
+          "suspended_cameras"
+        ],
+        "title": "DegradationOut",
+        "type": "object"
+      },
       "DetectionOut": {
         "properties": {
           "bbox": {
@@ -1042,6 +1232,63 @@
         "title": "EventType",
         "type": "string"
       },
+      "EvidenceAnnotationsOut": {
+        "description": "How far the evidence can be trusted to be continuous (07). Absent when no manifest exists.",
+        "properties": {
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceGapOut"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "preroll_shortfall_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preroll Shortfall Ms"
+          },
+          "stream_interrupted": {
+            "title": "Stream Interrupted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stream_interrupted",
+          "gaps",
+          "preroll_shortfall_ms"
+        ],
+        "title": "EvidenceAnnotationsOut",
+        "type": "object"
+      },
+      "EvidenceGapOut": {
+        "properties": {
+          "end_ms": {
+            "title": "End Ms",
+            "type": "number"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "start_ms": {
+            "title": "Start Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "start_ms",
+          "end_ms"
+        ],
+        "title": "EvidenceGapOut",
+        "type": "object"
+      },
       "EvidenceOut": {
         "properties": {
           "bytes": {
@@ -1271,6 +1518,16 @@
             "title": "Capabilities",
             "type": "array"
           },
+          "degradation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DegradationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "detector": {
             "anyOf": [
               {
@@ -1335,6 +1592,52 @@
         "title": "HealthOut",
         "type": "object"
       },
+      "ImportOut": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "backup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedChangeOut"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "restart_needed": {
+            "title": "Restart Needed",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "applied",
+          "changes",
+          "warnings",
+          "backup",
+          "restart_needed"
+        ],
+        "title": "ImportOut",
+        "type": "object"
+      },
       "IncidentDetailOut": {
         "properties": {
           "available_transitions": {
@@ -1350,6 +1653,16 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "evidence_annotations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceAnnotationsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "explanation": {
             "$ref": "#/components/schemas/ExplanationOut"
@@ -1697,6 +2010,135 @@
           "max_ms"
         ],
         "title": "LatencyOut",
+        "type": "object"
+      },
+      "LineConfig": {
+        "additionalProperties": false,
+        "description": "A crossing line (tripwire): two points in normalized [0, 1] coordinates.\n\n`direction` is which way across counts, as seen walking from `start` to `end`: `to_right`\nis from the line's left to its right. `any` counts both ways.",
+        "properties": {
+          "criticality": {
+            "default": 0,
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Criticality",
+            "type": "integer"
+          },
+          "direction": {
+            "default": "any",
+            "enum": [
+              "any",
+              "to_right",
+              "to_left"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "end": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "End",
+            "type": "array"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Start",
+            "type": "array"
+          }
+        },
+        "required": [
+          "line_id",
+          "start",
+          "end"
+        ],
+        "title": "LineConfig",
+        "type": "object"
+      },
+      "LiveApplyOut": {
+        "properties": {
+          "applied": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "needs_restart": {
+            "items": {
+              "$ref": "#/components/schemas/LiveSkipped"
+            },
+            "title": "Needs Restart",
+            "type": "array"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/PendingOut"
+          }
+        },
+        "required": [
+          "applied",
+          "needs_restart",
+          "pending"
+        ],
+        "title": "LiveApplyOut",
+        "type": "object"
+      },
+      "LiveSkipped": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "reason"
+        ],
+        "title": "LiveSkipped",
         "type": "object"
       },
       "LoginIn": {
@@ -2274,6 +2716,29 @@
         "title": "PendingOut",
         "type": "object"
       },
+      "PlannedChangeOut": {
+        "properties": {
+          "change": {
+            "title": "Change",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "change"
+        ],
+        "title": "PlannedChangeOut",
+        "type": "object"
+      },
       "ProbeOut": {
         "properties": {
           "backend": {
@@ -2357,6 +2822,39 @@
         "title": "ProbeOut",
         "type": "object"
       },
+      "QuietHoursConfig": {
+        "additionalProperties": false,
+        "description": "A window during which only alerts at or above `let_through_from` interrupt anyone.\n\n`let_through_from` defaults to CRITICAL and cannot be set higher, because there is nothing\nhigher: CRITICAL always gets through.",
+        "properties": {
+          "let_through_from": {
+            "default": "CRITICAL",
+            "enum": [
+              "INFO",
+              "LOW",
+              "MODERATE",
+              "HIGH",
+              "CRITICAL"
+            ],
+            "title": "Let Through From",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleConfig"
+          }
+        },
+        "required": [
+          "name",
+          "schedule"
+        ],
+        "title": "QuietHoursConfig",
+        "type": "object"
+      },
       "RecoverIn": {
         "additionalProperties": false,
         "properties": {
@@ -2401,6 +2899,24 @@
           "new_password"
         ],
         "title": "ResetIn",
+        "type": "object"
+      },
+      "RestartOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "detail"
+        ],
+        "title": "RestartOut",
         "type": "object"
       },
       "Role": {
@@ -2986,6 +3502,147 @@
         "title": "TransitionOut",
         "type": "object"
       },
+      "TuningIn": {
+        "additionalProperties": false,
+        "properties": {
+          "overrides": {
+            "additionalProperties": true,
+            "title": "Overrides",
+            "type": "object"
+          }
+        },
+        "required": [
+          "overrides"
+        ],
+        "title": "TuningIn",
+        "type": "object"
+      },
+      "TuningModule": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "module_id": {
+            "title": "Module Id",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/TuningParam"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "boolean"
+          },
+          "will_run": {
+            "title": "Will Run",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "module_id",
+          "description",
+          "enabled",
+          "will_run",
+          "params",
+          "pending"
+        ],
+        "title": "TuningModule",
+        "type": "object"
+      },
+      "TuningParam": {
+        "properties": {
+          "default": {
+            "title": "Default"
+          },
+          "effective": {
+            "title": "Effective"
+          },
+          "exclusive_maximum": {
+            "title": "Exclusive Maximum",
+            "type": "boolean"
+          },
+          "exclusive_minimum": {
+            "title": "Exclusive Minimum",
+            "type": "boolean"
+          },
+          "file_value": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Value"
+          },
+          "has_override": {
+            "title": "Has Override",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "override": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "default",
+          "file_value",
+          "override",
+          "has_override",
+          "effective",
+          "minimum",
+          "maximum",
+          "exclusive_minimum",
+          "exclusive_maximum"
+        ],
+        "title": "TuningParam",
+        "type": "object"
+      },
       "UnlockIn": {
         "additionalProperties": false,
         "properties": {
@@ -3125,6 +3782,58 @@
         "title": "VerdictOut",
         "type": "object"
       },
+      "WorkerOut": {
+        "properties": {
+          "alive": {
+            "title": "Alive",
+            "type": "boolean"
+          },
+          "crashed": {
+            "title": "Crashed",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "heartbeat_age_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartbeat Age Ms"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "restartable": {
+            "title": "Restartable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "alive",
+          "crashed",
+          "error",
+          "heartbeat_age_ms",
+          "restartable"
+        ],
+        "title": "WorkerOut",
+        "type": "object"
+      },
       "ZoneConfig": {
         "additionalProperties": false,
         "properties": {
@@ -3200,6 +3909,14 @@
       "ZoneSetConfig": {
         "additionalProperties": false,
         "properties": {
+          "lines": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineConfig"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
           "version": {
             "const": 1,
             "default": 1,
@@ -4782,6 +5499,35 @@
         ]
       }
     },
+    "/api/v1/config/apply-live": {
+      "post": {
+        "description": "Apply what can take effect now (zone and line edits) and report what cannot.",
+        "operationId": "apply_live_api_v1_config_apply_live_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Apply Live",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
     "/api/v1/config/cameras": {
       "get": {
         "operationId": "cameras_api_v1_config_cameras_get",
@@ -5003,6 +5749,131 @@
           }
         ],
         "summary": "Update Camera",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras/{camera_id}/tuning": {
+      "get": {
+        "operationId": "get_tuning_api_v1_config_cameras__camera_id__tuning_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TuningModule"
+                  },
+                  "title": "Response Get Tuning Api V1 Config Cameras  Camera Id  Tuning Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Get Tuning",
+        "tags": [
+          "configuration"
+        ]
+      }
+    },
+    "/api/v1/config/cameras/{camera_id}/tuning/{module_id}": {
+      "put": {
+        "operationId": "put_tuning_api_v1_config_cameras__camera_id__tuning__module_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "module_id",
+            "required": true,
+            "schema": {
+              "title": "Module Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuningIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TuningModule"
+                  },
+                  "title": "Response Put Tuning Api V1 Config Cameras  Camera Id  Tuning  Module Id  Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Put Tuning",
         "tags": [
           "configuration"
         ]
@@ -6633,6 +7504,157 @@
         ]
       }
     },
+    "/api/v1/settings/alerts": {
+      "get": {
+        "operationId": "get_alerts_api_v1_settings_alerts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Get Alerts",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "put_alerts_api_v1_settings_alerts_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertPolicyDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Put Alerts",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/export": {
+      "get": {
+        "operationId": "export_settings_api_v1_settings_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Export Settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/import": {
+      "post": {
+        "description": "Check a settings file (the default) or apply it (`dry_run=false`). Never deletes.",
+        "operationId": "import_settings_api_v1_settings_import_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Dry Run",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Import Settings",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
     "/api/v1/system/channels": {
       "get": {
         "description": "An unavailable channel is named with its reason, never quietly omitted (08 \u00a78).",
@@ -6663,6 +7685,33 @@
         "summary": "Channels",
         "tags": [
           "modules"
+        ]
+      }
+    },
+    "/api/v1/system/diagnostics": {
+      "get": {
+        "description": "A zip an administrator can send to get help: versions, health, redacted\nconfiguration and logs. Never frames, evidence, accounts or credentials.",
+        "operationId": "diagnostics_api_v1_system_diagnostics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "diagnostics"
+            ]
+          }
+        ],
+        "summary": "Diagnostics",
+        "tags": [
+          "system"
         ]
       }
     },
@@ -6836,6 +7885,89 @@
           }
         ],
         "summary": "Storage",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/workers": {
+      "get": {
+        "description": "Every worker with whether it can be restarted on its own.",
+        "operationId": "workers_api_v1_system_workers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerOut"
+                  },
+                  "title": "Response Workers Api V1 System Workers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Workers",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/system/workers/{name}/restart": {
+      "post": {
+        "description": "Replace one worker. Refused, with the reason, when that would be unsafe.",
+        "operationId": "restart_worker_api_v1_system_workers__name__restart_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "configure"
+            ]
+          }
+        ],
+        "summary": "Restart Worker",
         "tags": [
           "system"
         ]

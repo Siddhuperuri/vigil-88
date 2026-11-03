@@ -231,6 +231,12 @@ export function Cameras({
                   </td>
                   <td>
                     <a href={href({ view: "zones", camera: id })}>Zones</a>{" "}
+                    <a
+                      href={href({ view: "tuning", camera: id })}
+                      aria-label={`Thresholds for ${id}`}
+                    >
+                      Thresholds
+                    </a>{" "}
                     {canEdit && c.editable && c.pending !== "removed" && (
                       <>
                         <a href={href({ view: "cameras", id })} aria-label={`Edit ${id}`}>

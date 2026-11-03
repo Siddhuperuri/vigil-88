@@ -12,7 +12,10 @@ import { Cameras } from "./screens/Cameras";
 import { Incidents } from "./screens/Incidents";
 import { People } from "./screens/People";
 import { Reports } from "./screens/Reports";
+import { Settings } from "./screens/Settings";
 import { System } from "./screens/System";
+import { Tuning } from "./screens/Tuning";
+import { Wizard } from "./screens/Wizard";
 import { Wall } from "./screens/Wall";
 import { Zones } from "./screens/Zones";
 import { AuthProvider, useAuth } from "./state/auth";
@@ -200,6 +203,9 @@ function Signed({
           {route.view === "people" &&
             (role === "administrator" ? <People me={username} /> : <AdminOnly />)}
           {route.view === "audit" && (role === "administrator" ? <Audit /> : <AdminOnly />)}
+          {route.view === "settings" && (role === "administrator" ? <Settings /> : <AdminOnly />)}
+          {route.view === "tuning" && <Tuning route={route} role={role} />}
+          {route.view === "setup" && <Wizard role={role} />}
           {route.view === "system" && <System role={role} />}
         </Shell>
         <Shortcuts open={shortcuts} onClose={close} />

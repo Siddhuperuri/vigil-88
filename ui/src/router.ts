@@ -11,6 +11,9 @@ export type Route =
   | { view: "reports" }
   | { view: "people" }
   | { view: "audit" }
+  | { view: "settings" }
+  | { view: "tuning"; camera: string | null }
+  | { view: "setup" }
   | { view: "system" };
 
 /** A malformed escape in a hand-edited URL must not take the console down. */
@@ -39,6 +42,12 @@ export function parse(hash: string): Route {
       return { view: "people" };
     case "audit":
       return { view: "audit" };
+    case "settings":
+      return { view: "settings" };
+    case "tuning":
+      return { view: "tuning", camera: parts[1] ?? null };
+    case "setup":
+      return { view: "setup" };
     case "system":
       return { view: "system" };
     default:
@@ -64,6 +73,12 @@ export function href(route: Route): string {
       return "#/people";
     case "audit":
       return "#/audit";
+    case "settings":
+      return "#/settings";
+    case "tuning":
+      return route.camera === null ? "#/tuning" : `#/tuning/${encodeURIComponent(route.camera)}`;
+    case "setup":
+      return "#/setup";
     case "system":
       return "#/system";
   }
