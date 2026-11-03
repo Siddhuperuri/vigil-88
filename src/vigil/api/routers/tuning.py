@@ -87,7 +87,7 @@ def _bounds(spec: Mapping[str, Any]) -> tuple[float | None, float | None, bool, 
     )
 
 
-def _bound_module(
+def bind_check(
     registry: ModuleRegistry, module_id: str, camera_id: str, params: Mapping[str, object]
 ) -> DetectionModule:
     """Bind a throwaway instance with `params`; raises the module's own validation error."""
@@ -135,12 +135,10 @@ def build_router(*, application: Application) -> APIRouter:
             overrides = dict(cam.module_params.get(mid, {}))
             effective = merge_params(descriptor.default_params, file_layer, overrides)
             try:
-                instance = _bound_module(reg, mid, cam.camera_id, effective)
+                instance = bind_check(reg, mid, cam.camera_id, effective)
                 model = getattr(instance, "params", None)
                 props: Mapping[str, Any] = (
-                    model.model_json_schema().get("properties", {})
-                    if model is not None
-                    else {}
+                    model.model_json_schema().get("properties", {}) if model is not None else {}
                 )
             except (ValidationError, VigilError):
                 props = {}  # the stored values do not bind: shown below as plain values
@@ -205,7 +203,7 @@ def build_router(*, application: Application) -> APIRouter:
             descriptor.default_params, load_module_params(config_dir, module_id), body.overrides
         )
         try:
-            _bound_module(reg, module_id, camera_id, merged)
+            bind_check(reg, module_id, camera_id, merged)
         except ValidationError as exc:
             raise HTTPException(
                 422, detail={"message": "Those values are not valid.", "issues": _issues(exc)}

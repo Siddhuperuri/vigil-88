@@ -20,6 +20,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
+from vigil.config.schema.alerts import AlertsConfig
 from vigil.config.zones import zone_file_path
 from vigil.core.capabilities import Capability
 from vigil.pipeline.app import Application
@@ -84,3 +85,15 @@ def apply_zone_edits(
     for ref in done_refs:
         baseline[ref] = file_hash(zone_file_path(config_dir, ref))
     return LiveOutcome(tuple(applied), tuple(skipped))
+
+
+def apply_alerts(application: Application, alerts: AlertsConfig) -> bool:
+    """Make a new alert policy the one in force, now. Channels are not rebuilt (that needs a
+    restart); rules, quiet hours, the threshold and the on/off switch are."""
+    response = application.response
+    if response is None:
+        return False
+    response.alerts.reconfigure(alerts)
+    # The effective configuration changed, so the hash stamped on later incidents must say so.
+    application.settings = application.settings.model_copy(update={"alerts": alerts})
+    return True

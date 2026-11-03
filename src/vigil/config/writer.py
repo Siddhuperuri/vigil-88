@@ -35,7 +35,7 @@ def camera_file_path(config_dir: Path, camera_id: str) -> Path:
     return config_dir / CAMERAS_DIR / f"{camera_id}.yaml"
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -49,7 +49,7 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
-def _dump(model: CameraConfig | ZoneSetConfig) -> str:
+def dump_text(model: CameraConfig | ZoneSetConfig) -> str:
     data = model.model_dump(mode="json", exclude_defaults=True)
     return _HEADER + yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
@@ -79,10 +79,10 @@ def validate_zone_set(raw: object) -> ZoneSetConfig:
 
 def write_camera(config_dir: Path, camera: CameraConfig) -> Path:
     path = camera_file_path(config_dir, camera.camera_id)
-    text = _dump(camera)
+    text = dump_text(camera)
     if len(text.encode("utf-8")) > MAX_CAMERA_FILE_BYTES:
         raise ConfigError("the camera file would be unreasonably large")
-    _atomic_write(path, text)
+    atomic_write(path, text)
     return path
 
 
@@ -119,7 +119,7 @@ def delete_camera(config_dir: Path, camera_id: str) -> bool:
 
 def write_zone_set(config_dir: Path, ref: str, zones: ZoneSetConfig) -> Path:
     path = zone_file_path(config_dir, ref)  # validates the ref as a slug
-    _atomic_write(path, _dump(zones))
+    atomic_write(path, dump_text(zones))
     return path
 
 
@@ -136,3 +136,19 @@ def zone_refs(config_dir: Path) -> list[str]:
     if not folder.is_dir():
         return []
     return sorted(p.name.removesuffix(ZONES_SUFFIX) for p in folder.glob(f"*{ZONES_SUFFIX}"))
+
+
+# ------------------------------------------------------------------ shared module parameters
+
+
+def module_params_file(config_dir: Path, module_id: str) -> Path:
+    from vigil.config.module_params import module_params_path
+
+    return module_params_path(config_dir, module_id)
+
+
+def write_module_params(config_dir: Path, module_id: str, params: dict[str, object]) -> Path:
+    """The shared parameter layer, `config/modules/<module>.yaml`."""
+    path = module_params_file(config_dir, module_id)
+    atomic_write(path, _HEADER + yaml.safe_dump(params, sort_keys=False, allow_unicode=True))
+    return path
