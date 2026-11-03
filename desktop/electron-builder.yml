@@ -1,0 +1,35 @@
+# The Windows installer. Unsigned: signing needs a certificate the owner has not chosen (plan decision 3).
+# A CPU engine is bundled. The NVIDIA runtime (about 2.4 GB) is NOT, pending decision 2.
+appId: app.vigil88.desktop
+productName: VIGIL-88
+copyright: Copyright (c) VIGIL-88 contributors
+directories:
+  output: ../build/installer
+  buildResources: installer
+files:
+  - out/**
+  - package.json
+asar: true
+# The frozen engine and the built console sit beside the app, outside the archive, so the engine
+# can be started as a process and the page served from plain files.
+extraResources:
+  - from: ../build/dist/vigil-engine
+    to: engine
+  - from: ../ui/dist
+    to: ui
+win:
+  target:
+    - target: nsis
+      arch: x64
+  icon: installer/icon.png
+  signExecutable: false # nothing to sign with (plan decision 3); icon and version info still apply
+nsis:
+  oneClick: false
+  perMachine: false # per user: no administrator rights, data under the user's profile
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: VIGIL-88
+  deleteAppDataOnUninstall: false # the prompt below decides; silent uninstalls keep the data
+  include: installer/uninstall-data.nsh
+  artifactName: VIGIL-88-Setup-${version}.${ext}
