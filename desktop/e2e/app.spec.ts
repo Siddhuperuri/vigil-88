@@ -214,6 +214,19 @@ test.describe("the real app", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
+    // The command palette: Ctrl+K, type, Enter goes there; Escape closes it without doing anything.
+    await page.keyboard.press("Control+K");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.keyboard.press("Control+K");
+    await page.keyboard.type("syst");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("heading", { name: "System" })).toBeVisible();
+    await page.getByRole("link", { name: "Incident desk" }).click();
+    await expect(page.getByRole("heading", { name: "Incident desk" })).toBeVisible();
+
     // Lock: the console is gated, monitoring is not. The wrong password is refused in place.
     await page.getByRole("button", { name: "Lock console" }).click();
     await expect(page.getByRole("heading", { name: "Console locked" })).toBeVisible();

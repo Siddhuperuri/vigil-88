@@ -110,6 +110,18 @@ describe("the signed-in shell", () => {
     expect(screen.queryByRole("link", { name: "People" })).not.toBeInTheDocument();
   });
 
+  it("opens a command palette on Ctrl+K that goes to views, and hides what the role may not use", async () => {
+    signedIn();
+    render(<App />);
+    await screen.findByRole("heading", { name: "Live wall" });
+    await userEvent.keyboard("{Control>}k{/Control}");
+    const box = await screen.findByLabelText("Go to or do");
+    expect(screen.queryByRole("button", { name: "Go to People" })).not.toBeInTheDocument();
+    await userEvent.type(box, "rep{Enter}");
+    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#/reports");
+  });
+
   it("shows engine state, cameras and load in the strip once the live link delivers them, and says unavailable before", async () => {
     signedIn();
     render(<App />);

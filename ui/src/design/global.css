@@ -664,3 +664,24 @@ a.button.primary {
   min-width: 2px;
   background: var(--vg-signal);
 }
+
+/* ---- D3: command palette ------------------------------------------------------------------ */
+dialog.palette {
+  width: min(32rem, 92vw);
+  top: 12vh;
+  margin-inline: auto;
+}
+dialog.palette input {
+  width: 100%;
+}
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.palette-list button {
+  width: 100%;
+  text-align: left;
+}

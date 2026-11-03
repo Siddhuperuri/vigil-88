@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alerts } from "./components/Alerts";
 import { PendingBar } from "./components/PendingBar";
-import { Announcer, Shell } from "./components/Shell";
+import { type Command, CommandPalette } from "./components/CommandPalette";
+import { Announcer, Shell, VIEWS } from "./components/Shell";
 import { Notice } from "./components/bits";
 import { href, useRoute } from "./router";
 import { Login, Lock, Setup } from "./screens/Gate";
@@ -26,6 +27,7 @@ const SHORTCUTS: [string, string][] = [
   ["n", "Write a note"],
   ["/", "Search incidents"],
   ["?", "This list"],
+  ["Ctrl K", "Command palette: go to a view or run an action"],
   ["Esc", "Close a dialog or a reason prompt"],
 ];
 
@@ -96,12 +98,61 @@ function Signed({
   const [route, go] = useRoute();
   const [shortcuts, setShortcuts] = useState(false);
   const [sound, setSound] = useState(() => storedSound());
+  const [palette, setPalette] = useState(false);
   const open = useCallback(() => {
     setShortcuts(true);
   }, []);
   const close = useCallback(() => {
     setShortcuts(false);
   }, []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPalette((p) => !p);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const commands: Command[] = [
+    ...VIEWS.filter((v) => !v.adminOnly || role === "administrator").map((v) => ({
+      id: `go-${v.label}`,
+      label: `Go to ${v.label}`,
+      run: () => {
+        go(v.route);
+      },
+    })),
+    {
+      id: "sound",
+      label: sound ? "Turn the alert sound off" : "Turn the alert sound on",
+      keywords: "mute audio",
+      run: () => {
+        setSound((on) => {
+          storeSound(!on);
+          return !on;
+        });
+      },
+    },
+    { id: "shortcuts", label: "Show keyboard shortcuts", keywords: "keys help", run: open },
+    {
+      id: "lock",
+      label: "Lock the console",
+      run: () => {
+        void auth.lock();
+      },
+    },
+    {
+      id: "signout",
+      label: "Sign out",
+      keywords: "log out",
+      run: () => {
+        void auth.logout();
+      },
+    },
+  ];
   return (
     <TelemetryProvider onEnded={auth.refresh}>
       <PendingProvider>
@@ -150,6 +201,13 @@ function Signed({
           {route.view === "system" && <System role={role} />}
         </Shell>
         <Shortcuts open={shortcuts} onClose={close} />
+        <CommandPalette
+          commands={commands}
+          open={palette}
+          onClose={() => {
+            setPalette(false);
+          }}
+        />
       </PendingProvider>
     </TelemetryProvider>
   );

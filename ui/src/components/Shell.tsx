@@ -6,7 +6,7 @@ import { useAuth } from "../state/auth";
 import { useTelemetry } from "../state/telemetry";
 import { readout } from "./bits";
 
-const NAV: { label: string; route: Route; adminOnly?: boolean }[] = [
+export const VIEWS: { label: string; route: Route; adminOnly?: boolean }[] = [
   { label: "Live wall", route: { view: "wall", camera: null } },
   { label: "Incident desk", route: { view: "incidents", id: null } },
   { label: "Cameras", route: { view: "cameras", id: null } },
@@ -121,7 +121,7 @@ export function Shell({
       <StatusStrip />
       <nav className="rail" aria-label="Main">
         <ul>
-          {NAV.filter((item) => item.adminOnly !== true || user.role === "administrator").map(
+          {VIEWS.filter((item) => item.adminOnly !== true || user.role === "administrator").map(
             (item) => (
               <li key={item.label}>
                 <a
