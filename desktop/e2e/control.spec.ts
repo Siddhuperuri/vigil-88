@@ -149,7 +149,9 @@ test.describe("the controls, in the real app", () => {
     await expect(page.getByText(/zones bench added/)).toBeVisible();
     // The camera had no zones, so this edit adds a capability: the engine must say it needs a restart.
     await page.getByRole("button", { name: "Apply zone changes now" }).click();
-    await expect(page.getByRole("alert")).toContainText("no running camera uses this zone file yet");
+    await expect(page.getByRole("alert")).toContainText(
+      "no running camera uses this zone file yet",
+    );
   });
 
   test("the setup guide is reachable and ends with an honest summary", async () => {

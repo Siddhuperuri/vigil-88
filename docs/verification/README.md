@@ -32,3 +32,14 @@ because a script exists.
    [LIMITATIONS](../LIMITATIONS.md); the check is not loosened.
 
 Use [evidence/TEMPLATE.md](evidence/TEMPLATE.md) for anything done by hand.
+
+## Evidence kept here
+
+| File | What it is |
+|---|---|
+| [uninstall-branches.json](evidence/uninstall-branches.json) | Both uninstall branches on the development machine |
+| [antivirus-defender.json](evidence/antivirus-defender.json) | Microsoft Defender scan and a 30 s run, one machine |
+| [clean-install-dev-machine.json](evidence/clean-install-dev-machine.json) | The install check; it states it is **not** a clean machine |
+| [drills-automated.json](evidence/drills-automated.json) | The automated drills |
+| [soak-6min-installed-app.md](evidence/soak-6min-installed-app.md) | A 6-minute whole-application soak |
+| [gpu-environment.json](evidence/gpu-environment.json) | The card, driver and execution providers; no benchmark |
