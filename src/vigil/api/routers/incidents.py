@@ -40,6 +40,8 @@ from vigil.api.schemas_incidents import (
 from vigil.api.session import actor_name, audit_event, requires
 from vigil.auth.roles import Permission
 from vigil.core.errors import PersistenceError
+from vigil.domain.dismissal import REASONS as DISMISSAL_REASONS
+from vigil.domain.dismissal import encode as encode_reason
 from vigil.domain.enums import EventType, IncidentStatus, Severity
 from vigil.domain.incident import Incident
 from vigil.persistence.queries import (
@@ -190,6 +192,11 @@ def build_router(
             page_size=size,
         )
 
+    @router.get("/dismissal-reasons", response_model=list[dict[str, str]], dependencies=[_VIEW])
+    def dismissal_reasons() -> list[dict[str, str]]:
+        """The fixed reasons an operator picks from when dismissing; no client invents its own."""
+        return [{"code": code, "label": label} for code, label in DISMISSAL_REASONS.items()]
+
     @router.get("/{incident_id}", response_model=IncidentDetailOut, dependencies=[_VIEW])
     def incident_detail(incident_id: str) -> IncidentDetailOut:
         incident = _require(incident_id)
@@ -260,6 +267,15 @@ def build_router(
             # 409, not 500: the request was well formed and the lifecycle simply says no.
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
         text = (body or {}).get("reason") or (body or {}).get("note")
+        code = (body or {}).get("reason_code")
+        if action == "dismiss" and code is not None:
+            try:
+                text = encode_reason(code, text)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Unknown dismissal reason; use one of {', '.join(DISMISSAL_REASONS)}.",
+                ) from None
         who = actor_name(request)
         try:
             if action == "acknowledge":

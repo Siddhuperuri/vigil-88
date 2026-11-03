@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { sendJson } from "../api/client";
 import type { Evidence, IncidentDetail as Detail, Role } from "../api/types";
 import { useFetch } from "../api/useFetch";
+import { ActionPrompt } from "../components/ActionPrompt";
 import { Notice, SeverityBadge, bytes, when } from "../components/bits";
 
 export type ActionName = "acknowledge" | "dismiss" | "escalate" | "resolve";
@@ -271,6 +272,7 @@ function DetailBody({
 }) {
   const [pending, setPending] = useState<ActionName | null>(null);
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState<string | null>(null);
   const [note, setNote] = useState(detail.operator_note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -280,13 +282,13 @@ function DetailBody({
     setBusy(true);
     setError(null);
     try {
-      await sendJson(
-        "POST",
-        `/api/v1/incidents/${encodeURIComponent(id)}/${action}`,
-        text === null ? {} : { reason: text, note: text },
-      );
+      await sendJson("POST", `/api/v1/incidents/${encodeURIComponent(id)}/${action}`, {
+        ...(text === null ? {} : { reason: text, note: text }),
+        ...(action === "dismiss" && reasonCode !== null ? { reason_code: reasonCode } : {}),
+      });
       setPending(null);
       setReason("");
+      setReasonCode(null);
       reload();
       onChanged();
     } catch (e) {
@@ -302,9 +304,11 @@ function DetailBody({
     else {
       setPending(action);
       // The prompt mounts on the next render; focus it then, so a keyboard user can type at once.
-      requestAnimationFrame(() => {
-        promptRef.current?.focus();
-      });
+      // A dismissal opens on its list of reasons instead, which focuses itself.
+      if (action !== "dismiss")
+        requestAnimationFrame(() => {
+          promptRef.current?.focus();
+        });
     }
   };
 
@@ -376,42 +380,23 @@ function DetailBody({
           </p>
         )}
         {pending !== null && (
-          <form
-            className="prompt"
-            onSubmit={(e) => {
-              e.preventDefault();
+          <ActionPrompt
+            action={pending}
+            label={LABEL[pending]}
+            explanation={NEEDS_REASON[pending] ?? ""}
+            reason={reason}
+            onReason={setReason}
+            reasonCode={reasonCode}
+            onReasonCode={setReasonCode}
+            busy={busy}
+            promptRef={promptRef}
+            onSubmit={() => {
               void run(pending, reason.trim() === "" ? null : reason.trim());
             }}
-          >
-            <p>{NEEDS_REASON[pending]}</p>
-            <label htmlFor="reason">Reason (optional)</label>
-            <textarea
-              id="reason"
-              ref={promptRef}
-              value={reason}
-              rows={2}
-              maxLength={2000}
-              onChange={(e) => {
-                setReason(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setPending(null);
-              }}
-            />
-            <div className="row">
-              <button type="submit" className="primary" disabled={busy}>
-                Confirm {LABEL[pending].toLowerCase()}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPending(null);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+            onCancel={() => {
+              setPending(null);
+            }}
+          />
         )}
       </section>
 

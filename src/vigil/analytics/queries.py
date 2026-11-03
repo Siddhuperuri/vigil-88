@@ -43,6 +43,7 @@ from vigil.analytics.definitions import (
     DurationStat,
     MetricDefinition,
 )
+from vigil.domain.dismissal import decode as decode_reason
 from vigil.domain.enums import CandidateOutcome, EventType, IncidentStatus, Severity
 from vigil.persistence.database import Database
 from vigil.persistence.mappers import from_utc_text, to_utc_text
@@ -332,6 +333,23 @@ class AnalyticsQueries:
             )
             for r in rows
         )
+
+    def dismissal_reasons(
+        self, window: Window, filters: IncidentFilter = ALL_INCIDENTS
+    ) -> tuple[Count, ...]:
+        """Why operators dismissed, from the code at the front of each dismissal's reason."""
+        where, params = self._where(window, filters)
+        rows = self._db.query(
+            "SELECT reason FROM incident_transitions WHERE to_status = 'dismissed' "
+            f"AND incident_id IN (SELECT incident_id FROM incidents{where})",
+            params,
+        )
+        tally: dict[str, int] = {}
+        for r in rows:
+            code = decode_reason(r["reason"])
+            tally[code] = tally.get(code, 0) + 1
+        ordered = sorted(tally.items(), key=lambda kv: (-kv[1], kv[0]))
+        return tuple(Count(key=k, count=n) for k, n in ordered)
 
     def candidate_outcomes(self, window: Window) -> tuple[Count, ...]:
         """A different population from incidents: most of these never became one (06 §1)."""

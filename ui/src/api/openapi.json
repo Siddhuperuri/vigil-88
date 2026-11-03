@@ -182,6 +182,13 @@
             "title": "Dismissal Rate",
             "type": "array"
           },
+          "dismissal_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/CountOut"
+            },
+            "title": "Dismissal Reasons",
+            "type": "array"
+          },
           "duration": {
             "$ref": "#/components/schemas/DurationOut"
           },
@@ -265,6 +272,7 @@
           "dismissal_rate",
           "candidate_outcomes",
           "rejection_reasons",
+          "dismissal_reasons",
           "camera_availability",
           "caveats",
           "metric_definitions"
@@ -5816,6 +5824,42 @@
           }
         ],
         "summary": "List Incidents",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/dismissal-reasons": {
+      "get": {
+        "description": "The fixed reasons an operator picks from when dismissing; no client invents its own.",
+        "operationId": "dismissal_reasons_api_v1_incidents_dismissal_reasons_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "title": "Response Dismissal Reasons Api V1 Incidents Dismissal Reasons Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "view"
+            ]
+          }
+        ],
+        "summary": "Dismissal Reasons",
         "tags": [
           "incidents"
         ]

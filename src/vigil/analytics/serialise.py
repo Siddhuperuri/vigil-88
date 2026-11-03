@@ -103,6 +103,7 @@ def _summary_json(summary: Summary) -> dict[str, object]:
             }
             for module_id, version, dismissed, total, ratio in summary.dismissal_rate
         ],
+        "dismissal_reasons": _counts_json(summary.dismissal_reasons),
         "candidate_outcomes": _counts_json(summary.candidate_outcomes),
         "rejection_reasons": _counts_json(summary.rejection_reasons),
         "camera_availability": {

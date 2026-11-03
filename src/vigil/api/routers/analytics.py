@@ -123,6 +123,7 @@ class AnalyticsSummaryOut(_Out):
     dismissal_rate: list[DismissalRateOut]
     candidate_outcomes: list[CountOut]
     rejection_reasons: list[CountOut]
+    dismissal_reasons: list[CountOut]
     camera_availability: dict[str, dict[str, float] | None]
     caveats: list[str]
     metric_definitions: dict[str, dict[str, str]]
@@ -236,6 +237,7 @@ def build_router(
             ],
             candidate_outcomes=_counts(s.candidate_outcomes),
             rejection_reasons=_counts(s.rejection_reasons),
+            dismissal_reasons=_counts(s.dismissal_reasons),
             camera_availability={
                 camera: (None if totals is None else dict(totals))
                 for camera, totals in s.camera_availability.items()

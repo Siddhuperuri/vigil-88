@@ -57,6 +57,10 @@ const routes = (extra: Record<string, unknown> = {}) => {
     "/api/v1/incidents/01A/evidence/ev1": new Response(new Blob(["x"]), {
       headers: { "x-evidence-integrity": "ok", "Content-Type": "image/jpeg" },
     }),
+    "/api/v1/incidents/dismissal-reasons": [
+      { code: "nothing_there", label: "Nothing was there" },
+      { code: "harmless", label: "Something was there, but harmless" },
+    ],
     "/api/v1/incidents/01A/": json(detail({ incident: A })),
     "/api/v1/incidents/01B": json(detail({ incident: B })),
     "/api/v1/incidents/01A": json(detail({ incident: A })),
@@ -214,7 +218,7 @@ describe("the detail", () => {
     });
   });
 
-  it("asks for a reason before dismissing, says what dismissing means, and sends it", async () => {
+  it("will not dismiss until a reason is chosen, then sends the code with the detail", async () => {
     const { calls } = mockFetch(
       routes({ "/api/v1/incidents/01A/dismiss": json(detail({ incident: A })) }),
     );
@@ -223,14 +227,39 @@ describe("the detail", () => {
     await screen.findByRole("heading", { name: /INC-A/ });
     await userEvent.keyboard("d");
     expect(await screen.findByText(/false alarm/)).toBeInTheDocument();
-    const reason = screen.getByLabelText("Reason (optional)");
-    expect(reason).toHaveFocus();
-    await userEvent.type(reason, "contractors");
-    await userEvent.click(screen.getByRole("button", { name: "Confirm dismiss" }));
+    // The list of reasons takes focus, so the keyboard path is d, arrows, Enter.
+    expect(await screen.findByRole("radio", { name: "Nothing was there" })).toHaveFocus();
+    const confirm = screen.getByRole("button", { name: "Confirm dismiss" });
+    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAccessibleDescription("Choose a reason first.");
+    await userEvent.click(screen.getByRole("radio", { name: "Something was there, but harmless" }));
+    await userEvent.type(screen.getByLabelText("More detail (optional)"), "contractors");
+    await userEvent.click(confirm);
     await waitFor(() => {
       const sent = calls.find((c) => c.url === "/api/v1/incidents/01A/dismiss");
-      expect(bodyOf(sent)).toMatchObject({ reason: "contractors" });
+      expect(bodyOf(sent)).toMatchObject({ reason: "contractors", reason_code: "harmless" });
     });
+  });
+
+  it("cancels a dismissal from the list of reasons with Escape, and says if the list cannot load", async () => {
+    mockFetch(routes());
+    window.location.hash = "#/incidents/01A";
+    const first = render(<Harness />);
+    await screen.findByRole("heading", { name: /INC-A/ });
+    await userEvent.keyboard("d");
+    await screen.findByRole("radio", { name: "Nothing was there" });
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("radio", { name: "Nothing was there" })).not.toBeInTheDocument();
+    first.unmount();
+
+    mockFetch(
+      routes({ "/api/v1/incidents/dismissal-reasons": json({ detail: "down" }, { status: 503 }) }),
+    );
+    render(<Harness />);
+    await screen.findByRole("heading", { name: /INC-A/ });
+    await userEvent.keyboard("d");
+    expect(await screen.findByText(/could not be loaded: down/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm dismiss" })).toBeDisabled();
   });
 
   it("can cancel a prompt, and Escape does the same", async () => {

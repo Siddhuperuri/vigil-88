@@ -654,6 +654,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/dismissal-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dismissal Reasons
+         * @description The fixed reasons an operator picks from when dismissing; no client invents its own.
+         */
+        get: operations["dismissal_reasons_api_v1_incidents_dismissal_reasons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}": {
         parameters: {
             query?: never;
@@ -1080,6 +1100,8 @@ export interface components {
             detection_latency: components["schemas"]["DurationOut"];
             /** Dismissal Rate */
             dismissal_rate: components["schemas"]["DismissalRateOut"][];
+            /** Dismissal Reasons */
+            dismissal_reasons: components["schemas"]["CountOut"][];
             duration: components["schemas"]["DurationOut"];
             /** Earliest Record Utc */
             earliest_record_utc: string | null;
@@ -3311,6 +3333,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismissal_reasons_api_v1_incidents_dismissal_reasons_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    }[];
                 };
             };
         };

@@ -229,6 +229,10 @@ const summary = (extra: Record<string, unknown> = {}) => ({
   dismissal_rate: [
     { module_id: "intrusion", module_version: "1.0.0", dismissed: 2, total: 5, ratio: 0.4 },
   ],
+  dismissal_reasons: [
+    { key: "harmless", count: 1 },
+    { key: "not_given", count: 1 },
+  ],
   candidate_outcomes: [],
   rejection_reasons: [],
   camera_availability: { dock: null },
@@ -255,6 +259,8 @@ describe("reports", () => {
     expect(screen.getAllByText(/unavailable: no incidents had this measured/)).toHaveLength(2);
     expect(screen.getAllByRole("rowheader", { name: /dock/ }).length).toBeGreaterThan(0);
     expect(screen.getByText("40%")).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "no reason given" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "harmless" })).toBeInTheDocument();
     expect(screen.getByText(/not a measured false-positive rate/)).toBeInTheDocument();
     expect(screen.getByText("unavailable")).toBeInTheDocument(); // dock availability
     await expectNoAccessibilityViolations(container);

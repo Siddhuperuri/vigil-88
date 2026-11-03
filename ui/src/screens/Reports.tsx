@@ -211,6 +211,17 @@ function Body({ s }: { s: Summary }): ReactNode {
         noise, not a measured false-positive rate: nobody has labelled what was really there.
       </p>
 
+      <Counts
+        title="Why operators dismissed"
+        rows={s.dismissal_reasons.map((r) => ({
+          key: r.key === "not_given" ? "no reason given" : r.key.replace(/_/g, " "),
+          count: r.count,
+        }))}
+      />
+      <p className="hint">
+        The reason is the operator&apos;s label. Nobody checked what was in the picture.
+      </p>
+
       <h3>Camera availability</h3>
       {avail.length === 0 ? (
         <p className="muted">unavailable: no availability was recorded for this period</p>

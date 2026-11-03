@@ -64,6 +64,7 @@ class Summary:
     candidate_outcomes: tuple[Count, ...]
     rejection_reasons: tuple[Count, ...]
     camera_availability: Mapping[str, Mapping[str, float] | None]
+    dismissal_reasons: tuple[Count, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +142,7 @@ class ReportBuilder:
             candidate_outcomes=analytics.candidate_outcomes(window),
             rejection_reasons=analytics.rejection_reasons(window),
             camera_availability=analytics.camera_availability(window),
+            dismissal_reasons=analytics.dismissal_reasons(window, filters),
         )
 
     def build(

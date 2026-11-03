@@ -251,6 +251,7 @@ def write_summary_csv(report: Report, handle: TextIO) -> int:
         ("by_status", summary.by_status),
         ("by_camera", summary.by_camera),
         ("trend", summary.trend),
+        ("dismissal_reasons", summary.dismissal_reasons),
         ("candidate_outcomes", summary.candidate_outcomes),
         ("rejection_reasons", summary.rejection_reasons),
     )
