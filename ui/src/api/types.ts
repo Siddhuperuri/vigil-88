@@ -57,3 +57,5 @@ export interface ChainReport {
 export type Candidate = Schemas["CandidateOut"];
 export type Timeline = Schemas["TimelineOut"];
 export type HealthEvent = Schemas["HealthEventOut"];
+
+export type ModuleAvailability = Schemas["ModuleAvailabilityOut"];

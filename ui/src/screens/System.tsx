@@ -3,6 +3,7 @@ import type { Logs, Role, Storage } from "../api/types";
 import { useFetch } from "../api/useFetch";
 import { Notice, StateLabel, bytes, readout } from "../components/bits";
 import { useTelemetry } from "../state/telemetry";
+import { Capabilities } from "./Capabilities";
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
@@ -195,6 +196,7 @@ export function System({ role }: { role: Role }) {
       <h1>System</h1>
       <Health />
       <StoragePanel />
+      <Capabilities />
       {role === "administrator" ? (
         <LogsPanel />
       ) : (

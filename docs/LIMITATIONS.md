@@ -474,6 +474,25 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   - A dismissal rate is a signal about noise, not a false-positive rate; nothing here is labelled ground truth.
   - People has no "sign this person out now" or session list; a role change or password reset ends their sessions.
 
+## Advanced features (D3)
+
+- **The dismissal rate is still not a false-positive rate.** Dismissal reasons (ADR 0018) are labels an operator
+  chose from a fixed list; nobody checks them against the picture. A dismissal made without a reason counts as
+  `not_given`. No rate has been produced from real operator use yet.
+- **Line-crossing zones and the module are not built.** Nothing evaluates a line, so the editor does not offer one.
+- **There is no screen for per-camera thresholds.** `module_params` in a camera file works, and saving a camera
+  from the console keeps it, but the console cannot edit it.
+- **The console draws no overlays of its own.** The engine draws boxes and labels into the picture, and no
+  measurement showed that to be limiting.
+- **The evidence bundle is not signed.** Its manifest shows whether a file still matches the hash recorded at
+  capture; it does not show that the recording is genuine. It is built on request and streamed from a temporary
+  file, and a very large clip was not tried.
+- **The timeline shows up to 100 incidents and 100 camera events** in the chosen period, with no paging and no
+  zoom. It is a list, not a drawn axis.
+- **The command palette is a shortcut, not a second interface.** It lists views and a few actions; every one
+  of them also exists as a control on screen.
+- **Windows Hello unlock and evidence encryption are not built and not designed.**
+
 ## Other
 
 - **No automatic worker restart.** A crashed worker is logged, counted and makes the application

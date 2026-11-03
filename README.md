@@ -33,7 +33,8 @@ DEGRADED for ever — which made it reject every candidate and therefore **detec
 | Analytics and reports over persisted records; JSON, CSV and (with `--extra reports`) PDF export | |
 | Local accounts, roles and an audit log on the desktop engine (`vigil serve`, API only so far); an Electron shell that supervises the engine, verified by real-app tests ([D0 report](docs/D0-REPORT.md)) | |
 | Desktop console: first-run setup, sign-in and lock, live wall, incident desk with keyboard triage and evidence integrity, system view, tray and native notifications ([D1 report](docs/D1-REPORT.md)) | |
-| Camera and zone management in the console (webcam, RTSP, video file; write-only credentials; a zone editor usable by keyboard), applied by a controlled restart rather than live; people, audit log and reports screens ([D2 report](docs/D2-REPORT.md)) | Live apply without a restart; RTSP against a real camera; settings and import/export |
+| Camera and zone management in the console (webcam, RTSP, video file; write-only credentials; a zone editor usable by keyboard), applied by a controlled restart rather than live; people, audit log and reports screens ([D2 report](docs/D2-REPORT.md)) |
+| Timeline and candidate-rejection feed, command palette, structured dismissal reasons counted in reports, single-incident evidence bundle with a per-file integrity manifest, a per-camera view of what can run and why ([D3 report](docs/D3-REPORT.md)) | Line-crossing zones, a per-camera thresholds screen, signed bundles | Live apply without a restart; RTSP against a real camera; settings and import/export |
 | Optional four-point ground-plane calibration: velocity in m/s, px/s and labelled px/s without it | |
 | Benchmark tooling that measures sustained load; results in [PERFORMANCE.md](docs/PERFORMANCE.md) | |
 | A measured multi-camera ceiling: four cameras served in full at 10 fps each, saturating near 52 inferences/s | |
