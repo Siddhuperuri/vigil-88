@@ -374,3 +374,110 @@ def test_a_file_camera_deleted_since_start_is_reported_as_removed(
     assert (
         "bench" not in listed
     )  # a removed camera is shown by /pending, not as if it were still there
+
+
+# ------------------------------------------------------------------ applying live
+
+
+def _wait(check, seconds: float = 10.0) -> bool:  # type: ignore[no-untyped-def]
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(0.02)
+    return bool(check())
+
+
+@pytest.fixture
+def with_zones(make_config: MakeConfig, tmp_path: Path) -> Iterator[Rig]:
+    """A file-backed camera whose zone file already exists when the engine starts."""
+    from vigil.config import writer
+
+    def seed(config_dir: Path) -> None:
+        writer.write_camera(config_dir, writer.validate_camera({**SYNTH, "zones_ref": "bench"}))
+        writer.write_zone_set(config_dir, "bench", writer.validate_zone_set(ZONES))
+
+    camera = {**SYNTH, "zones_ref": "bench"}
+    with build_rig(make_config, tmp_path, extra={"cameras": [camera]}, seed=seed) as rig:
+        yield rig
+
+
+def _zones_now(rig: Rig) -> list[str]:
+    runtime = rig.app.analysis.worker.runtime("bench")  # type: ignore[union-attr]
+    return [z.zone_id for z in runtime.analyzer.zones]  # type: ignore[union-attr]
+
+
+def test_an_edit_to_existing_zones_takes_effect_without_a_restart(with_zones: Rig) -> None:
+    set_up(with_zones)
+    edited = {"zones": [{"zone_id": "dock", "kind": "restricted", "polygon": SQUARE}]}
+    with signed_in(with_zones, "alice") as a:
+        assert a.put("/api/v1/config/cameras/bench/zones", json=edited).status_code == 200
+        assert a.get("/api/v1/config/pending").json()["pending"] is True
+        out = a.post("/api/v1/config/apply-live").json()
+        assert out["applied"] == ["bench"] and out["needs_restart"] == []
+        assert out["pending"]["pending"] is False
+        assert _wait(lambda: _zones_now(with_zones) == ["dock"])
+        assert [e["action"] for e in entries(with_zones, a, "config.applied_live")] == [
+            "config.applied_live"
+        ]
+    assert with_zones.restarts == []
+
+
+def test_lines_travel_with_the_zone_file_and_apply_live_too(with_zones: Rig) -> None:
+    set_up(with_zones)
+    both = {
+        **ZONES,
+        "lines": [
+            {"line_id": "door", "start": [0.2, 0.5], "end": [0.8, 0.5], "direction": "to_left"}
+        ],
+    }
+    with signed_in(with_zones, "alice") as a:
+        assert a.put("/api/v1/config/cameras/bench/zones", json=both).status_code == 200
+        assert (
+            a.get("/api/v1/config/cameras/bench/zones").json()["zones"]["lines"][0]["line_id"]
+            == "door"
+        )
+        assert a.post("/api/v1/config/apply-live").json()["applied"] == ["bench"]
+        runtime = with_zones.app.analysis.worker.runtime("bench")  # type: ignore[union-attr]
+        assert _wait(lambda: [ln.line_id for ln in runtime.analyzer.lines_in_force] == ["door"])  # type: ignore[union-attr]
+
+
+def test_removing_every_zone_changes_the_capability_and_waits_for_a_restart(
+    with_zones: Rig,
+) -> None:
+    set_up(with_zones)
+    with signed_in(with_zones, "alice") as a:
+        assert a.put("/api/v1/config/cameras/bench/zones", json={"zones": []}).status_code == 200
+        out = a.post("/api/v1/config/apply-live").json()
+    assert out["applied"] == [] and "zones capability" in out["needs_restart"][0]["reason"]
+    assert out["pending"]["pending"] is True
+    assert _zones_now(with_zones) == ["yard"]  # untouched
+
+
+def test_a_file_that_is_not_usable_is_not_applied(with_zones: Rig) -> None:
+    set_up(with_zones)
+    (with_zones.config_dir / "zones" / "bench.zones.yaml").write_text(
+        "zones: [oops", encoding="utf-8"
+    )
+    with signed_in(with_zones, "alice") as a:
+        out = a.post("/api/v1/config/apply-live").json()
+    assert out["applied"] == [] and "not usable" in out["needs_restart"][0]["reason"]
+    assert _zones_now(with_zones) == ["yard"]
+
+
+def test_with_nothing_pending_nothing_is_applied(with_zones: Rig) -> None:
+    set_up(with_zones)
+    with signed_in(with_zones, "alice") as a:
+        out = a.post("/api/v1/config/apply-live").json()
+    assert (
+        out["applied"] == [] and out["needs_restart"] == [] and out["pending"]["pending"] is False
+    )
+
+
+def test_an_operator_may_not_apply_configuration(with_zones: Rig) -> None:
+    set_up(with_zones)
+    make_user(with_zones, "oscar", "operator")
+    with signed_in(with_zones, "oscar", GOOD + "?") as o:
+        assert o.post("/api/v1/config/apply-live").status_code == 403

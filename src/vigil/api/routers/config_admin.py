@@ -12,7 +12,6 @@ with its before and after, and no secret is ever returned, logged or audited.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -20,6 +19,8 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Body, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from vigil.api.live_apply import apply_zone_edits
+from vigil.api.live_apply import file_hash as _hash
 from vigil.api.session import audit_event, requires
 from vigil.auth.roles import Permission
 from vigil.config import writer
@@ -90,6 +91,17 @@ class ZonesOut(BaseModel):
     editable: bool
 
 
+class LiveSkipped(BaseModel):
+    target: str
+    reason: str
+
+
+class LiveApplyOut(BaseModel):
+    applied: list[str]  # what took effect now, without a restart
+    needs_restart: list[LiveSkipped]  # what could not, and why
+    pending: PendingOut  # everything still waiting on a restart
+
+
 class CredentialIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: str = Field(min_length=1, max_length=128)
@@ -99,10 +111,6 @@ class CredentialIn(BaseModel):
 class CredentialOut(BaseModel):
     ref: str
     stored: bool
-
-
-def _hash(path: Path) -> str | None:
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
 def build_router(*, application: Application, restart: Callable[[], None] | None) -> APIRouter:
@@ -383,6 +391,24 @@ def build_router(*, application: Application, restart: Callable[[], None] | None
     def pending() -> PendingOut:
         changes = pending_changes()
         return PendingOut(pending=bool(changes), changes=changes, can_restart=restart is not None)
+
+    @router.post("/apply-live", response_model=LiveApplyOut, dependencies=[_CONFIGURE])
+    def apply_live(request: Request) -> LiveApplyOut:
+        """Apply what can take effect now (zone and line edits) and report what cannot."""
+        outcome = apply_zone_edits(application, config_dir, zones_at_start)
+        audit_event(
+            request,
+            "config.applied_live",
+            detail={"applied": list(outcome.applied), "skipped": len(outcome.skipped)},
+        )
+        changes = pending_changes()
+        return LiveApplyOut(
+            applied=list(outcome.applied),
+            needs_restart=[LiveSkipped(target=s.target, reason=s.reason) for s in outcome.skipped],
+            pending=PendingOut(
+                pending=bool(changes), changes=changes, can_restart=restart is not None
+            ),
+        )
 
     @router.post(
         "/apply",

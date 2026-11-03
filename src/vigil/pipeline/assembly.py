@@ -85,6 +85,17 @@ class AnalysisAssembly:
     zone_issues: Mapping[str, str]
     calibration_issues: Mapping[str, str]
 
+    def update_zones(
+        self, camera_id: str, zones: tuple[Zone, ...], lines: tuple[CrossingLine, ...]
+    ) -> bool:
+        """Hand a camera's scene analyzer new zones and lines, to be applied on its own thread.
+        False if there is no such camera."""
+        runtime = self.worker.runtime(camera_id)
+        if runtime is None:
+            return False
+        runtime.analyzer.request_swap(zones, lines)
+        return True
+
     def availability(self, camera_id: str) -> tuple[object, ...]:
         report = self.bindings.get(camera_id)
         return () if report is None else report.availability

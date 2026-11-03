@@ -174,3 +174,17 @@ def test_a_file_with_neither_is_reported_as_empty(tmp_path: Path) -> None:
 def test_the_settings_loader_is_unaffected_by_lines(tmp_path: Path) -> None:
     assert load_settings(config_dir=tmp_path, env={}, use_dotenv=False).settings.cameras == ()
     assert Capability.ZONES.value == "zones"
+
+
+def test_a_swap_requested_from_another_thread_is_applied_on_the_next_frame() -> None:
+    import threading
+
+    analyzer = SceneAnalyzer(camera_id=CAM, config=SceneConfig())
+    assert analyzer.analyze([], meta()).lines == ()
+    lines = lines_from_set(ZoneSetConfig(lines=(line(),)), CAM, max_lines=8)
+    worker = threading.Thread(target=analyzer.request_swap, args=((), lines))
+    worker.start()
+    worker.join()
+    assert analyzer.lines_in_force == ()  # nothing changed under the analysis thread's feet
+    assert analyzer.analyze([], meta(1, 100.0)).lines == lines
+    assert analyzer.analyze([], meta(2, 200.0)).lines == lines  # applied once, then kept

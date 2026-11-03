@@ -19,12 +19,14 @@ This is the boundary every detection module sees. What it guarantees:
 makes module availability honest (D-008): a camera with no zone file does not get `ZONES`, so
 `intrusion` is reported UNAVAILABLE with the reason, rather than running and finding nothing.
 
-One instance per camera, on that camera's analysis thread (D-005). No locks, no clock reads:
-every timestamp comes from the frame.
+One instance per camera, on that camera's analysis thread (D-005). No clock reads: every
+timestamp comes from the frame. The one lock guards the hand-over of a zone edit made on another
+thread (`request_swap`), never the analysis itself.
 """
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Protocol
@@ -66,6 +68,8 @@ class SceneAnalyzer:
         "_ground_plane",
         "_lines",
         "_occupancy",
+        "_pending",
+        "_pending_lock",
         "_stability",
         "_zones",
     )
@@ -88,10 +92,16 @@ class SceneAnalyzer:
         self._ground_plane = ground_plane
         self._occupancy = OccupancyTracker()
         self._geometry: ZoneGeometry | None = None
+        self._pending: tuple[tuple[Zone, ...], tuple[CrossingLine, ...]] | None = None
+        self._pending_lock = threading.Lock()
 
     @property
     def zones(self) -> tuple[Zone, ...]:
         return self._zones
+
+    @property
+    def lines_in_force(self) -> tuple[CrossingLine, ...]:
+        return self._lines
 
     @property
     def has_zones(self) -> bool:
@@ -100,6 +110,23 @@ class SceneAnalyzer:
     @property
     def ground_plane(self) -> GroundPlane | None:
         return self._ground_plane
+
+    def request_swap(self, zones: Sequence[Zone], lines: Sequence[CrossingLine]) -> None:
+        """Ask for new zones and lines from ANOTHER thread (an API request).
+
+        `set_zones` mutates the occupancy tracker, which the analysis thread is using, so it must
+        only ever run on that thread. This records the request; the next `analyze()` applies it
+        before it looks at the frame, so no frame is analysed against half of an edit.
+        """
+        with self._pending_lock:
+            self._pending = (tuple(zones), tuple(lines))
+
+    def _apply_pending(self) -> None:
+        with self._pending_lock:
+            pending, self._pending = self._pending, None
+        if pending is not None:
+            self.set_zones(pending[0])
+            self.set_lines(pending[1])
 
     def set_lines(self, lines: Sequence[CrossingLine]) -> None:
         """Tripwires carry no per-frame state of their own (a crossing is read from a track's
@@ -134,6 +161,8 @@ class SceneAnalyzer:
         pixels: PixelBuffer | None = None,
         capabilities: frozenset[Capability] = frozenset(),
     ) -> SceneState:
+        if self._pending is not None:
+            self._apply_pending()
         if zones is not None:
             self.set_zones(zones)
         geometry = self._geometry_for(frame_meta)
