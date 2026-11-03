@@ -224,6 +224,19 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `health.decode_error_window_ms` | int | `60000` | ge=1000 |
 | `health.max_decode_errors_per_window` | int | `10` | ge=1 |
 
+## `degradation`
+
+| key | type | default | constraints |
+|-----|------|---------|-------------|
+| `degradation.enabled` | bool | `True` |  |
+| `degradation.interval_ms` | int | `1000` | ge=100, le=60000 |
+| `degradation.drop_threshold` | int | `5` | ge=1 |
+| `degradation.latency_ceiling_ms` | float | `1500.0` | gt=0 |
+| `degradation.escalate_after_ms` | int | `10000` | ge=1000 |
+| `degradation.recover_after_ms` | int | `60000` | ge=1000 |
+| `degradation.reduced_rate_scale` | float | `0.5` | gt=0, lt=1 |
+| `degradation.priority_only_rate_scale` | float | `0.25` | gt=0, lt=1 |
+
 ## `evidence`
 
 | key | type | default | constraints |
@@ -236,6 +249,7 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `evidence.preroll_fps` | float | `5.0` | gt=0, le=30 |
 | `evidence.clips_enabled` | bool | `True` |  |
 | `evidence.max_concurrent_captures` | int | `8` | ge=1, le=64 |
+| `evidence.gap_threshold_ms` | int | `2000` | ge=250, le=60000 |
 
 ## `retention`
 

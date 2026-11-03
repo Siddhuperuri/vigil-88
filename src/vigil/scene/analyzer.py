@@ -34,7 +34,7 @@ from vigil.core.capabilities import Capability
 from vigil.core.protocols.pixels import PixelBuffer
 from vigil.domain.enums import SceneFact
 from vigil.domain.frame import FrameMeta
-from vigil.domain.scene import SceneState, Zone
+from vigil.domain.scene import CrossingLine, SceneState, Zone
 from vigil.domain.track import TrackedObject
 from vigil.scene.calibration import GroundPlane
 from vigil.scene.occupancy import OccupancyTracker
@@ -64,6 +64,7 @@ class SceneAnalyzer:
         "_config",
         "_geometry",
         "_ground_plane",
+        "_lines",
         "_occupancy",
         "_stability",
         "_zones",
@@ -77,10 +78,12 @@ class SceneAnalyzer:
         zones: Sequence[Zone] = (),
         stability: StabilityProbe | None = None,
         ground_plane: GroundPlane | None = None,
+        lines: Sequence[CrossingLine] = (),
     ) -> None:
         self._camera_id = camera_id
         self._config = config
         self._zones = tuple(zones)
+        self._lines = tuple(lines)
         self._stability = stability
         self._ground_plane = ground_plane
         self._occupancy = OccupancyTracker()
@@ -97,6 +100,11 @@ class SceneAnalyzer:
     @property
     def ground_plane(self) -> GroundPlane | None:
         return self._ground_plane
+
+    def set_lines(self, lines: Sequence[CrossingLine]) -> None:
+        """Tripwires carry no per-frame state of their own (a crossing is read from a track's
+        own trajectory), so swapping them needs no reset."""
+        self._lines = tuple(lines)
 
     def set_zones(self, zones: Sequence[Zone]) -> None:
         """Zone edits take effect without a restart (08 §11), so this is a live swap.
@@ -167,6 +175,7 @@ class SceneAnalyzer:
             stability_ratio=FULLY_STABLE if stability is None else stability,
             capabilities=capabilities,
             degraded_facts=frozenset(degraded),
+            lines=self._lines,
         )
 
     def _geometry_for(self, frame_meta: FrameMeta) -> ZoneGeometry:

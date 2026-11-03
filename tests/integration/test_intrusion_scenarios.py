@@ -467,8 +467,9 @@ def test_a_camera_without_zones_runs_no_intrusion_module() -> None:
     # fix -- while `fire` and `smoke` are unavailable for want of a capability this
     # build cannot grant at all (ADR 0015). The two reasons must not read alike.
     by_id = {a.module_id: a for a in run.report.unavailable}
-    assert set(by_id) == {"fire", "intrusion", "smoke"}
-    assert "zones" in (by_id["intrusion"].reason or "")
+    assert set(by_id) == {"fire", "intrusion", "line_crossing", "smoke"}
+    for needs_zones in ("intrusion", "line_crossing"):
+        assert "zones" in (by_id[needs_zones].reason or "")
     for declared in ("fire", "smoke"):
         assert "classification" in (by_id[declared].reason or "")
     result = run.run(walk(inside_until_ms=None, duration_ms=20_000.0))

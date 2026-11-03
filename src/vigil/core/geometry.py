@@ -22,6 +22,32 @@ class Point:
         return math.hypot(self.x - other.x, self.y - other.y)
 
 
+def side_of_line(a: Point, b: Point, p: Point) -> float:
+    """Which side of the directed line a->b the point is on: positive, negative, or 0 on it.
+
+    In image coordinates (y grows downward) positive is the walker's right-hand side when
+    walking from `a` to `b`.
+    """
+    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+
+
+def crossing_direction(a: Point, b: Point, p0: Point, p1: Point) -> int:
+    """+1 if the move p0->p1 crosses the segment a-b from its negative side to its positive side,
+    -1 for the reverse, 0 if it does not cross the segment.
+
+    "Crosses the segment", not "crosses the infinite line": walking around the end of a tripwire
+    is not crossing it. A move that starts or ends exactly on the line is not a crossing by
+    itself (the caller carries the last side it was certain of).
+    """
+    s0, s1 = side_of_line(a, b, p0), side_of_line(a, b, p1)
+    if s0 == 0.0 or s1 == 0.0 or (s0 < 0.0) == (s1 < 0.0):
+        return 0
+    d0, d1 = side_of_line(p0, p1, a), side_of_line(p0, p1, b)
+    if d0 != 0.0 and d1 != 0.0 and (d0 < 0.0) == (d1 < 0.0):
+        return 0  # the move passes beyond the end of the segment
+    return 1 if s0 < 0.0 else -1
+
+
 @dataclass(frozen=True, slots=True)
 class Vector2:
     x: float

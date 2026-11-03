@@ -58,7 +58,7 @@ def fake_package(name: str, **attrs: object) -> ModuleType:
 
 # Every module in `events/builtin/`, in discovery order. `fire` and `smoke` are
 # declaration-only (ADR 0015): discovered and reported, never runnable.
-SHIPPED = ("abandoned_object", "fire", "intrusion", "person_down", "smoke")
+SHIPPED = ("abandoned_object", "fire", "intrusion", "line_crossing", "person_down", "smoke")
 
 
 def test_every_builtin_module_is_discovered() -> None:

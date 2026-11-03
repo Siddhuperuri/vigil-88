@@ -87,6 +87,15 @@ class ZoneKind(StrEnum):
     REGION_OF_INTEREST = "region_of_interest"
 
 
+class CrossingDirection(StrEnum):
+    """Which way across a line counts. `to_right` is from the line's left side to its right side,
+    as a person walking from the line's start to its end would see them."""
+
+    ANY = "any"
+    TO_RIGHT = "to_right"
+    TO_LEFT = "to_left"
+
+
 class EvidenceKind(StrEnum):
     SNAPSHOT_RAW = "snapshot_raw"
     SNAPSHOT_ANNOTATED = "snapshot_annotated"

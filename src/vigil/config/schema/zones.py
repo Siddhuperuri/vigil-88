@@ -16,9 +16,9 @@ from pydantic import Field, field_validator, model_validator
 from vigil.config.schema.base import ConfigModel
 from vigil.core.geometry import Point, Polygon
 
-# `crossing_line` is in the data model's ZoneKind but needs a line, not a polygon, and nothing
-# consumes it before a later phase. It is accepted by the type so the error can name it, and
-# refused below: a zone kind that parses but does nothing would be fake functionality.
+# `crossing_line` is a line, not a polygon, so it is not a zone: it lives in the zone file's
+# `lines:` list (LineConfig). The kind name is accepted by the type only so the error can point
+# there, and refused below.
 ZoneKindName = Literal["restricted", "exclusion", "counting", "crossing_line", "region_of_interest"]
 UNSUPPORTED_KINDS = frozenset({"crossing_line"})
 
@@ -95,8 +95,8 @@ class ZoneConfig(ConfigModel):
     def _supported_kind(cls, value: str) -> str:
         if value in UNSUPPORTED_KINDS:
             raise ValueError(
-                f"zone kind {value!r} is not implemented yet (see docs/LIMITATIONS.md); "
-                "use restricted, exclusion, counting or region_of_interest"
+                f"{value!r} is a line, not an area: put it under `lines:` in the zone file, "
+                "or use restricted, exclusion, counting or region_of_interest for an area"
             )
         return value
 
@@ -127,15 +127,62 @@ class ZoneConfig(ConfigModel):
         return self.label or self.zone_id
 
 
+DirectionName = Literal["any", "to_right", "to_left"]
+MIN_LINE_LENGTH_RATIO = 0.01  # shorter than 1% of the frame is a drawing slip, not a tripwire
+
+
+class LineConfig(ConfigModel):
+    """A crossing line (tripwire): two points in normalized [0, 1] coordinates.
+
+    `direction` is which way across counts, as seen walking from `start` to `end`: `to_right`
+    is from the line's left to its right. `any` counts both ways.
+    """
+
+    line_id: str
+    start: tuple[float, float]
+    end: tuple[float, float]
+    direction: DirectionName = "any"
+    label: str | None = None
+    criticality: int = Field(default=0, ge=0, le=4)
+    schedule: ScheduleConfig | None = None
+
+    @field_validator("line_id")
+    @classmethod
+    def _slug(cls, value: str) -> str:
+        if not ZONE_ID_PATTERN.match(value):
+            raise ValueError(
+                f"invalid line_id {value!r}: must match {ZONE_ID_PATTERN.pattern} "
+                "(lowercase letters, digits, '_' and '-', starting alphanumeric)"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _geometry(self) -> Self:
+        for x, y in (self.start, self.end):
+            if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+                raise ValueError(
+                    "line points are normalized coordinates and must lie within [0, 1]"
+                )
+        length = ((self.end[0] - self.start[0]) ** 2 + (self.end[1] - self.start[1]) ** 2) ** 0.5
+        if length < MIN_LINE_LENGTH_RATIO:
+            raise ValueError("the line is shorter than 1% of the frame; draw it longer")
+        return self
+
+    @property
+    def display_label(self) -> str:
+        return self.label or self.line_id
+
+
 class ZoneSetConfig(ConfigModel):
     version: Literal[1] = 1
     zones: tuple[ZoneConfig, ...] = ()
+    lines: tuple[LineConfig, ...] = ()
 
     @model_validator(mode="after")
     def _unique_ids(self) -> Self:
         seen: set[str] = set()
-        for z in self.zones:
-            if z.zone_id in seen:
-                raise ValueError(f"duplicate zone_id {z.zone_id!r}")
-            seen.add(z.zone_id)
+        for name in (*(z.zone_id for z in self.zones), *(ln.line_id for ln in self.lines)):
+            if name in seen:
+                raise ValueError(f"duplicate zone or line id {name!r}")
+            seen.add(name)
         return self
