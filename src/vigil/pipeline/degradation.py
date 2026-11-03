@@ -158,7 +158,23 @@ class DegradationController:
         moved = self._ladder.observe(sample)
         if moved is not None:
             self._apply(moved, sample.reason)
+        else:
+            self._keep_suspended_suspended()
         return moved
+
+    def _keep_suspended_suspended(self) -> None:
+        """A camera that reconnects while it is suspended comes back ONLINE, but the scheduler still
+        is not serving it. Show what is true: it is not being analysed."""
+        for cid in self.state.suspended:
+            runtime = self._cameras().get(cid)
+            if runtime is not None and runtime.health.state in (
+                CameraState.ONLINE,
+                CameraState.DEGRADED,
+            ):
+                runtime.health.transition(
+                    CameraState.ANALYSIS_SUSPENDED,
+                    "degradation step 2: still not analysed after reconnecting",
+                )
 
     def _apply(self, step: Step, reason: str) -> None:
         cfg = self._config

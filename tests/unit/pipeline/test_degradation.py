@@ -268,3 +268,15 @@ def test_the_thread_loop_beats_ticks_and_stops() -> None:
 
     r.controller.run(stop, beat)
     assert len(beats) >= 3
+
+
+def test_a_suspended_camera_that_reconnects_is_shown_as_still_suspended() -> None:
+    fleet = {"top": runtime(9), "low": runtime(2)}
+    r = rig(fleet)
+    tick_hot(r, 6)
+    assert fleet["low"].health.state is CameraState.ANALYSIS_SUSPENDED
+    fleet["low"].health.state = CameraState.ONLINE  # the capture worker reconnected it
+    drop(r, 10)
+    r.controller.tick()
+    assert fleet["low"].health.state is CameraState.ANALYSIS_SUSPENDED
+    assert "after reconnecting" in (fleet["low"].health.moves[-1][1] or "")
