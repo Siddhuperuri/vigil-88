@@ -21,9 +21,16 @@ from datetime import UTC, datetime
 from vigil.core.capabilities import Capability
 from vigil.core.geometry import BBox, Point, Polygon, Vector2
 from vigil.core.units import ms_to_ns
-from vigil.domain.enums import ObjectClass, SceneFact, TrackFlag, ZoneKind
+from vigil.domain.enums import CrossingDirection, ObjectClass, SceneFact, TrackFlag, ZoneKind
 from vigil.domain.frame import FrameMeta
-from vigil.domain.scene import SceneState, Schedule, SpatialRelation, Zone, ZoneOccupancy
+from vigil.domain.scene import (
+    CrossingLine,
+    SceneState,
+    Schedule,
+    SpatialRelation,
+    Zone,
+    ZoneOccupancy,
+)
 from vigil.domain.track import TrackedObject, TrackPoint, Trajectory
 
 DEFAULT_CAMERA = "test-cam"
@@ -67,6 +74,7 @@ class _TrackSpec:
     confidence_ratio: float
     first_seen_ms: float
     stationary_since_ms: float | None
+    path: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(slots=True)
@@ -86,6 +94,7 @@ class SceneStateBuilder:
     _zones: list[Zone] = field(default_factory=list)
     _tracks: list[_TrackSpec] = field(default_factory=list)
     _relations: list[SpatialRelation] = field(default_factory=list)
+    _lines: list[CrossingLine] = field(default_factory=list)
 
     # ---------------------------------------------------------------- zones
 
@@ -112,6 +121,30 @@ class SceneStateBuilder:
         )
         return self
 
+    def with_line(
+        self,
+        line_id: str,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        direction: CrossingDirection = CrossingDirection.ANY,
+        criticality: int = 0,
+        schedule: Schedule | None = None,
+    ) -> SceneStateBuilder:
+        self._lines.append(
+            CrossingLine(
+                line_id=line_id,
+                camera_id=self.camera_id,
+                start=Point(*start),
+                end=Point(*end),
+                direction=direction,
+                criticality=criticality,
+                active_schedule=schedule,
+                label=line_id,
+            )
+        )
+        return self
+
     # ---------------------------------------------------------------- tracks
 
     def with_track(
@@ -132,6 +165,7 @@ class SceneStateBuilder:
         confidence_ratio: float = 0.9,
         first_seen_ms: float | None = None,
         stationary_since_ms: float | None = None,
+        path: Sequence[tuple[float, float, float]] | None = None,
     ) -> SceneStateBuilder:
         """`at` is the **foot point** in normalized coordinates: where the object stands.
 
@@ -156,6 +190,7 @@ class SceneStateBuilder:
                 confidence_ratio=confidence_ratio,
                 first_seen_ms=self.t_ms if first_seen_ms is None else first_seen_ms,
                 stationary_since_ms=stationary_since_ms,
+                path=None if path is None else tuple(path),
             )
         )
         return self
@@ -200,6 +235,7 @@ class SceneStateBuilder:
         clone._zones = list(self._zones)
         clone._tracks = [replace(t) for t in self._tracks]
         clone._relations = list(self._relations)
+        clone._lines = list(self._lines)
         return clone
 
     # ---------------------------------------------------------------- build
@@ -241,6 +277,23 @@ class SceneStateBuilder:
                 is_interpolated=spec.time_since_update_frames > 0,
             ),
         )
+        if spec.path is not None:
+            # An explicit walk: foot points (normalized) and times, oldest first.
+            w, h = spec.size
+            points = tuple(
+                TrackPoint(
+                    t_monotonic_ns=ms_to_ns(t),
+                    bbox=BBox(
+                        x * self.width_px - w / 2.0,
+                        y * self.height_px - h,
+                        x * self.width_px + w / 2.0,
+                        y * self.height_px,
+                    ),
+                    confidence_ratio=spec.confidence_ratio,
+                    is_interpolated=False,
+                )
+                for x, y, t in spec.path
+            )
         velocity = None if spec.velocity_px_s is None else Vector2(*spec.velocity_px_s)
         return TrackedObject(
             track_id=spec.track_id,
@@ -254,7 +307,10 @@ class SceneStateBuilder:
             age_frames=spec.age_frames,
             hits=spec.hits,
             time_since_update_frames=spec.time_since_update_frames,
-            trajectory=Trajectory(points if spec.first_seen_ms < self.t_ms else points[1:], 90),
+            trajectory=Trajectory(
+                points if spec.path is not None or spec.first_seen_ms < self.t_ms else points[1:],
+                90,
+            ),
             velocity_px_s=velocity,
             velocity_m_s=None,
             zone_dwell_ms=spec.dwell_ms,
@@ -297,4 +353,5 @@ class SceneStateBuilder:
             stability_ratio=self.stability_ratio,
             capabilities=self.capabilities,
             degraded_facts=self.degraded_facts,
+            lines=tuple(self._lines),
         )

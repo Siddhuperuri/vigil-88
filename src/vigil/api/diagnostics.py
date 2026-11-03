@@ -34,7 +34,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import IO, Any
 
-from vigil.api.routers.system_ops import storage_of, tail_lines
+from vigil.api.system_info import storage_of, tail_lines
 from vigil.core.redaction import redact_text, redact_value
 from vigil.pipeline.app import Application
 from vigil.version import __version__

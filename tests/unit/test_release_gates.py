@@ -150,3 +150,5 @@ def test_no_updater_by_decision_passes_and_an_enabled_one_needs_its_key(tmp_path
 def test_the_installer_is_named_development_only_unless_released() -> None:
     config = (REPO_ROOT / "desktop" / "electron-builder.yml").read_text(encoding="utf-8")
     assert "artifactName: VIGIL-88-DEV-ONLY-Setup-" in config
+    assert "shortcutName: VIGIL-88 (development build)" in config
+    assert "uninstallDisplayName: VIGIL-88 (development build)" in config

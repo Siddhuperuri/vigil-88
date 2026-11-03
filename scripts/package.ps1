@@ -56,13 +56,16 @@ Step "third-party notices" {
 Step "installer" {
     Push-Location desktop
     try {
-        if ($Release) { npm run dist -- "-c.nsis.artifactName=VIGIL-88-Setup-`${version}.`${ext}" }
+        if ($Release) {
+            npm run dist -- "-c.nsis.artifactName=VIGIL-88-Setup-`${version}.`${ext}" `
+                "-c.nsis.shortcutName=VIGIL-88" "-c.nsis.uninstallDisplayName=VIGIL-88"
+        }
         else { npm run dist }
     } finally { Pop-Location }
 }
 
 if ($Release) {
-    $setup = (Get-ChildItem build\installer\VIGIL-88-DEV-ONLY-Setup-*.exe | Select-Object -First 1).FullName
+    $setup = (Get-ChildItem build\installer\VIGIL-88-Setup-*.exe | Select-Object -First 1).FullName
     Step "the installer is signed and every decision holds" {
         uv run python scripts/release_check.py --release --installer $setup
     }

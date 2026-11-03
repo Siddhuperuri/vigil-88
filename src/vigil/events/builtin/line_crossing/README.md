@@ -23,7 +23,21 @@ lines:
 
 Enable it with `modules.enabled: [line_crossing]`. Discovery never enables a module.
 
-## What it is not
+## False positives and limitations
 
 Geometry over tracks, nothing more. It has been exercised on synthetic scenes only, never on real footage, and its
 accuracy is the detector's and the tracker's. Counting how many crossed is not built.
+
+Known false positives, written down so nobody has to discover them:
+
+- **Two people, one track.** When the tracker swaps two identities as they pass each other, the "crossing" belongs
+  to a track that did not cross. This is the tracker's failure, reported here as the module's.
+- **A shadow, a reflection or a large box.** The foot point is the bottom centre of the box. A box that
+  grows when a person raises their arms, or that includes a shadow, moves its foot point across a line the
+  person did not.
+- **Standing on the line.** A person who stands astride the line flickers between sides. Each flicker is a
+  crossing in some direction; with `direction: any` that is a stream of observations until they move off.
+- **A line drawn on a ground plane the camera sees obliquely.** A line across a doorway is straight in the
+  picture and may not be where the floor boundary is. Draw it where the feet cross, not where the door is.
+
+It **cannot** tell who crossed, or whether they were allowed to. Counting how many crossed is not built.

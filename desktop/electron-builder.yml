@@ -29,7 +29,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: false
   createStartMenuShortcut: true
-  shortcutName: VIGIL-88
+  # Labelled, so nobody running a development build can mistake it for a release. package.ps1 -Release
+  # replaces both with plain "VIGIL-88" after the release gate passes (docs/RELEASE.md).
+  shortcutName: VIGIL-88 (development build)
+  uninstallDisplayName: VIGIL-88 (development build)
   deleteAppDataOnUninstall: false # the prompt below decides; silent uninstalls keep the data
   include: installer/uninstall-data.nsh
   artifactName: VIGIL-88-DEV-ONLY-Setup-${version}.${ext}
