@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { HIDDEN_FLAG, loginItem, startedHidden } from "./autostart";
 
 describe("the login item", () => {
@@ -6,11 +6,11 @@ describe("the login item", () => {
     expect(
       loginItem({
         enabled: true,
-        execPath: "C:/VIGIL-88/VIGIL-88.exe",
+        execPath: "app/VIGIL-88.exe",
         appPath: "x",
         packaged: true,
       }),
-    ).toEqual({ openAtLogin: true, path: "C:/VIGIL-88/VIGIL-88.exe", args: [HIDDEN_FLAG] });
+    ).toEqual({ openAtLogin: true, path: "app/VIGIL-88.exe", args: [HIDDEN_FLAG] });
   });
 
   it("registers a development run with the app folder first, so the start can work at all", () => {
@@ -18,10 +18,10 @@ describe("the login item", () => {
       loginItem({
         enabled: true,
         execPath: "electron.exe",
-        appPath: "C:/repo/desktop",
+        appPath: "repo/desktop",
         packaged: false,
       }).args,
-    ).toEqual(["C:/repo/desktop", HIDDEN_FLAG]);
+    ).toEqual(["repo/desktop", HIDDEN_FLAG]);
   });
 
   it("turning it off keeps the same path and arguments, so the same entry is the one removed", () => {
