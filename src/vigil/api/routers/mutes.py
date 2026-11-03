@@ -14,16 +14,23 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, Response, status
+from fastapi import APIRouter, Body, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from vigil.api.schemas_incidents import MuteOut
+from vigil.api.session import actor_name, audit_event, requires
+from vigil.auth.roles import Permission
 from vigil.core.clock import Clock
 from vigil.core.errors import PersistenceError
 from vigil.domain.enums import EventType
 from vigil.response.mutes import MAX_MUTE_SECONDS, MuteRegistry
 
 MAX_REASON_LENGTH = 200
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 class MuteRequest(BaseModel):
@@ -49,34 +56,44 @@ def build_router(*, mutes: MuteRegistry, clock: Clock) -> APIRouter:
         now = clock.wall_utc()
         return MuteOut.of(record, remaining_s=record.remaining_seconds(now))
 
-    @router.get("", response_model=list[MuteOut])
+    @router.get("", response_model=list[MuteOut], dependencies=[_VIEW])
     def active_mutes() -> list[MuteOut]:
         """Every mute in force now, with its countdown. What the status strip renders."""
         return [_out(r) for r in mutes.active()]
 
-    @router.get("/history", response_model=list[MuteOut])
+    @router.get("/history", response_model=list[MuteOut], dependencies=[_VIEW])
     def mute_history(limit: Annotated[int, 50] = 50) -> list[MuteOut]:
         """Including expired and revoked: the audit view, not the live one."""
         return [_out(r) for r in mutes.recent(limit=min(max(limit, 1), 200))]
 
-    @router.post("", response_model=MuteOut, status_code=status.HTTP_201_CREATED)
-    def create_mute(request: Annotated[MuteRequest, Body()]) -> MuteOut:
+    @router.post(
+        "", response_model=MuteOut, status_code=status.HTTP_201_CREATED, dependencies=[_MUTES]
+    )
+    def create_mute(request: Request, body: Annotated[MuteRequest, Body()]) -> MuteOut:
         try:
             record = mutes.create(
-                duration_s=request.duration_s,
-                reason=request.reason,
-                camera_id=request.camera_id,
-                zone_id=request.zone_id,
-                event_type=request.event_type,
+                duration_s=body.duration_s,
+                reason=body.reason,
+                actor=actor_name(request),
+                camera_id=body.camera_id,
+                zone_id=body.zone_id,
+                event_type=body.event_type,
             )
         except (PersistenceError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from None
+        audit_event(
+            request,
+            "mute.created",
+            target=record.mute_id,
+            detail={"duration_s": body.duration_s, "camera_id": body.camera_id},
+        )
         return _out(record)
 
-    @router.delete("/{mute_id}", status_code=status.HTTP_204_NO_CONTENT)
-    def revoke_mute(mute_id: str) -> Response:
+    @router.delete("/{mute_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MUTES])
+    def revoke_mute(request: Request, mute_id: str) -> Response:
         if not mutes.revoke(mute_id):
             raise HTTPException(status_code=404, detail="no such mute, or it was already revoked")
+        audit_event(request, "mute.revoked", target=mute_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

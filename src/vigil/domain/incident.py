@@ -10,7 +10,6 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
 
 from vigil.core.ids import is_valid_ulid, validate_camera_id
 from vigil.domain._validate import (
@@ -28,7 +27,10 @@ from vigil.domain.observation import FactValue
 DISPLAY_REF_RE = re.compile(r"^INC-\d{8}-[0-9A-Z]{6}$")
 MAX_SEVERITY_SCORE = 100.0
 
-Actor = Literal["system", "operator"]
+# Who made a transition: "system" for the pipeline, otherwise whatever name the caller supplied.
+# It was a two-value Literal until accounts existed (ADR 0016); the domain still knows nothing
+# about users, only that an actor is a non-empty name.
+Actor = str
 
 
 @dataclass(frozen=True, slots=True)

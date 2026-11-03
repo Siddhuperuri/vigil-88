@@ -50,6 +50,12 @@ _SECRET_RES = {
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 }
 _TEXT_SUFFIXES = {".py", ".yaml", ".yml", ".toml", ".ps1", ".json", ".example", ".md"}
+# D0: the desktop console and shell are held to the same rules as the engine. Source only: the
+# lockfiles, build output and dependencies are not ours to police.
+_FRONTEND_SUFFIXES = {".ts", ".tsx", ".css", ".html", ".mjs", ".cjs"}
+_FRONTEND_DIRS = ("ui/src", "ui/scripts", "desktop/src", "desktop/e2e", "desktop/scripts")
+_SKIPPED_PARTS = {"__pycache__", ".venv", "node_modules", "dist", "out", "coverage"}
+GENERATED_SUFFIX = ".gen.ts"  # produced from the OpenAPI document; a gate proves it is current
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,15 +69,22 @@ class Violation:
         return f"[{self.gate}] {self.file}:{self.line}: {self.message}"
 
 
-def _files(root: Path, *dirs: str) -> Iterator[Path]:
+def _files(
+    root: Path, *dirs: str, suffixes: frozenset[str] | set[str] = frozenset()
+) -> Iterator[Path]:
+    wanted_suffixes = suffixes or _TEXT_SUFFIXES
     for d in dirs:
         base = root / d
         if base.is_dir():
             for p in sorted(base.rglob("*")):
-                wanted = p.suffix in _TEXT_SUFFIXES or p.name == ".env.example"
-                skipped = any(part in {"__pycache__", ".venv"} for part in p.parts)
+                wanted = p.suffix in wanted_suffixes or (not suffixes and p.name == ".env.example")
+                skipped = any(part in _SKIPPED_PARTS for part in p.parts)
                 if p.is_file() and wanted and not skipped:
                     yield p
+
+
+def _frontend(root: Path) -> Iterator[Path]:
+    yield from _files(root, *_FRONTEND_DIRS, suffixes=_FRONTEND_SUFFIXES)
 
 
 def _allowed(line: str) -> bool:
@@ -163,9 +176,10 @@ def check_paths(root: Path) -> list[Violation]:
     machine data and committed, which makes them the likeliest place for a developer's home
     directory to reach the repository."""
     out: list[Violation] = []
-    for p in _files(root, "src", "config", "scripts", "docs"):
-        if p.name == "gates.py":
-            continue  # this file contains the patterns it searches for
+    scanned = (*_files(root, "src", "config", "scripts", "docs"), *_frontend(root))
+    for p in scanned:
+        if p.name == "gates.py" or p.name.endswith(GENERATED_SUFFIX):
+            continue  # gates.py holds the patterns it searches for; generated files are not ours
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if _PATH_RE.search(line) and not _allowed(line):
                 out.append(Violation("paths", _rel(root, p), i, "machine-specific absolute path"))
@@ -174,8 +188,9 @@ def check_paths(root: Path) -> list[Violation]:
 
 def check_secrets(root: Path) -> list[Violation]:
     out: list[Violation] = []
-    for p in _files(root, "src", "config", "scripts", "docs"):
-        if p.name == "gates.py":
+    scanned = (*_files(root, "src", "config", "scripts", "docs"), *_frontend(root))
+    for p in scanned:
+        if p.name == "gates.py" or p.name.endswith(GENERATED_SUFFIX):
             continue
         for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if _allowed(line):
@@ -198,6 +213,12 @@ def check_size(root: Path) -> list[Violation]:
             n = len(p.read_text(encoding="utf-8").splitlines())
             if n > MAX_LINES:
                 out.append(Violation("size", _rel(root, p), n, f"{n} lines exceeds {MAX_LINES}"))
+    for p in _frontend(root):
+        if p.suffix not in {".ts", ".tsx"} or p.name.endswith(GENERATED_SUFFIX):
+            continue
+        n = len(p.read_text(encoding="utf-8").splitlines())
+        if n > MAX_LINES:
+            out.append(Violation("size", _rel(root, p), n, f"{n} lines exceeds {MAX_LINES}"))
     return out
 
 

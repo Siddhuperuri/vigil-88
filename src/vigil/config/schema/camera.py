@@ -35,6 +35,9 @@ class SourceConfig(ConfigModel):
     url: str | None = None
     username_env: str | None = None
     password_env: str | None = None
+    # Or a name in Windows Credential Manager (the console writes this). The file holds only the
+    # name.
+    credential_ref: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]{0,38}$")
 
     # video_file / image
     path: Path | None = None

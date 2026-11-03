@@ -24,6 +24,8 @@ from vigil.observability.metrics import MetricsRegistry
 from vigil.pipeline.annotate import RenderError, overlay_from_key, render_jpeg
 from vigil.pipeline.results import LatestDetections
 
+POLL_S = 0.02  # how often the worker looks for a new frame; the cap is `_due`, not this
+
 
 @dataclass(frozen=True, slots=True)
 class PublishedFrame:
@@ -120,6 +122,8 @@ class StreamWorker:
         self._metrics = metrics
         self._log = logger.bind(stage="stream")
         self._interval_s = 1.0 / fps
+        self._interval_ns = round(NS_PER_S / fps)
+        self._due: dict[StreamKey, int] = {}
         self._quality = jpeg_quality
         self._encoded_version: dict[StreamKey, int] = {}
 
@@ -130,10 +134,12 @@ class StreamWorker:
             version = self._results.version(key.camera_id)
             if version == self._encoded_version.get(key):
                 continue  # nothing new for this stream
+            start = self._clock.monotonic_ns()
+            if start < self._due.get(key, 0):
+                continue  # at the configured rate already; the newer frame waits for its slot
             analysed = self._results.latest(key.camera_id)
             if analysed is None:
                 continue
-            start = self._clock.monotonic_ns()
             age_ms = ns_to_ms(start - analysed.completed_monotonic_ns)
             try:
                 jpeg = render_jpeg(
@@ -148,6 +154,7 @@ class StreamWorker:
                 continue
             done = self._clock.monotonic_ns()
             self._encoded_version[key] = version
+            self._schedule_next(key, start)
             self._hub.publish(key, jpeg, analysed.frame.meta)
             self._metrics.histogram("vigil_stream_encode_ms").observe(ns_to_ms(done - start))
             if analysed.frame.meta.source_pts_ms is None:  # live: capture clock == this clock
@@ -157,10 +164,23 @@ class StreamWorker:
             encoded += 1
         return encoded
 
+    def _schedule_next(self, key: StreamKey, now_ns: int) -> None:
+        """The next slot is one interval after the *previous slot*, not after this encode.
+
+        Pacing from "now" aliased against the analysis cadence: with the stream at 10 fps and
+        a camera analysed at 10 fps, a tick that landed just before a frame arrived found
+        nothing, and the next tick found the frame a phase late. It was measured (D0, finding
+        F8) as 8.1 to 8.9 fps delivered against 10 configured. Keeping the slot grid steady
+        and polling several times per slot publishes every frame the cap allows and still
+        never exceeds it. Credit is limited to one interval, so a stream that sat idle does
+        not burst when a frame finally arrives.
+        """
+        nxt = self._due.get(key, now_ns) + self._interval_ns
+        self._due[key] = now_ns if now_ns - nxt > self._interval_ns else nxt
+
     def run(self, stop: threading.Event, beat: Callable[[], None]) -> None:
+        poll_s = min(POLL_S, self._interval_s / 4)
         while not stop.is_set():
             beat()
-            started = self._clock.monotonic_ns()
             self.step()
-            spent_s = (self._clock.monotonic_ns() - started) / NS_PER_S
-            stop.wait(max(0.001, self._interval_s - spent_s))
+            stop.wait(poll_s)

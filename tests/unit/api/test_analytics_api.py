@@ -392,3 +392,44 @@ def test_an_exported_note_cannot_become_a_spreadsheet_formula(
     note = parsed[0]["operator_note"]
     assert note.startswith("'=cmd")
     assert not note.startswith("=")
+
+
+def test_dismissal_reasons_are_counted_by_the_code_the_operator_chose(
+    api: tuple[httpx.Client, ResponseStack, Path],
+) -> None:
+    client, response, _exports = api
+    _seed(response, count=4)
+    ids = [i["incident_id"] for i in client.get("/incidents").json()["incidents"]]
+    choices = ["harmless", "harmless", "wrong_zone", None]
+    for incident_id, code in zip(ids, choices, strict=True):
+        body = {} if code is None else {"reason_code": code, "reason": "checked"}
+        assert client.post(f"/incidents/{incident_id}/dismiss", json=body).status_code == 200
+    summary = client.get("/analytics/summary", params={"days": 7}).json()
+    assert {c["key"]: c["count"] for c in summary["dismissal_reasons"]} == {
+        "harmless": 2,
+        "wrong_zone": 1,
+        "not_given": 1,
+    }
+    assert summary["metric_definitions"]["dismissal_reasons"]["unit"] == "incidents"
+    # The same figure the dismissal rate is built from: 4 of 4.
+    assert sum(c["count"] for c in summary["dismissal_reasons"]) == 4
+
+
+def test_an_unknown_dismissal_reason_is_refused_and_leaves_the_incident_open(
+    api: tuple[httpx.Client, ResponseStack, Path],
+) -> None:
+    client, response, _exports = api
+    _seed(response, count=1)
+    incident_id = client.get("/incidents").json()["incidents"][0]["incident_id"]
+    refused = client.post(f"/incidents/{incident_id}/dismiss", json={"reason_code": "because"})
+    assert refused.status_code == 422 and "harmless" in refused.json()["detail"]
+    assert client.get(f"/incidents/{incident_id}").json()["incident"]["status"] != "dismissed"
+
+
+def test_the_dismissal_vocabulary_is_served_so_clients_do_not_invent_one(
+    api: tuple[httpx.Client, ResponseStack, Path],
+) -> None:
+    client, _response, _exports = api
+    reasons = client.get("/incidents/dismissal-reasons").json()
+    assert {"code": "harmless", "label": "Something was there, but harmless"} in reasons
+    assert len({r["code"] for r in reasons}) == len(reasons) >= 5

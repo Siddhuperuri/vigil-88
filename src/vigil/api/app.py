@@ -4,11 +4,13 @@ the results store's short critical section, so a slow or hung browser cannot sta
 from __future__ import annotations
 
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from vigil.api.schemas import (
@@ -21,8 +23,11 @@ from vigil.api.schemas import (
     ModelOut,
     SystemOut,
 )
-from vigil.api.security import make_auth_dependency
+from vigil.api.session import AccountsGuard, LegacyGuard, request_discipline, requires
 from vigil.api.viewer import VIEWER_HTML
+from vigil.auth.roles import Permission
+from vigil.auth.service import AuthService
+from vigil.config.schema.api import is_loopback_host
 from vigil.core.protocols.transport import StreamKey
 from vigil.core.units import NS_PER_S, ns_to_ms
 from vigil.observability.metrics import HistogramSummary
@@ -57,10 +62,29 @@ def _overlay(text: str | None) -> OverlayOptions:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
-def create_app(application: Application, hub: StreamHub) -> FastAPI:
+def create_app(
+    application: Application,
+    hub: StreamHub,
+    *,
+    accounts: AuthService | None = None,
+    ui_dir: Path | None = None,
+    restart: Callable[[], None] | None = None,
+) -> FastAPI:
+    """`accounts` switches on cookie sessions and roles (ADR 0016). Without it the API behaves as
+    it did before accounts existed: open on loopback, or behind the one shared bearer token."""
     cfg = application.settings.api
-    auth = make_auth_dependency(cfg.auth.enabled, cfg.auth.token)
-    api = APIRouter(prefix="/api/v1", dependencies=[Depends(auth)])
+    guard = (
+        AccountsGuard(
+            accounts,
+            bearer_enabled=cfg.auth.enabled,
+            bearer_token=cfg.auth.token,
+            loopback_only=is_loopback_host(cfg.bind_host),
+        )
+        if accounts is not None
+        else LegacyGuard(enabled=cfg.auth.enabled, token=cfg.auth.token)
+    )
+    api = APIRouter(prefix="/api/v1")
+    system = APIRouter(dependencies=[requires(Permission.VIEW)])
     metrics = application.metrics
 
     def known_camera(camera_id: str) -> str:
@@ -72,7 +96,7 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
 
     # ---------------------------------------------------------------- system
 
-    @api.get("/system/health", response_model=HealthOut)
+    @system.get("/system/health", response_model=HealthOut)
     def health() -> HealthOut:
         snap = application.snapshot()
         response = application.response
@@ -95,7 +119,7 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             ],
         )
 
-    @api.get("/system/info")
+    @system.get("/system/info")
     def info() -> dict[str, object]:
         snap = application.snapshot()
         return {
@@ -104,7 +128,7 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             "detector": ModelOut.of(snap.detector).model_dump() if snap.detector else None,
         }
 
-    @api.get("/system/metrics", response_model=MetricsOut)
+    @system.get("/system/metrics", response_model=MetricsOut)
     def system_metrics() -> MetricsOut:
         snap = application.snapshot()
         raw = metrics.snapshot()
@@ -131,18 +155,18 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
 
     # ---------------------------------------------------------------- cameras
 
-    @api.get("/cameras", response_model=list[CameraOut])
+    @system.get("/cameras", response_model=list[CameraOut])
     def cameras() -> list[CameraOut]:
         return [CameraOut.of(c) for c in application.camera_health()]
 
-    @api.get("/cameras/{camera_id}", response_model=CameraOut)
+    @system.get("/cameras/{camera_id}", response_model=CameraOut)
     def camera(camera_id: str) -> CameraOut:
         known_camera(camera_id)
         return next(
             CameraOut.of(c) for c in application.camera_health() if c.camera_id == camera_id
         )
 
-    @api.get("/cameras/{camera_id}/detections", response_model=DetectionsOut)
+    @system.get("/cameras/{camera_id}/detections", response_model=DetectionsOut)
     def detections(camera_id: str) -> DetectionsOut:
         known_camera(camera_id)
         analysed = application.results.latest(camera_id)
@@ -150,7 +174,7 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             raise HTTPException(status_code=404, detail="no frame has been analysed yet")
         return DetectionsOut.of(analysed.result)
 
-    @api.get("/cameras/{camera_id}/snapshot.jpg")
+    @system.get("/cameras/{camera_id}/snapshot.jpg")
     def snapshot(
         camera_id: str,
         overlay: Annotated[str | None, Query(max_length=40)] = None,
@@ -177,7 +201,7 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             },
         )
 
-    @api.get("/cameras/{camera_id}/stream.mjpeg")
+    @system.get("/cameras/{camera_id}/stream.mjpeg")
     async def stream(
         request: Request,
         camera_id: str,
@@ -220,14 +244,47 @@ def create_app(application: Application, hub: StreamHub) -> FastAPI:
             headers={"Cache-Control": "no-store"},
         )
 
+    api.include_router(system)
     _mount_incident_routes(api, application)
+    from vigil.api.routers import config_admin, system_ops
+    from vigil.api.routers import telemetry as telemetry_router
 
-    app = FastAPI(title="VIGIL-88", version=__version__, docs_url="/api/docs", redoc_url=None)
+    api.include_router(system_ops.build_router(paths=application.paths))
+    api.include_router(config_admin.build_router(application=application, restart=restart))
+
+    response = application.response
+    api.include_router(
+        telemetry_router.build_router(
+            application=application,
+            guard=guard,
+            incidents=None if response is None else response.incidents,
+            evidence=None if response is None else response.evidence,
+        )
+    )
+    if accounts is not None:
+        from vigil.api.routers import auth as auth_router
+
+        api.include_router(auth_router.build_router(accounts))
+
+    app = FastAPI(
+        title="VIGIL-88",
+        version=__version__,
+        docs_url="/api/docs",
+        redoc_url=None,
+        dependencies=[Depends(request_discipline)],
+    )
+    app.state.guard = guard
+    app.state.auth = accounts
     app.include_router(api)
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def viewer() -> str:
         return VIEWER_HTML
+
+    if ui_dir is not None and ui_dir.is_dir():
+        # The built console, on the API origin so there is no CORS to configure (08 §12). Static
+        # files only: every byte of data still comes through the guarded API.
+        app.mount("/app", StaticFiles(directory=ui_dir, html=True), name="console")
 
     return app
 

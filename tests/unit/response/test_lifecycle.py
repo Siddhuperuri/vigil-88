@@ -444,6 +444,25 @@ def test_acknowledge_dismiss_annotate_and_escalate(
     )
 
 
+def test_a_named_actor_is_recorded_and_survives_being_read_back(
+    manager: IncidentManager, actions: OperatorActions, store: Database
+) -> None:
+    """ADR 0016. The row mapper used to coerce any actor that was not "operator" to "system",
+    which would have silently turned every named user back into the pipeline on read."""
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    assert actions.acknowledge(created.incident_id, actor="carol").actor == "carol"
+    stored = IncidentRepository(store).transitions(created.incident_id)
+    assert [t.actor for t in stored if t.to_status is IncidentStatus.ACTIVE] == ["carol"]
+    assert {t.actor for t in stored} == {"system", "carol"}  # the pipeline's rows are unchanged
+
+
+def test_without_an_account_layer_the_actor_is_the_historical_default(
+    manager: IncidentManager, actions: OperatorActions
+) -> None:
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    assert actions.acknowledge(created.incident_id).actor == "operator"
+
+
 def test_an_over_long_note_is_refused(manager: IncidentManager, actions: OperatorActions) -> None:
     created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
     with pytest.raises(PersistenceError, match="2000 characters"):
@@ -730,3 +749,44 @@ def test_the_evidence_status_round_trips(store: Database, manager: IncidentManag
     assert repo.evidence_status(created.incident_id) == EvidenceStatus.PENDING.value
     assert manager.set_evidence_status(created.incident_id, EvidenceStatus.PARTIAL)
     assert repo.evidence_status(created.incident_id) == EvidenceStatus.PARTIAL.value
+
+
+def test_resolve_walks_the_state_machine_and_names_who_did_it(
+    manager: IncidentManager, actions: OperatorActions, store: Database
+) -> None:
+    """The operator closes an incident through RESOLVING, as the system does, so the history shows
+    both steps rather than a jump."""
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    actions.acknowledge(created.incident_id, actor="carol")
+    done = actions.resolve(created.incident_id, note="all clear", actor="carol")
+    assert done.to_status is IncidentStatus.RESOLVED and done.actor == "carol"
+    history = IncidentRepository(store).transitions(created.incident_id)
+    assert [t.to_status for t in history][-2:] == [
+        IncidentStatus.RESOLVING,
+        IncidentStatus.RESOLVED,
+    ]
+    assert history[-1].reason == "all clear"
+
+
+def test_an_unacknowledged_incident_can_be_resolved_directly(
+    manager: IncidentManager, actions: OperatorActions
+) -> None:
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    assert actions.can(created.incident_id, "resolve") == (True, None)
+    assert actions.resolve(created.incident_id).to_status is IncidentStatus.RESOLVED
+
+
+def test_a_closed_incident_cannot_be_resolved_and_says_why(
+    manager: IncidentManager, actions: OperatorActions
+) -> None:
+    created = manager.record(_event(candidate_id=_ulid(1)), _assessment(), CONTEXT)
+    actions.dismiss(created.incident_id)
+    allowed, reason = actions.can(created.incident_id, "resolve")
+    assert allowed is False and "already closed" in (reason or "")
+    with pytest.raises(TransitionRefused):
+        actions.resolve(created.incident_id)
+
+
+def test_resolving_an_unknown_incident_is_an_error(actions: OperatorActions) -> None:
+    with pytest.raises(PersistenceError):
+        actions.resolve("01ARZ3NDEKTSV4RRFFQ69G5FAV")

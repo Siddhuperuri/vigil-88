@@ -24,6 +24,8 @@ from vigil.api.schemas_incidents import (
     IncidentSummaryOut,
     TimelineOut,
 )
+from vigil.api.session import requires
+from vigil.auth.roles import Permission
 from vigil.core.clock import Clock
 from vigil.core.errors import PersistenceError
 from vigil.domain.enums import CandidateOutcome
@@ -35,6 +37,11 @@ from vigil.persistence.repositories.incidents import IncidentRepository
 DEFAULT_LIMIT = 100
 DEFAULT_WINDOW_HOURS = 24
 MAX_WINDOW_HOURS = 24 * 90
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 def build_router(
@@ -48,7 +55,7 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/events", tags=["events"])
 
-    @router.get("/candidates", response_model=list[CandidateOut])
+    @router.get("/candidates", response_model=list[CandidateOut], dependencies=[_VIEW])
     def rejection_feed(
         camera_id: Annotated[str | None, Query(max_length=40)] = None,
         outcome: Annotated[str | None, Query(max_length=200)] = None,
@@ -78,7 +85,9 @@ def build_router(
             raise HTTPException(status_code=500, detail=exc.message) from None
         return [CandidateOut.of(r) for r in rows]
 
-    @router.get("/candidates/reasons", response_model=list[dict[str, str | int]])
+    @router.get(
+        "/candidates/reasons", response_model=list[dict[str, str | int]], dependencies=[_VIEW]
+    )
     def rejection_reasons(
         hours: Annotated[int, Query(ge=1, le=MAX_WINDOW_HOURS)] = DEFAULT_WINDOW_HOURS,
         limit: Annotated[int, Query(ge=1, le=200)] = 20,
@@ -88,7 +97,7 @@ def build_router(
         rows = candidates.rejection_reasons(limit=limit, since_wall_utc=since)
         return [{"reason": reason, "count": count} for reason, count in rows]
 
-    @router.get("/timeline", response_model=TimelineOut)
+    @router.get("/timeline", response_model=TimelineOut, dependencies=[_VIEW])
     def timeline(
         hours: Annotated[int, Query(ge=1, le=MAX_WINDOW_HOURS)] = DEFAULT_WINDOW_HOURS,
         camera_id: Annotated[str | None, Query(max_length=40)] = None,

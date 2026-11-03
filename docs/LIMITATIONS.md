@@ -229,9 +229,36 @@ Everything below was verified against the code, not asserted. Details in ADR 001
   operator runs *because* something is missing, down with it. The two modules on that chain now
   import cv2 and numpy lazily and refuse at their entry points naming the extra to install.
   Verified in a clean virtual environment.
-- **No Docker image and no installer.** 10-roadmap §10 declines Docker for GPU-passthrough
-  friction on Windows. Deployment is `uv sync` in a checkout, or `pip install` of the wheel plus
-  the extras the deployment needs.
+- **No Docker image.** 10-roadmap §10 declines Docker for GPU-passthrough friction on Windows.
+  Deployment is `uv sync` in a checkout, `pip install` of the wheel plus the extras the deployment
+  needs, or (D4) the Windows installer below.
+
+## Windows installer (D4)
+
+- **The installer is unsigned and must not be distributed.** It is built by `scripts/package.ps1` into
+  `build\installer\VIGIL-88-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
+  Windows SmartScreen will warn, and the project has no declared licence (decision 1), so a copy grants
+  nobody any rights.
+- **It carries the CPU engine only.** The NVIDIA runtime (about 2.4 GB) is neither bundled nor offered as a
+  download (decision 2). An installed engine does not use the GPU.
+- **There is no update mechanism**, signed or otherwise (decisions 3 and 4). A tampered update therefore
+  cannot be shown to be refused, because there is nothing to refuse it.
+- **Installation was tested only on the machine that built it.** There was no clean machine or virtual machine,
+  so "installs on a computer with no development tools" is not demonstrated, and antivirus behaviour on the
+  frozen engine was not measured.
+- **The interactive "remove my data too?" prompt was not driven.** A silent uninstall (which always keeps the
+  data) was verified to remove the program, the Start-menu entry and the uninstall entry and leave user data
+  in place. The Yes branch is NSIS script that has not been run.
+- **Start with Windows is off until the person turns it on**, then registers a per-user login item that starts
+  the app hidden in the tray. It was toggled on and off in the real app, and the registry was checked clean
+  afterwards. A real sign-in with it on was not performed.
+- **A second launch brings the running app forward** (single-instance lock); it does not start a second
+  engine.
+- **The soak is not the plan's 8 hours** and covers the engine alone; see the D4 report.
+- **Of the five failure drills, three were run** (corrupted configuration, missing model, unreachable
+  camera). Disk full, a camera unplugged mid-stream with recovery, and a GPU driver reset were **not**: the
+  first needs a volume to fill, the second needs hardware to unplug, and the third needs the GPU runtime this
+  installer does not carry.
 
 ## The P5 modules: what they claim and what they do not
 
@@ -396,7 +423,102 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   The session flow that fixes this belongs to the full console.
 - **MJPEG only**, at most `api.stream_fps`. WebRTC sits behind the `VideoTransport` protocol if
   measurement ever demands it.
-- **One process, one operator.** No users, roles or audit trail.
+- **One process, one operator** for `vigil run --serve`, which keeps the optional shared token.
+  `vigil serve`, the desktop engine, has local accounts (ADR 0016): Argon2id passwords, cookie
+  sessions (which authenticate the live stream), lockout, roles enforced on every route, and a
+  hash-chained audit log. See "Accounts" below.
+
+## Accounts (D0)
+
+- **Tamper-evident, not tamper-proof.** The audit chain detects an edited or deleted row. Someone
+  holding the file can recompute the chain. Nothing is encrypted at rest; BitLocker is the control.
+- **An administrator on the OS, or anyone with the disk, is not stopped by login.** The last-resort
+  `vigil auth reset-admin` needs only the data directory and a typed phrase.
+- **The common-password list is small** (a few hundred entries written here), a floor against the
+  obvious rather than a strength estimate.
+- **Argon2id cost** is tuned to about 210 ms on the development machine only.
+- **The session cookie is not `Secure`.** Whether Chromium accepts that flag on the loopback origin
+  is untested.
+- **No UI for any of it yet**: setup, sign-in and user management are API-only until D1.
+- **The shared bearer token acts as an Operator** named `api-client` when accounts are on.
+
+## Desktop console (D1)
+
+- **Overlays are boxes, labels and info only.** Track IDs, trails and zone outlines are not drawn:
+  tracks and zones exist only after the analysis stage, and the stream path never sees them. The
+  wall offers only what works.
+- **No notification while the console is locked.** Locking closes the live channel (4423), so a new
+  incident raises no toast, tone or announcement until it is unlocked. The decision to notify with
+  severity and camera only while locked is recorded (ADR 0016) and is **not built**.
+- **Worker restart is not built.** The shell restarts the whole engine with backoff; a stalled or
+  crashed worker inside a running engine is still only reported.
+- **Cameras and zones are managed in the console as of D2**; see "Cameras and zones (D2)" below.
+- **The console follows the operating system's light or dark setting**; there is no manual switch.
+- **Keyboard shortcuts apply on the Incident Desk only.** There is no command palette.
+- **The alert sound is a generated tone**, with a single on/off switch and no per-severity or
+  per-camera rules, no quiet hours and no chosen sounds.
+- **Accessibility is automated plus the author's own checks.** axe at WCAG 2.2 AA passes on every
+  screen in jsdom and, with colour contrast, in Chromium. **No screen-reader pass (NVDA) was done.**
+- **The live channel polls the engine twice a second** and pushes differences; it is not driven by
+  the incident event itself.
+
+## Cameras and zones (D2)
+
+- **A change takes effect only after the engine restarts** (ADR 0017). Adding a camera or drawing a
+  zone saves a file at once, and the console shows it as waiting. Applying it stops monitoring of
+  **every** camera for the length of an engine start; an event in that window is not seen. The plan's
+  "no restart" exit criterion is **not met**. Measured with a video-file camera and no detection
+  model: about 3.5 s from clicking Restart to the camera reading ONLINE. With a model to load it will
+  be longer, and that was not measured.
+- **Without the desktop shell the engine cannot restart itself.** It refuses (409) and the console says
+  to stop and start it. A change then waits for that.
+- **RTSP was never run against a real camera.** The source, its timeouts and the redaction of its
+  address are tested with fakes only. Treat network cameras as
+  unproven until one has been tried. The webcam and video-file paths ran in the real app.
+- **A network camera that does not answer holds its capture worker for up to 4 s** (the open and read
+  timeouts), because OpenCV cannot interrupt a blocked open. They are kept under the 5 s shutdown budget so a
+  stop stays clean; found when the real command left a straggler with the previous 8 s and 6 s timeouts.
+- **Credentials need the `credentials` extra** (Windows Credential Manager through `keyring`). Without it the
+  console says so and cannot store a password; it never falls back to writing one into a file.
+- **Device names need the `capture` extra** (`cv2-enumerate-cameras`); without it a device number is typed.
+- **Zones are polygons only.** `crossing_line` is a line, nothing evaluates it, and the editor does not
+  offer it. A zone schedule is preserved when a zone is saved but is edited in the zone file by hand.
+- **Zone drawing has no calibration or snapshot freshness check.** The picture behind the zones is the
+  camera's current frame, or nothing if the camera is not running yet; the zones are fractions of the frame
+  either way.
+- **Cameras defined by hand in `vigil.yaml` are shown, not edited**, and say so.
+- **Not built in D2:** a diagnostics bundle, settings and configuration import/export, alert rules and quiet
+  hours, the degradation ladder, annotating the pre-roll gap after a reconnect, the full first-run wizard, and
+  engine worker restart.
+- **People, Audit log and Reports screens** (added after the first D2 cut):
+  - The screen refuses to change your own account (role, disable, delete); the engine independently refuses to
+    remove the last administrator. A password reset on yourself is allowed.
+  - The audit log export holds the newest 1,000 rows, and the chain check proves the rows were not altered after
+    they were written, not that the log is complete: someone with file access could delete the whole tail.
+  - Reports show a 7, 30 or 90 day period only, with no custom range, no per-camera or per-type filter in the
+    screen (the API has them), and no charts beyond proportional bars beside the numbers. The PDF format appears
+    only when its extra is installed, otherwise disabled with the install command.
+  - A dismissal rate is a signal about noise, not a false-positive rate; nothing here is labelled ground truth.
+  - People has no "sign this person out now" or session list; a role change or password reset ends their sessions.
+
+## Advanced features (D3)
+
+- **The dismissal rate is still not a false-positive rate.** Dismissal reasons (ADR 0018) are labels an operator
+  chose from a fixed list; nobody checks them against the picture. A dismissal made without a reason counts as
+  `not_given`. No rate has been produced from real operator use yet.
+- **Line-crossing zones and the module are not built.** Nothing evaluates a line, so the editor does not offer one.
+- **There is no screen for per-camera thresholds.** `module_params` in a camera file works, and saving a camera
+  from the console keeps it, but the console cannot edit it.
+- **The console draws no overlays of its own.** The engine draws boxes and labels into the picture, and no
+  measurement showed that to be limiting.
+- **The evidence bundle is not signed.** Its manifest shows whether a file still matches the hash recorded at
+  capture; it does not show that the recording is genuine. It is built on request and streamed from a temporary
+  file, and a very large clip was not tried.
+- **The timeline shows up to 100 incidents and 100 camera events** in the chosen period, with no paging and no
+  zoom. It is a list, not a drawn axis.
+- **The command palette is a shortcut, not a second interface.** It lists views and a few actions; every one
+  of them also exists as a control on screen.
+- **Windows Hello unlock and evidence encryption are not built and not designed.**
 
 ## Other
 

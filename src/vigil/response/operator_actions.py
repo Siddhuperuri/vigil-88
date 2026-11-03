@@ -38,7 +38,9 @@ from vigil.response.incident_manager import (
 )
 
 MAX_NOTE_LENGTH = 2000
-ACTIONS = ("acknowledge", "dismiss", "annotate", "escalate")
+_RESOLVABLE = frozenset({IncidentStatus.CONFIRMED, IncidentStatus.ACTIVE, IncidentStatus.RESOLVING})
+DEFAULT_ACTOR = "operator"  # used when no account layer is in front (headless, tests)
+ACTIONS = ("acknowledge", "dismiss", "annotate", "escalate", "resolve")
 
 
 class OperatorActions:
@@ -63,29 +65,53 @@ class OperatorActions:
 
     # ---------------------------------------------------------------- transitions
 
-    def acknowledge(self, incident_id: str, *, note: str | None = None) -> IncidentTransition:
-        """CONFIRMED -> ACTIVE."""
+    def acknowledge(
+        self, incident_id: str, *, note: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> IncidentTransition:
+        """CONFIRMED -> ACTIVE. `actor` is whoever the caller says it is; this layer never looks
+        one up (ADR 0016), so it stays independent of accounts."""
         return self._manager.transition(
             incident_id,
             IncidentStatus.ACTIVE,
-            actor="operator",
+            actor=actor,
             reason=_clean(note) or "acknowledged by the operator",
         )
 
-    def dismiss(self, incident_id: str, *, reason: str | None = None) -> IncidentTransition:
+    def dismiss(
+        self, incident_id: str, *, reason: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> IncidentTransition:
         """Terminal DISMISSED, and the measured false-positive signal."""
         transition = self._manager.transition(
             incident_id,
             IncidentStatus.DISMISSED,
-            actor="operator",
+            actor=actor,
             reason=_clean(reason) or "dismissed as a false positive",
         )
         self._metrics.counter("vigil_incidents_dismissed_total").inc()
         return transition
 
+    def resolve(
+        self, incident_id: str, *, note: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> IncidentTransition:
+        """The operator closes it: the situation is over. Walks the same state machine the system
+        does (through RESOLVING), so the history shows both steps and who took them. If the
+        situation is in fact still going, the next observation opens a new incident, which is
+        the honest outcome rather than quietly re-opening a closed one."""
+        lifecycle = self._incidents.lifecycle(incident_id)
+        if lifecycle is None:
+            raise PersistenceError(f"no incident {incident_id}")
+        reason = _clean(note) or "resolved by the operator"
+        if lifecycle.status in (IncidentStatus.CONFIRMED, IncidentStatus.ACTIVE):
+            self._manager.transition(
+                incident_id, IncidentStatus.RESOLVING, actor=actor, reason=reason
+            )
+        return self._manager.transition(
+            incident_id, IncidentStatus.RESOLVED, actor=actor, reason=reason
+        )
+
     # ---------------------------------------------------------------- annotation
 
-    def annotate(self, incident_id: str, note: str | None) -> bool:
+    def annotate(self, incident_id: str, note: str | None, *, actor: str = DEFAULT_ACTOR) -> bool:
         """Attach or clear an operator note. Bounded: a note is a sentence, not a file."""
         cleaned = _clean(note)
         if cleaned is not None and len(cleaned) > MAX_NOTE_LENGTH:
@@ -97,12 +123,16 @@ class OperatorActions:
             incident_id, cleaned, now_wall_utc=self._clock.wall_utc()
         )
         if updated:
-            self._log.info("incident_annotated", incident_id=incident_id, cleared=cleaned is None)
+            self._log.info(
+                "incident_annotated", incident_id=incident_id, cleared=cleaned is None, actor=actor
+            )
         return updated
 
     # ---------------------------------------------------------------- escalation
 
-    def escalate(self, incident_id: str, *, reason: str | None = None) -> Severity:
+    def escalate(
+        self, incident_id: str, *, reason: str | None = None, actor: str = DEFAULT_ACTOR
+    ) -> Severity:
         """Raise the band by one. The score is left exactly as the severity engine computed it."""
         lifecycle = self._incidents.lifecycle(incident_id)
         if lifecycle is None:
@@ -130,6 +160,7 @@ class OperatorActions:
             from_severity=current.name,
             to_severity=raised.name,
             reason=_clean(reason) or "escalated by the operator",
+            actor=actor,
             original_score=round(lifecycle.severity_score, 2),
         )
         return raised
@@ -159,6 +190,9 @@ class OperatorActions:
         if action == "escalate":
             at_top = Severity(lifecycle.severity) is Severity.CRITICAL
             return (not at_top, "already at CRITICAL" if at_top else None)
+        if action == "resolve":
+            ok = lifecycle.status in _RESOLVABLE
+            return (ok, None if ok else f"an incident in {state} is already closed")
         if action == "annotate":
             # Always allowed, including on a closed incident: a note written during review is
             # often the most useful thing on the record.

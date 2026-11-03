@@ -229,12 +229,12 @@ def test_multiple_cameras_run_independently(make_config: MakeConfig) -> None:
 # ------------------------------------------------------------------ failure containment
 
 
-def test_an_unimplemented_source_fails_that_camera_not_the_application(
+def test_a_source_that_cannot_be_built_fails_that_camera_not_the_application(
     make_config: MakeConfig,
 ) -> None:
     streaming = {"camera_id": "synth", "source": {"kind": "synthetic"}}  # never ends
     cams = [
-        {"camera_id": "lobby", "source": {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}},
+        {"camera_id": "lobby", "source": {"kind": "image", "path": "x.png"}},
         streaming,
     ]
     app = app_for(make_config({"cameras": cams}))
@@ -256,7 +256,7 @@ def test_an_unimplemented_source_fails_that_camera_not_the_application(
 def test_nothing_left_streaming_is_failed_even_if_one_camera_ended_cleanly(
     make_config: MakeConfig,
 ) -> None:
-    cams = [{"camera_id": "lobby", "source": {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}}, SYNTH]
+    cams = [{"camera_id": "lobby", "source": {"kind": "image", "path": "x.png"}}, SYNTH]
     app = app_for(make_config({"cameras": cams}))
     app.start()
     try:
@@ -267,7 +267,7 @@ def test_nothing_left_streaming_is_failed_even_if_one_camera_ended_cleanly(
 
 
 def test_when_every_camera_fails_the_system_reports_failed(make_config: MakeConfig) -> None:
-    cams = [{"camera_id": "lobby", "source": {"kind": "rtsp", "url": "rtsp://10.0.0.5/s"}}]
+    cams = [{"camera_id": "lobby", "source": {"kind": "image", "path": "x.png"}}]
     app = app_for(make_config({"cameras": cams}))
     app.start()
     try:

@@ -20,3 +20,12 @@ ui/dist/
 # tool state
 .serena/
 .claude/
+
+# D0 desktop and console
+desktop/node_modules/
+desktop/out/
+desktop/test-results/
+desktop/playwright-report/
+desktop/coverage/
+ui/coverage/
+build/

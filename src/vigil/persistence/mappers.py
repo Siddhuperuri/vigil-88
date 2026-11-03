@@ -329,7 +329,7 @@ def transition_to_row(incident_id: str, transition: IncidentTransition) -> dict[
 
 
 def transition_from_row(row: Row) -> IncidentTransition:
-    actor: Actor = "operator" if row["actor"] == "operator" else "system"
+    actor: Actor = str(row["actor"])
     return IncidentTransition(
         from_status=None if row["from_status"] is None else IncidentStatus(row["from_status"]),
         to_status=IncidentStatus(row["to_status"]),

@@ -259,6 +259,13 @@ class CameraHealthTracker:
             elif (
                 fps is not None
                 and expected is not None
+                # Not before adoption (D0, finding F7): until the camera has shown what it can
+                # sustain, `expected` is only the driver's claim, which ADR 0015 B1 found to be
+                # optimistic. A webcam spends its first seconds below its claim while exposure
+                # settles, and holding it to the claim then made every start DEGRADED for about
+                # 8 s, rejecting every candidate and logging a reliability dip that never was.
+                # The absolute floor above still applies from the first frame.
+                and self._adopted_fps is not None
                 and fps < self._cfg.min_fps_ratio * expected
             ):
                 claimed = (

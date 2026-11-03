@@ -125,6 +125,13 @@ DEFINITIONS: Mapping[str, MetricDefinition] = {
         "positive nobody acknowledged",
         unit="ratio",
     ),
+    "dismissal_reasons": MetricDefinition(
+        name="dismissal_reasons",
+        population="dismissed incidents in the window, by the reason the operator chose",
+        definition="a count of the reason picked when dismissing. It is the operator's label, "
+        "not a verified cause; dismissals made without picking one count as not_given",
+        unit="incidents",
+    ),
     "candidate_outcomes": MetricDefinition(
         name="candidate_outcomes",
         population="promoted event candidates",

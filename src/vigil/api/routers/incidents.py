@@ -17,14 +17,15 @@ opened, so a tampered row cannot become an arbitrary file read (05 §6, 01 §10)
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, TypeVar
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse, StreamingResponse
 
+from vigil.api.bundle import build_bundle
 from vigil.api.schemas_incidents import (
     EvidenceOut,
     ExplanationOut,
@@ -37,7 +38,11 @@ from vigil.api.schemas_incidents import (
     system_out,
     transitions_out,
 )
+from vigil.api.session import actor_name, audit_event, requires
+from vigil.auth.roles import Permission
 from vigil.core.errors import PersistenceError
+from vigil.domain.dismissal import REASONS as DISMISSAL_REASONS
+from vigil.domain.dismissal import encode as encode_reason
 from vigil.domain.enums import EventType, IncidentStatus, Severity
 from vigil.domain.incident import Incident
 from vigil.persistence.queries import (
@@ -59,6 +64,12 @@ _T = TypeVar("_T")
 CURSOR_SEPARATOR = "~"
 DEFAULT_PAGE_SIZE = 50
 INTEGRITY_HEADER = "X-Evidence-Integrity"
+
+_VIEW = requires(Permission.VIEW)
+_ACT = requires(Permission.ACT_ON_INCIDENTS)
+_EXPORT = requires(Permission.EXPORT)
+_MUTES = requires(Permission.MANAGE_MUTES)
+_EXPORT = requires(Permission.EXPORT)
 
 
 def _parse_cursor(cursor: str | None) -> tuple[str, str] | None:
@@ -126,7 +137,7 @@ def build_router(
             evidence_status=incidents.evidence_status(incident.incident_id),
         )
 
-    @router.get("", response_model=IncidentPageOut)
+    @router.get("", response_model=IncidentPageOut, dependencies=[_VIEW])
     def list_incidents(
         camera_id: Annotated[str | None, Query(max_length=400)] = None,
         event_type: Annotated[str | None, Query(max_length=400)] = None,
@@ -183,7 +194,12 @@ def build_router(
             page_size=size,
         )
 
-    @router.get("/{incident_id}", response_model=IncidentDetailOut)
+    @router.get("/dismissal-reasons", response_model=list[dict[str, str]], dependencies=[_VIEW])
+    def dismissal_reasons() -> list[dict[str, str]]:
+        """The fixed reasons an operator picks from when dismissing; no client invents its own."""
+        return [{"code": code, "label": label} for code, label in DISMISSAL_REASONS.items()]
+
+    @router.get("/{incident_id}", response_model=IncidentDetailOut, dependencies=[_VIEW])
     def incident_detail(incident_id: str) -> IncidentDetailOut:
         incident = _require(incident_id)
         records = evidence.for_incident(incident_id)
@@ -205,12 +221,12 @@ def build_router(
             permissions=permissions_out(actions.permissions(incident_id)),
         )
 
-    @router.get("/{incident_id}/evidence", response_model=list[EvidenceOut])
+    @router.get("/{incident_id}/evidence", response_model=list[EvidenceOut], dependencies=[_VIEW])
     def incident_evidence(incident_id: str) -> list[EvidenceOut]:
         _require(incident_id)
         return evidence_out(evidence.for_incident(incident_id))
 
-    @router.get("/{incident_id}/evidence/{evidence_id}")
+    @router.get("/{incident_id}/evidence/{evidence_id}", dependencies=[_VIEW])
     def evidence_file(incident_id: str, evidence_id: str) -> FileResponse:
         """Serve one evidence file, path-checked and hash-verified.
 
@@ -242,50 +258,119 @@ def build_router(
             },
         )
 
+    @router.get("/{incident_id}/bundle", dependencies=[_EXPORT])
+    def incident_bundle(request: Request, incident_id: str) -> StreamingResponse:
+        """The incident and its evidence as one zip, each file marked ok, mismatch or missing."""
+        detail = incident_detail(incident_id)
+        archive, manifest = build_bundle(
+            incident_json=detail.model_dump_json(indent=2),
+            records=evidence.for_incident(incident_id),
+            evidence_root=evidence_root,
+        )
+
+        def chunks() -> Iterator[bytes]:
+            try:
+                while block := archive.read(1024 * 1024):
+                    yield block
+            finally:
+                archive.close()
+
+        audit_event(
+            request,
+            "incident.bundle",
+            target=incident_id,
+            detail={"files": len(manifest), "not_ok": sum(m["status"] != "ok" for m in manifest)},
+        )
+        name = detail.incident.display_ref
+        return StreamingResponse(
+            chunks(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{name}.zip"'},
+        )
+
     # ---------------------------------------------------------------- operator actions
 
-    def _act(incident_id: str, action: str, body: dict[str, str] | None) -> IncidentDetailOut:
+    def _act(
+        request: Request, incident_id: str, action: str, body: dict[str, str] | None
+    ) -> IncidentDetailOut:
         _require(incident_id)
         allowed, reason = actions.can(incident_id, action)
         if not allowed:
             # 409, not 500: the request was well formed and the lifecycle simply says no.
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
         text = (body or {}).get("reason") or (body or {}).get("note")
+        code = (body or {}).get("reason_code")
+        if action == "dismiss" and code is not None:
+            try:
+                text = encode_reason(code, text)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"Unknown dismissal reason; use one of {', '.join(DISMISSAL_REASONS)}.",
+                ) from None
+        who = actor_name(request)
         try:
             if action == "acknowledge":
-                actions.acknowledge(incident_id, note=text)
+                actions.acknowledge(incident_id, note=text, actor=who)
             elif action == "dismiss":
-                actions.dismiss(incident_id, reason=text)
+                actions.dismiss(incident_id, reason=text, actor=who)
+            elif action == "resolve":
+                actions.resolve(incident_id, note=text, actor=who)
             elif action == "escalate":
-                actions.escalate(incident_id, reason=text)
+                actions.escalate(incident_id, reason=text, actor=who)
             elif action == "annotate":
-                actions.annotate(incident_id, text)
+                actions.annotate(incident_id, text, actor=who)
         except TransitionRefused as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from None
         except PersistenceError as exc:
             raise HTTPException(status_code=400, detail=exc.message) from None
+        audit_event(
+            request,
+            f"incident.{action}",
+            target=incident_id,
+            detail={"note_chars": len(text or "")},
+        )
         return incident_detail(incident_id)
 
-    @router.post("/{incident_id}/acknowledge", response_model=IncidentDetailOut)
-    def acknowledge(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "acknowledge", body)
+    @router.post(
+        "/{incident_id}/acknowledge", response_model=IncidentDetailOut, dependencies=[_ACT]
+    )
+    def acknowledge(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "acknowledge", body)
 
-    @router.post("/{incident_id}/dismiss", response_model=IncidentDetailOut)
-    def dismiss(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "dismiss", body)
+    @router.post("/{incident_id}/dismiss", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def dismiss(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "dismiss", body)
 
-    @router.post("/{incident_id}/escalate", response_model=IncidentDetailOut)
-    def escalate(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "escalate", body)
+    @router.post("/{incident_id}/resolve", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def resolve(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "resolve", body)
 
-    @router.post("/{incident_id}/annotate", response_model=IncidentDetailOut)
-    def annotate(incident_id: str, body: dict[str, str] | None = None) -> IncidentDetailOut:
-        return _act(incident_id, "annotate", body)
+    @router.post("/{incident_id}/escalate", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def escalate(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "escalate", body)
 
-    @router.delete("/{incident_id}/annotate", status_code=status.HTTP_204_NO_CONTENT)
-    def clear_note(incident_id: str) -> Response:
+    @router.post("/{incident_id}/annotate", response_model=IncidentDetailOut, dependencies=[_ACT])
+    def annotate(
+        request: Request, incident_id: str, body: dict[str, str] | None = None
+    ) -> IncidentDetailOut:
+        return _act(request, incident_id, "annotate", body)
+
+    @router.delete(
+        "/{incident_id}/annotate", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_ACT]
+    )
+    def clear_note(request: Request, incident_id: str) -> Response:
         _require(incident_id)
-        actions.annotate(incident_id, None)
+        actions.annotate(incident_id, None, actor=actor_name(request))
+        audit_event(request, "incident.note_cleared", target=incident_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

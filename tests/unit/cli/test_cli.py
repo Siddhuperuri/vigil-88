@@ -113,13 +113,15 @@ def test_run_a_synthetic_camera_for_a_moment_then_shut_down_cleanly(tmp_path: Pa
     assert "shutdown clean" in result.output
 
 
-def test_run_with_only_an_rtsp_source_reports_not_implemented_and_exits_1(tmp_path: Path) -> None:
+def test_run_with_an_rtsp_source_that_cannot_be_reached_still_shuts_down_clean(
+    tmp_path: Path,
+) -> None:
     result = runner.invoke(
         app,
         [
             "run",
             "--source",
-            "rtsp://10.0.0.5/s",
+            "rtsp://127.0.0.1:9/s",
             "--duration",
             "0.3",
             "--status-interval",
@@ -130,8 +132,10 @@ def test_run_with_only_an_rtsp_source_reports_not_implemented_and_exits_1(tmp_pa
             "ERROR",
         ],
     )
-    assert result.exit_code == 1
-    assert "not implemented" in result.output
+    # The capture worker may be inside the camera's open timeout when the stop arrives; that timeout
+    # is shorter than the shutdown budget, so the stop is clean rather than "incomplete".
+    assert result.exit_code == 0, result.output
+    assert "shutdown clean" in result.output
 
 
 def test_unimplemented_backend_fails_startup_with_a_clear_message(tmp_path: Path) -> None:

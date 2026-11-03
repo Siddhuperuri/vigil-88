@@ -169,10 +169,35 @@ def test_stall_threshold_adapts_to_a_slow_camera(clock: ManualClock) -> None:
     assert t.state is S.DEGRADED
 
 
-def test_low_fps_degrades(clock: ManualClock) -> None:
+def test_a_camera_below_its_claim_is_not_degraded_while_it_is_still_warming_up(
+    clock: ManualClock,
+) -> None:
+    """F7. A webcam that claims 30 fps spends its first seconds near 9 while exposure settles.
+    That is not irregular spacing, and holding it to the claim rejected every candidate."""
     t = tracker(clock, min_fps_ratio=0.5)
     t.mark_online(epoch=1, expected_fps=30)
-    feed(t, clock, 40, 100)  # 10 fps measured vs 30 expected
+    feed(t, clock, 40, 110)  # about 9 fps measured against a claim of 30
+    t.evaluate()
+    assert t.state is S.ONLINE
+
+
+def test_it_is_still_held_to_the_absolute_floor_from_the_first_frame(clock: ManualClock) -> None:
+    t = tracker(clock, min_fps_ratio=0.5, min_absolute_fps=1.0)
+    t.mark_online(epoch=1, expected_fps=30)
+    feed(t, clock, 40, 2000)  # 0.5 fps: too coarse for temporal reasoning whatever was claimed
+    t.evaluate()
+    assert t.state is S.DEGRADED and "absolute floor" in (t.snapshot().detail or "")
+
+
+def test_low_fps_degrades_once_the_camera_has_shown_what_it_can_sustain(
+    clock: ManualClock,
+) -> None:
+    t = tracker(clock, min_fps_ratio=0.5, adopt_measured_fps_after_frames=40)
+    t.mark_online(epoch=1, expected_fps=30)
+    feed(t, clock, 60, 100)  # sustains 10 fps; adopted
+    t.evaluate()
+    assert t.state is S.ONLINE
+    feed(t, clock, 40, 400)  # now 2.5 fps: below half of what it had demonstrated
     t.evaluate()
     assert t.state is S.DEGRADED and "low fps" in (t.snapshot().detail or "")
 

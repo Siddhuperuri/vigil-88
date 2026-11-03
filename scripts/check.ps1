@@ -62,9 +62,42 @@ Step "performance report is current" {
     uv run vigil bench report | Out-Null
     git diff --exit-code -- docs/PERFORMANCE.md
 }
+# ---------------------------------------------------------------- the console and the shell (D0)
+# The same bar as the engine: strict types, lint with accessibility rules, formatting, tests with a
+# coverage floor, and a script that reads the design tokens for contrast. Nothing here may be
+# loosened to make a phase pass.
+Push-Location ui
+try {
+    Step "ui: npm ci"                       { npm ci --no-audit --no-fund }
+    Step "ui: typecheck (strict)"           { npm run typecheck }
+    Step "ui: eslint (jsx-a11y, strict)"    { npm run lint }
+    Step "ui: prettier --check"             { npm run format:check }
+    Step "ui: contrast >= 4.5:1 over tokens" { npm run contrast }
+    Step "ui: unit, component and axe tests with coverage floor" { npm test }
+    Step "ui: production build"             { npm run build }
+} finally { Pop-Location }
+Step "generated API types are current" {
+    uv run vigil openapi --out ui/src/api/openapi.json
+    Push-Location ui
+    try { npm run gen:types | Out-Null } finally { Pop-Location }
+    git diff --exit-code -- ui/src/api/openapi.json ui/src/api/types.gen.ts
+}
+Push-Location desktop
+try {
+    Step "desktop: npm ci"                  { npm ci --no-audit --no-fund }
+    Step "desktop: typecheck (strict)"      { npm run typecheck }
+    Step "desktop: eslint (strict)"         { npm run lint }
+    Step "desktop: prettier --check"        { npm run format:check }
+    Step "desktop: unit tests with coverage floor" { npm test }
+    Step "desktop: build"                   { npm run build }
+} finally { Pop-Location }
+
 if (-not $SkipRun) {
     Step "vigil doctor"        { uv run vigil doctor }
     Step "vigil run --selftest" { uv run vigil run --selftest }
+    # Launches the real Electron app, which launches the real engine. Needs a desktop session.
+    Push-Location desktop
+    try { Step "desktop: end-to-end (real app, real engine, axe)" { npm run e2e } } finally { Pop-Location }
 }
 
 Write-Host ""

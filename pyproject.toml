@@ -23,6 +23,7 @@ dependencies = [
 capture = [
     "numpy>=1.26,<3",
     "opencv-python-headless>=4.10",
+    "cv2-enumerate-cameras>=1.1",  # camera names for the console; does not open the device
 ]
 # Detector backends. The CPU and GPU builds of onnxruntime both provide the `onnxruntime`
 # module and cannot coexist, so they are conflicting extras (see [tool.uv] below).
@@ -42,8 +43,10 @@ onnx-gpu = [
 ]
 # Live annotated stream and metrics over HTTP (loopback by default).
 api = [
+    "argon2-cffi>=23.1",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    "websockets>=13",
 ]
 # Printable PDF reports. An extra rather than a core dependency: 10-roadmap §8 asks for PDF
 # export, 03 §1 rule 1 says every dependency is a liability, and a renderer is a large one for
@@ -51,6 +54,10 @@ api = [
 # with the install command (ADR 0014 §C).
 reports = [
     "reportlab>=4.2",
+]
+# Camera passwords in Windows Credential Manager (camera files hold only a name).
+credentials = [
+    "keyring>=25.0",
 ]
 
 [project.scripts]
@@ -134,7 +141,7 @@ module = ["vigil.core.*", "vigil.domain.*"]
 disallow_any_explicit = true  # 01 §12: domain/ and core/ forbid Any
 
 [[tool.mypy.overrides]]
-module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*", "reportlab.*"]
+module = ["cv2", "cv2.*", "cv2_enumerate_cameras", "cv2_enumerate_cameras.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "pynvml", "nvidia", "nvidia.*", "reportlab.*", "keyring", "keyring.*"]
 ignore_missing_imports = true  # none of these publish stubs; `reportlab` is also optional
 
 # ---------------------------------------------------------------- pytest
@@ -172,6 +179,9 @@ type = "layers"
 layers = [
     "vigil.cli",
     "vigil.api | vigil.bench",
+    # ADR 0016: accounts sit between the API and the pipeline. api/ and cli/ may import them; the
+    # pipeline and every engine below may not, which the layer order enforces.
+    "vigil.auth",
     # 01 §5 puts pipeline/ and analytics/ on one layer. `:` rather than `|` (which would
     # enforce independence) because pipeline builds the analytics objects as part of the
     # response stack: constructing engines is pipeline's job, and the API is a client of what
@@ -209,3 +219,26 @@ name = "domain-purity"
 type = "forbidden"
 source_modules = ["vigil.domain", "vigil.core"]
 forbidden_modules = ["numpy", "cv2", "torch", "pydantic", "sqlalchemy", "structlog", "yaml", "psutil", "typer", "rich"]
+
+# ADR 0016: accounts know nothing of the engine. They are built from `core` and `config` only, so a
+# change to detection can never reach authentication and authentication can never reach detection.
+[[tool.importlinter.contracts]]
+name = "auth-is-self-contained"
+type = "forbidden"
+source_modules = ["vigil.auth"]
+forbidden_modules = [
+    "vigil.api",
+    "vigil.pipeline",
+    "vigil.analytics",
+    "vigil.persistence",
+    "vigil.domain",
+    "vigil.ingest",
+    "vigil.vision",
+    "vigil.tracking",
+    "vigil.scene",
+    "vigil.temporal",
+    "vigil.events",
+    "vigil.verification",
+    "vigil.severity",
+    "vigil.response",
+]

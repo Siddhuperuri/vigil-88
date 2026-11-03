@@ -9,11 +9,11 @@ from vigil.core.protocols.source import FrameSource
 from vigil.domain.camera import SourceSpec
 from vigil.domain.enums import SourceKind
 
-IMPLEMENTED_KINDS = frozenset({SourceKind.WEBCAM, SourceKind.SYNTHETIC})
+IMPLEMENTED_KINDS = frozenset(
+    {SourceKind.WEBCAM, SourceKind.SYNTHETIC, SourceKind.VIDEO_FILE, SourceKind.RTSP}
+)
 
 _NOT_IMPLEMENTED = {
-    SourceKind.RTSP: "RTSP capture is not implemented in this build (planned: later phase)",
-    SourceKind.VIDEO_FILE: "video-file replay is not implemented in this build",
     SourceKind.IMAGE: "image input is not implemented in this build",
 }
 _EXTRA_HINT = "install the capture extra: uv sync --extra capture"
@@ -27,6 +27,14 @@ def build_source(spec: SourceSpec, clock: Clock | None = None) -> FrameSource:
             from vigil.ingest.sources.webcam import WebcamSource
 
             return WebcamSource(spec)
+        if spec.kind is SourceKind.VIDEO_FILE:
+            from vigil.ingest.sources.video_file import VideoFileSource
+
+            return VideoFileSource(spec)
+        if spec.kind is SourceKind.RTSP:
+            from vigil.ingest.sources.rtsp import RtspSource
+
+            return RtspSource(spec)
         if spec.kind is SourceKind.SYNTHETIC:
             from vigil.ingest.sources.synthetic import SyntheticSource
 
