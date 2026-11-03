@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from vigil.api.session import audit_event, requires
@@ -141,6 +143,31 @@ def build_router(*, paths: ResolvedPaths, application: Application | None = None
                 )
                 for w in application.snapshot().workers
             ]
+
+        @router.get("/diagnostics", dependencies=[requires(Permission.DIAGNOSTICS)])
+        def diagnostics(request: Request) -> StreamingResponse:
+            """A zip an administrator can send to get help: versions, health, redacted
+            configuration and logs. Never frames, evidence, accounts or credentials."""
+            from vigil.api.diagnostics import build_bundle
+
+            archive, manifest = build_bundle(application)
+
+            def chunks() -> Iterator[bytes]:
+                try:
+                    while block := archive.read(1024 * 1024):
+                        yield block
+                finally:
+                    archive.close()
+
+            audit_event(request, "diagnostics.exported", detail={"files": len(manifest) + 1})
+            return StreamingResponse(
+                chunks(),
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": 'attachment; filename="vigil88-diagnostics.zip"',
+                    "Cache-Control": "no-store",
+                },
+            )
 
         @router.post(
             "/workers/{name}/restart",
