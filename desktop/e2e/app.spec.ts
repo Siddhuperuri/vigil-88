@@ -35,7 +35,15 @@ async function launch(): Promise<Launched> {
   );
   const app = await electron.launch({
     args: [DESKTOP, `--user-data-dir=${path.join(root, "user")}`],
-    env: { ...process.env, VIGIL_ENGINE_CONFIG_DIR: config, ELECTRON_ENABLE_LOGGING: "0" },
+    env: {
+      ...process.env,
+      VIGIL_ENGINE_CONFIG_DIR: config,
+      ELECTRON_ENABLE_LOGGING: "0",
+      // Set to run the same journeys against the frozen engine instead of the source checkout.
+      ...(process.env["VIGIL_E2E_ENGINE_EXE"] === undefined
+        ? {}
+        : { VIGIL_ENGINE_EXE: process.env["VIGIL_E2E_ENGINE_EXE"] }),
+    },
     timeout: 120_000,
   });
   const stdout: string[] = [];
@@ -127,7 +135,7 @@ test.describe("the real app", () => {
       process: typeof (window as unknown as { process?: unknown }).process,
     }));
     expect(exposure).toEqual({
-      bridge: ["engineState", "notify", "restartEngine", "setupToken"],
+      bridge: ["autostart", "engineState", "notify", "restartEngine", "setAutostart", "setupToken"],
       require: "undefined",
       process: "undefined",
     });
@@ -377,5 +385,36 @@ test.describe("the real app", () => {
       page.getByText("Saved zones are waiting for monitoring to restart."),
     ).toBeVisible();
     await expect(page.getByText(/2 saved changes are waiting/)).toBeVisible();
+  });
+
+  test("start with Windows is off, can be turned on and off, and a second launch does not start another engine", async () => {
+    const page = session.page;
+    await createAdministrator(page);
+    await page.getByRole("link", { name: "System" }).click();
+    const box = page.getByRole("checkbox", { name: /Start VIGIL-88 when I sign in/ });
+    await expect(box).toBeEnabled();
+    await expect(box).not.toBeChecked();
+    try {
+      // A click, not check(): the state changes after the shell answers, which check() will not wait for.
+      await box.click();
+      await expect(box).toBeChecked();
+      expect(session.stdout.join("")).toContain('"shell":"autostart","ms"');
+    } finally {
+      // Leave the machine as it was found: the registry entry must not outlive the test.
+      if (await box.isChecked()) await box.click();
+    }
+    await expect(box).not.toBeChecked();
+    const enginesBefore = pidsMatching(session.marker).length;
+    expect(enginesBefore).toBeGreaterThan(0);
+
+    // The second instance exits at once (the single-instance lock) and the first stays the only one.
+    const second = electron.launch({
+      args: [DESKTOP, `--user-data-dir=${path.join(path.dirname(session.marker), "user")}`],
+      env: { ...process.env, ELECTRON_ENABLE_LOGGING: "0" },
+      timeout: 30_000,
+    });
+    await second.then((app) => app.close()).catch(() => undefined);
+    expect(pidsMatching(session.marker).length).toBe(enginesBefore);
+    await expect(page.getByRole("heading", { name: "System" })).toBeVisible();
   });
 });

@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { BrowserWindow, Menu, Notification, Tray, app, ipcMain, nativeImage } from "electron";
 import type { IpcMainInvokeEvent } from "electron";
+import { loginItem, startedHidden } from "./autostart";
 import { planEngine } from "./engine-plan";
 import { describeAlert } from "./notify";
 import { statusPage } from "./status-page";
@@ -22,6 +23,8 @@ const SHELL_CHANNEL = {
   state: "shell:engine-state",
   restart: "shell:restart-engine",
   notify: "shell:notify",
+  autostartGet: "shell:autostart-get",
+  autostartSet: "shell:autostart-set",
 };
 
 let window: BrowserWindow | null = null;
@@ -90,8 +93,21 @@ function existsUi(): boolean {
 function uiDir(): string | undefined {
   const fromEnv = process.env["VIGIL_UI_DIR"];
   if (fromEnv !== undefined && existsSync(fromEnv)) return fromEnv;
-  const built = path.resolve(app.getAppPath(), "..", "ui", "dist");
-  return existsSync(path.join(built, "index.html")) ? built : undefined;
+  // An installed app carries the console beside the engine; a checkout builds it under ui/dist.
+  const candidates = app.isPackaged
+    ? [path.join(process.resourcesPath, "ui")]
+    : [path.resolve(app.getAppPath(), "..", "ui", "dist")];
+  return candidates.find((dir) => existsSync(path.join(dir, "index.html")));
+}
+
+/** The frozen engine: named by the environment (tests, the measurement script) or, in an installed
+ * app, shipped under resources. Without either the engine is run from the source checkout. */
+function packagedEngine(): string | undefined {
+  const fromEnv = process.env["VIGIL_ENGINE_EXE"];
+  if (fromEnv !== undefined && existsSync(fromEnv)) return fromEnv;
+  if (!app.isPackaged) return undefined;
+  const shipped = path.join(process.resourcesPath, "engine", "vigil-engine.exe");
+  return existsSync(shipped) ? shipped : undefined;
 }
 
 function createWindow(): BrowserWindow {
@@ -114,6 +130,12 @@ function createWindow(): BrowserWindow {
     },
   });
   win.once("ready-to-show", () => {
+    // Started by the login item: stay in the tray and watch. Without a tray there is nowhere to
+    // return to, so the window is shown anyway.
+    if (startedHidden(process.argv) && tray !== null) {
+      milestone("window-kept-hidden");
+      return;
+    }
     win.show();
     milestone("window-shown");
   });
@@ -148,6 +170,7 @@ function startEngine(): void {
     userDataDir: app.getPath("userData"),
     setupToken,
     uiDir: uiDir(),
+    packagedEngine: packagedEngine(),
     repoRoot: path.resolve(app.getAppPath(), ".."),
     configDirOverride: process.env["VIGIL_ENGINE_CONFIG_DIR"],
     detector: process.env["VIGIL_DETECTOR"],
@@ -215,6 +238,15 @@ function createTray(): void {
   tray.on("click", showWindow);
 }
 
+function loginItemFor(enabled: boolean) {
+  return loginItem({
+    enabled,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged,
+  });
+}
+
 function registerIpc(): void {
   ipcMain.handle(SHELL_CHANNEL.setup, (event) => {
     // Only while setup is pending, once, and only to the engine's own page.
@@ -229,6 +261,16 @@ function registerIpc(): void {
   );
   ipcMain.handle(SHELL_CHANNEL.restart, (event) => {
     if (fromEngineOrigin(event)) supervisor?.restart();
+  });
+  ipcMain.handle(SHELL_CHANNEL.autostartGet, (event) => {
+    if (!fromEngineOrigin(event)) return null;
+    return { enabled: app.getLoginItemSettings(loginItemFor(false)).openAtLogin };
+  });
+  ipcMain.handle(SHELL_CHANNEL.autostartSet, (event, enabled: unknown) => {
+    if (!fromEngineOrigin(event) || typeof enabled !== "boolean") return null;
+    app.setLoginItemSettings(loginItemFor(enabled));
+    milestone("autostart", { enabled });
+    return { enabled: app.getLoginItemSettings(loginItemFor(enabled)).openAtLogin };
   });
   ipcMain.handle(SHELL_CHANNEL.notify, (event, raw: unknown) => {
     if (!fromEngineOrigin(event) || !Notification.isSupported()) return false;
@@ -255,9 +297,9 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (window === null) return;
-    if (window.isMinimized()) window.restore();
-    window.focus();
+    // A second launch (the start-menu entry, a shortcut) brings the running app forward, even from
+    // the tray, instead of starting another engine.
+    showWindow();
   });
   void app.whenReady().then(() => {
     milestone("ready");

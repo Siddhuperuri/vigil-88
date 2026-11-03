@@ -28,3 +28,4 @@ desktop/test-results/
 desktop/playwright-report/
 desktop/coverage/
 ui/coverage/
+build/

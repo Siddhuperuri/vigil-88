@@ -3,6 +3,7 @@ import type { Logs, Role, Storage } from "../api/types";
 import { useFetch } from "../api/useFetch";
 import { Notice, StateLabel, bytes, readout } from "../components/bits";
 import { useTelemetry } from "../state/telemetry";
+import { StartWithWindows } from "../components/StartWithWindows";
 import { Capabilities } from "./Capabilities";
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -197,6 +198,8 @@ export function System({ role }: { role: Role }) {
       <Health />
       <StoragePanel />
       <Capabilities />
+      <h2>Starting with Windows</h2>
+      <StartWithWindows />
       {role === "administrator" ? (
         <LogsPanel />
       ) : (
