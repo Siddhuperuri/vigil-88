@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { sendJson } from "../api/client";
 import type { Evidence, IncidentDetail as Detail, Role } from "../api/types";
 import { useFetch } from "../api/useFetch";
+import { BundleButton } from "../components/BundleButton";
 import { ActionPrompt } from "../components/ActionPrompt";
 import { Notice, SeverityBadge, bytes, when } from "../components/bits";
 
@@ -451,6 +452,7 @@ function DetailBody({
             ))}
           </ul>
         )}
+        <BundleButton incidentId={id} name={inc.display_ref} role={role} />
       </section>
 
       <section aria-labelledby="history-title">

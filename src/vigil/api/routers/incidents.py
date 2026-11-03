@@ -17,14 +17,15 @@ opened, so a tampered row cannot become an arbitrary file read (05 §6, 01 §10)
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
+from vigil.api.bundle import build_bundle
 from vigil.api.schemas_incidents import (
     EvidenceOut,
     ExplanationOut,
@@ -66,6 +67,7 @@ INTEGRITY_HEADER = "X-Evidence-Integrity"
 
 _VIEW = requires(Permission.VIEW)
 _ACT = requires(Permission.ACT_ON_INCIDENTS)
+_EXPORT = requires(Permission.EXPORT)
 _MUTES = requires(Permission.MANAGE_MUTES)
 _EXPORT = requires(Permission.EXPORT)
 
@@ -254,6 +256,36 @@ def build_router(
                 INTEGRITY_HEADER: "ok" if ok else "mismatch",
                 "Cache-Control": "private, max-age=60",
             },
+        )
+
+    @router.get("/{incident_id}/bundle", dependencies=[_EXPORT])
+    def incident_bundle(request: Request, incident_id: str) -> StreamingResponse:
+        """The incident and its evidence as one zip, each file marked ok, mismatch or missing."""
+        detail = incident_detail(incident_id)
+        archive, manifest = build_bundle(
+            incident_json=detail.model_dump_json(indent=2),
+            records=evidence.for_incident(incident_id),
+            evidence_root=evidence_root,
+        )
+
+        def chunks() -> Iterator[bytes]:
+            try:
+                while block := archive.read(1024 * 1024):
+                    yield block
+            finally:
+                archive.close()
+
+        audit_event(
+            request,
+            "incident.bundle",
+            target=incident_id,
+            detail={"files": len(manifest), "not_ok": sum(m["status"] != "ok" for m in manifest)},
+        )
+        name = detail.incident.display_ref
+        return StreamingResponse(
+            chunks(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{name}.zip"'},
         )
 
     # ---------------------------------------------------------------- operator actions

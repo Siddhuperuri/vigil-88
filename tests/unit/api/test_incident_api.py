@@ -7,7 +7,9 @@ than in the count, a cursor that skips a row, an action offered that the lifecyc
 
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -534,3 +536,78 @@ def test_a_mute_needs_a_reason_and_a_bounded_duration(
         client.post("/mutes", json={"duration_s": 60, "reason": "x", "nonsense": 1}).status_code
         == 422
     )
+
+
+def _evidence(
+    root: Path, incident: Incident, ulids: UlidFactory, name: str, payload: bytes, *, on_disk: bool
+) -> Evidence:
+    relative = f"{CAMERA}/2026/03/01/{incident.incident_id}"
+    if on_disk:
+        (root / relative).mkdir(parents=True, exist_ok=True)
+        (root / relative / name).write_bytes(payload)
+    return Evidence(
+        evidence_id=ulids.new(),
+        incident_id=incident.incident_id,
+        kind=EvidenceKind.EXPLANATION,
+        relative_path=f"{relative}/{name}",
+        sha256=sha256_bytes(payload),
+        size_bytes=len(payload),
+        media_type="application/json",
+        captured_wall_utc=WALL,
+        span_ms=None,
+        expires_wall_utc=None,
+    )
+
+
+def test_the_bundle_holds_the_incident_and_marks_each_file_ok_mismatch_or_missing(
+    seeded: tuple[httpx.Client, ResponseStack, UlidFactory, Incident],
+    api: tuple[httpx.Client, ResponseStack, Path],
+) -> None:
+    client, response, ulids, incident = seeded
+    root = api[2]
+    good = _evidence(root, incident, ulids, "good.json", b'{"a": 1}', on_disk=True)
+    changed = _evidence(root, incident, ulids, "changed.json", b'{"b": 2}', on_disk=True)
+    (root / changed.relative_path).write_bytes(b'{"b": "tampered"}')
+    gone = _evidence(root, incident, ulids, "gone.json", b'{"c": 3}', on_disk=False)
+    response.evidence.add_all([good, changed, gone])
+
+    reply = client.get(f"/incidents/{incident.incident_id}/bundle")
+    assert reply.status_code == 200
+    assert reply.headers["content-type"] == "application/zip"
+    assert incident.display_ref in reply.headers["content-disposition"]
+    archive = zipfile.ZipFile(io.BytesIO(reply.content))
+    names = set(archive.namelist())
+    assert {"incident.json", "MANIFEST.json", "README.txt"} <= names
+    assert (
+        json.loads(archive.read("incident.json"))["incident"]["display_ref"] == incident.display_ref
+    )
+
+    manifest = {m["evidence_id"]: m for m in json.loads(archive.read("MANIFEST.json"))["files"]}
+    assert manifest[good.evidence_id]["status"] == "ok"
+    assert manifest[changed.evidence_id]["status"] == "mismatch"
+    assert (
+        manifest[changed.evidence_id]["found_sha256"]
+        != manifest[changed.evidence_id]["recorded_sha256"]
+    )
+    assert manifest[gone.evidence_id]["status"] == "missing"
+    assert manifest[gone.evidence_id]["file"] is None
+    # A tampered file is included so it can be examined; a missing one is listed, not invented.
+    assert archive.read(manifest[changed.evidence_id]["file"]) == b'{"b": "tampered"}'
+    assert not any(n.endswith("gone.json") for n in names)
+    assert archive.read(manifest[good.evidence_id]["file"]) == b'{"a": 1}'
+
+
+def test_a_bundle_of_an_incident_with_no_evidence_is_still_a_valid_zip(
+    seeded: tuple[httpx.Client, ResponseStack, UlidFactory, Incident],
+) -> None:
+    client, _response, _ulids, incident = seeded
+    reply = client.get(f"/incidents/{incident.incident_id}/bundle")
+    archive = zipfile.ZipFile(io.BytesIO(reply.content))
+    assert archive.testzip() is None
+    assert json.loads(archive.read("MANIFEST.json")) == {"files": []}
+
+
+def test_the_bundle_of_an_unknown_incident_is_a_404(
+    api: tuple[httpx.Client, ResponseStack, Path],
+) -> None:
+    assert api[0].get("/incidents/01NOPE/bundle").status_code == 404

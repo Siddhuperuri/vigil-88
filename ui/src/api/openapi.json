@@ -16,7 +16,11 @@
             "type": "integer"
           }
         },
-        "required": ["t_monotonic_ns", "log_odds", "confidence"],
+        "required": [
+          "t_monotonic_ns",
+          "log_odds",
+          "confidence"
+        ],
         "title": "AccumulatorSampleOut",
         "type": "object"
       },
@@ -38,7 +42,10 @@
             "title": "Reason"
           }
         },
-        "required": ["allowed", "reason"],
+        "required": [
+          "allowed",
+          "reason"
+        ],
         "title": "ActionPermissionOut",
         "type": "object"
       },
@@ -63,7 +70,12 @@
             "type": "boolean"
           },
           "pending": {
-            "enum": ["added", "changed", "removed", null],
+            "enum": [
+              "added",
+              "changed",
+              "removed",
+              null
+            ],
             "title": "Pending"
           },
           "state": {
@@ -78,7 +90,13 @@
             "title": "State"
           }
         },
-        "required": ["config", "editable", "state", "pending", "credential_stored"],
+        "required": [
+          "config",
+          "editable",
+          "state",
+          "pending",
+          "credential_stored"
+        ],
         "title": "AdminCamera",
         "type": "object"
       },
@@ -314,7 +332,15 @@
             "title": "Username"
           }
         },
-        "required": ["seq", "at_utc", "user_id", "username", "action", "target", "detail"],
+        "required": [
+          "seq",
+          "at_utc",
+          "user_id",
+          "username",
+          "action",
+          "target",
+          "detail"
+        ],
         "title": "AuditOut",
         "type": "object"
       },
@@ -337,13 +363,23 @@
             "type": "number"
           }
         },
-        "required": ["x1", "y1", "x2", "y2"],
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
         "title": "BoxOut",
         "type": "object"
       },
       "Bucket": {
         "description": "Time granularity. SQLite's `substr` over an ISO-8601 UTC string is the bucket key, which\nis exact for these widths and needs no date arithmetic in SQL.",
-        "enum": ["hour", "day", "week", "month"],
+        "enum": [
+          "hour",
+          "day",
+          "week",
+          "month"
+        ],
         "title": "Bucket",
         "type": "string"
       },
@@ -443,7 +479,10 @@
             "title": "Zones Ref"
           }
         },
-        "required": ["camera_id", "source"],
+        "required": [
+          "camera_id",
+          "source"
+        ],
         "title": "CameraConfig",
         "type": "object"
       },
@@ -652,7 +691,12 @@
             "title": "Provider"
           }
         },
-        "required": ["capability", "available", "provider", "how_to_provide"],
+        "required": [
+          "capability",
+          "available",
+          "provider",
+          "how_to_provide"
+        ],
         "title": "CapabilityOut",
         "type": "object"
       },
@@ -678,7 +722,11 @@
             "title": "Reason"
           }
         },
-        "required": ["channel_id", "available", "reason"],
+        "required": [
+          "channel_id",
+          "available",
+          "reason"
+        ],
         "title": "ChannelStatusOut",
         "type": "object"
       },
@@ -693,7 +741,10 @@
             "type": "string"
           }
         },
-        "required": ["key", "count"],
+        "required": [
+          "key",
+          "count"
+        ],
         "title": "CountOut",
         "type": "object"
       },
@@ -712,7 +763,10 @@
             "type": "string"
           }
         },
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "title": "CredentialIn",
         "type": "object"
       },
@@ -727,7 +781,10 @@
             "type": "boolean"
           }
         },
-        "required": ["ref", "stored"],
+        "required": [
+          "ref",
+          "stored"
+        ],
         "title": "CredentialOut",
         "type": "object"
       },
@@ -749,7 +806,12 @@
             "type": "string"
           }
         },
-        "required": ["object_class", "native_label", "confidence", "bbox"],
+        "required": [
+          "object_class",
+          "native_label",
+          "confidence",
+          "bbox"
+        ],
         "title": "DetectionOut",
         "type": "object"
       },
@@ -823,7 +885,11 @@
             "type": "string"
           }
         },
-        "required": ["index", "name", "backend"],
+        "required": [
+          "index",
+          "name",
+          "backend"
+        ],
         "title": "DeviceOut",
         "type": "object"
       },
@@ -852,7 +918,11 @@
             "title": "Reason"
           }
         },
-        "required": ["available", "reason", "devices"],
+        "required": [
+          "available",
+          "reason",
+          "devices"
+        ],
         "title": "DevicesOut",
         "type": "object"
       },
@@ -879,7 +949,13 @@
             "type": "integer"
           }
         },
-        "required": ["module_id", "module_version", "dismissed", "total", "ratio"],
+        "required": [
+          "module_id",
+          "module_version",
+          "dismissed",
+          "total",
+          "ratio"
+        ],
         "title": "DismissalRateOut",
         "type": "object"
       },
@@ -939,7 +1015,14 @@
             "title": "P95 Ms"
           }
         },
-        "required": ["available", "count", "mean_ms", "p50_ms", "p95_ms", "max_ms"],
+        "required": [
+          "available",
+          "count",
+          "mean_ms",
+          "p50_ms",
+          "p95_ms",
+          "max_ms"
+        ],
         "title": "DurationOut",
         "type": "object"
       },
@@ -1092,7 +1175,11 @@
         "type": "object"
       },
       "ExportFormat": {
-        "enum": ["json", "csv", "pdf"],
+        "enum": [
+          "json",
+          "csv",
+          "pdf"
+        ],
         "title": "ExportFormat",
         "type": "string"
       },
@@ -1119,7 +1206,11 @@
             "title": "Reason"
           }
         },
-        "required": ["format", "available", "reason"],
+        "required": [
+          "format",
+          "available",
+          "reason"
+        ],
         "title": "ExportFormatOut",
         "type": "object"
       },
@@ -1162,7 +1253,12 @@
             "type": "string"
           }
         },
-        "required": ["camera_id", "state", "at_utc", "detail"],
+        "required": [
+          "camera_id",
+          "state",
+          "at_utc",
+          "detail"
+        ],
         "title": "HealthEventOut",
         "type": "object"
       },
@@ -1228,7 +1324,14 @@
             "title": "Uptime Ms"
           }
         },
-        "required": ["state", "level", "issues", "uptime_ms", "detector", "capabilities"],
+        "required": [
+          "state",
+          "level",
+          "issues",
+          "uptime_ms",
+          "detector",
+          "capabilities"
+        ],
         "title": "HealthOut",
         "type": "object"
       },
@@ -1370,7 +1473,12 @@
             "type": "integer"
           }
         },
-        "required": ["incidents", "total", "next_cursor", "page_size"],
+        "required": [
+          "incidents",
+          "total",
+          "next_cursor",
+          "page_size"
+        ],
         "title": "IncidentPageOut",
         "type": "object"
       },
@@ -1580,7 +1688,14 @@
             "title": "P99 Ms"
           }
         },
-        "required": ["count", "mean_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms"],
+        "required": [
+          "count",
+          "mean_ms",
+          "p50_ms",
+          "p95_ms",
+          "p99_ms",
+          "max_ms"
+        ],
         "title": "LatencyOut",
         "type": "object"
       },
@@ -1600,7 +1715,10 @@
             "type": "string"
           }
         },
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "title": "LoginIn",
         "type": "object"
       },
@@ -1634,7 +1752,12 @@
             "type": "boolean"
           }
         },
-        "required": ["lines", "returned", "file_bytes", "truncated_to_tail"],
+        "required": [
+          "lines",
+          "returned",
+          "file_bytes",
+          "truncated_to_tail"
+        ],
         "title": "LogsOut",
         "type": "object"
       },
@@ -2000,7 +2123,10 @@
             "title": "Zone Id"
           }
         },
-        "required": ["duration_s", "reason"],
+        "required": [
+          "duration_s",
+          "reason"
+        ],
         "title": "MuteRequest",
         "type": "object"
       },
@@ -2023,7 +2149,11 @@
             "type": "string"
           }
         },
-        "required": ["username", "password", "role"],
+        "required": [
+          "username",
+          "password",
+          "role"
+        ],
         "title": "NewUserIn",
         "type": "object"
       },
@@ -2055,7 +2185,11 @@
             "type": "integer"
           }
         },
-        "required": ["t_monotonic_ns", "signal", "facts"],
+        "required": [
+          "t_monotonic_ns",
+          "signal",
+          "facts"
+        ],
         "title": "ObservationOut",
         "type": "object"
       },
@@ -2075,19 +2209,29 @@
             "type": "string"
           }
         },
-        "required": ["current", "new"],
+        "required": [
+          "current",
+          "new"
+        ],
         "title": "PasswordIn",
         "type": "object"
       },
       "PendingChange": {
         "properties": {
           "change": {
-            "enum": ["added", "changed", "removed"],
+            "enum": [
+              "added",
+              "changed",
+              "removed"
+            ],
             "title": "Change",
             "type": "string"
           },
           "kind": {
-            "enum": ["camera", "zones"],
+            "enum": [
+              "camera",
+              "zones"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -2096,7 +2240,11 @@
             "type": "string"
           }
         },
-        "required": ["kind", "target", "change"],
+        "required": [
+          "kind",
+          "target",
+          "change"
+        ],
         "title": "PendingChange",
         "type": "object"
       },
@@ -2118,7 +2266,11 @@
             "type": "boolean"
           }
         },
-        "required": ["pending", "changes", "can_restart"],
+        "required": [
+          "pending",
+          "changes",
+          "can_restart"
+        ],
         "title": "PendingOut",
         "type": "object"
       },
@@ -2227,7 +2379,11 @@
             "type": "string"
           }
         },
-        "required": ["username", "code", "new_password"],
+        "required": [
+          "username",
+          "code",
+          "new_password"
+        ],
         "title": "RecoverIn",
         "type": "object"
       },
@@ -2241,12 +2397,18 @@
             "type": "string"
           }
         },
-        "required": ["new_password"],
+        "required": [
+          "new_password"
+        ],
         "title": "ResetIn",
         "type": "object"
       },
       "Role": {
-        "enum": ["administrator", "operator", "viewer"],
+        "enum": [
+          "administrator",
+          "operator",
+          "viewer"
+        ],
         "title": "Role",
         "type": "string"
       },
@@ -2278,7 +2440,10 @@
             "type": "array"
           }
         },
-        "required": ["start", "end"],
+        "required": [
+          "start",
+          "end"
+        ],
         "title": "ScheduleConfig",
         "type": "object"
       },
@@ -2297,7 +2462,10 @@
             "$ref": "#/components/schemas/UserOut"
           }
         },
-        "required": ["user", "idle_timeout_s"],
+        "required": [
+          "user",
+          "idle_timeout_s"
+        ],
         "title": "SessionOut",
         "type": "object"
       },
@@ -2323,7 +2491,11 @@
             "type": "string"
           }
         },
-        "required": ["username", "password", "token"],
+        "required": [
+          "username",
+          "password",
+          "token"
+        ],
         "title": "SetupIn",
         "type": "object"
       },
@@ -2349,7 +2521,11 @@
             "$ref": "#/components/schemas/UserOut"
           }
         },
-        "required": ["user", "idle_timeout_s", "recovery_codes"],
+        "required": [
+          "user",
+          "idle_timeout_s",
+          "recovery_codes"
+        ],
         "title": "SetupOut",
         "type": "object"
       },
@@ -2372,7 +2548,12 @@
             "type": "number"
           }
         },
-        "required": ["name", "raw_value", "weight", "contribution"],
+        "required": [
+          "name",
+          "raw_value",
+          "weight",
+          "contribution"
+        ],
         "title": "SeverityFactorOut",
         "type": "object"
       },
@@ -2381,7 +2562,11 @@
         "properties": {
           "backend": {
             "default": "auto",
-            "enum": ["auto", "msmf", "dshow"],
+            "enum": [
+              "auto",
+              "msmf",
+              "dshow"
+            ],
             "title": "Backend",
             "type": "string"
           },
@@ -2460,7 +2645,13 @@
             "title": "Height Px"
           },
           "kind": {
-            "enum": ["webcam", "rtsp", "video_file", "image", "synthetic"],
+            "enum": [
+              "webcam",
+              "rtsp",
+              "video_file",
+              "image",
+              "synthetic"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -2537,7 +2728,9 @@
             "title": "Width Px"
           }
         },
-        "required": ["kind"],
+        "required": [
+          "kind"
+        ],
         "title": "SourceConfig",
         "type": "object"
       },
@@ -2572,7 +2765,10 @@
             ]
           }
         },
-        "required": ["setup_required", "authenticated"],
+        "required": [
+          "setup_required",
+          "authenticated"
+        ],
         "title": "StatusOut",
         "type": "object"
       },
@@ -2741,7 +2937,12 @@
             "type": "string"
           }
         },
-        "required": ["since_utc", "until_utc", "incidents", "health_events"],
+        "required": [
+          "since_utc",
+          "until_utc",
+          "incidents",
+          "health_events"
+        ],
         "title": "TimelineOut",
         "type": "object"
       },
@@ -2775,7 +2976,13 @@
             "type": "string"
           }
         },
-        "required": ["from_status", "to_status", "at_utc", "actor", "reason"],
+        "required": [
+          "from_status",
+          "to_status",
+          "at_utc",
+          "actor",
+          "reason"
+        ],
         "title": "TransitionOut",
         "type": "object"
       },
@@ -2789,7 +2996,9 @@
             "type": "string"
           }
         },
-        "required": ["password"],
+        "required": [
+          "password"
+        ],
         "title": "UnlockIn",
         "type": "object"
       },
@@ -2815,7 +3024,13 @@
             "type": "string"
           }
         },
-        "required": ["user_id", "username", "role", "must_change_password", "disabled"],
+        "required": [
+          "user_id",
+          "username",
+          "role",
+          "must_change_password",
+          "disabled"
+        ],
         "title": "UserOut",
         "type": "object"
       },
@@ -2879,7 +3094,11 @@
             "type": "string"
           }
         },
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError",
         "type": "object"
       },
@@ -2898,7 +3117,11 @@
             "type": "string"
           }
         },
-        "required": ["validator_id", "outcome", "reason"],
+        "required": [
+          "validator_id",
+          "outcome",
+          "reason"
+        ],
         "title": "VerdictOut",
         "type": "object"
       },
@@ -2913,7 +3136,13 @@
             "type": "integer"
           },
           "kind": {
-            "enum": ["restricted", "exclusion", "counting", "crossing_line", "region_of_interest"],
+            "enum": [
+              "restricted",
+              "exclusion",
+              "counting",
+              "crossing_line",
+              "region_of_interest"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -2960,7 +3189,11 @@
             "type": "string"
           }
         },
-        "required": ["zone_id", "kind", "polygon"],
+        "required": [
+          "zone_id",
+          "kind",
+          "polygon"
+        ],
         "title": "ZoneConfig",
         "type": "object"
       },
@@ -3010,7 +3243,12 @@
             "title": "Zones Ref"
           }
         },
-        "required": ["zones_ref", "zones", "pending", "editable"],
+        "required": [
+          "zones_ref",
+          "zones",
+          "pending",
+          "editable"
+        ],
         "title": "ZonesOut",
         "type": "object"
       }
@@ -3224,11 +3462,15 @@
         },
         "security": [
           {
-            "vigilSession": ["export"]
+            "vigilSession": [
+              "export"
+            ]
           }
         ],
         "summary": "Export",
-        "tags": ["analytics"]
+        "tags": [
+          "analytics"
+        ]
       }
     },
     "/api/v1/analytics/formats": {
@@ -3253,11 +3495,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Formats",
-        "tags": ["analytics"]
+        "tags": [
+          "analytics"
+        ]
       }
     },
     "/api/v1/analytics/report": {
@@ -3432,11 +3678,15 @@
         },
         "security": [
           {
-            "vigilSession": ["export"]
+            "vigilSession": [
+              "export"
+            ]
           }
         ],
         "summary": "Report Json",
-        "tags": ["analytics"]
+        "tags": [
+          "analytics"
+        ]
       }
     },
     "/api/v1/analytics/summary": {
@@ -3603,11 +3853,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Summary",
-        "tags": ["analytics"]
+        "tags": [
+          "analytics"
+        ]
       }
     },
     "/api/v1/audit": {
@@ -3689,11 +3943,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view_audit"]
+            "vigilSession": [
+              "view_audit"
+            ]
           }
         ],
         "summary": "Audit",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/audit/export": {
@@ -3736,11 +3994,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view_audit"]
+            "vigilSession": [
+              "view_audit"
+            ]
           }
         ],
         "summary": "Export Audit",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/audit/verify": {
@@ -3762,11 +4024,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view_audit"]
+            "vigilSession": [
+              "view_audit"
+            ]
           }
         ],
         "summary": "Verify Audit",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/lock": {
@@ -3779,11 +4045,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "Lock",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/login": {
@@ -3822,7 +4092,9 @@
           }
         },
         "summary": "Login",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/logout": {
@@ -3835,11 +4107,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "Logout",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/me": {
@@ -3859,11 +4135,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "Me",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/password": {
@@ -3896,11 +4176,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "Change Password",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/recover": {
@@ -3932,7 +4216,9 @@
           }
         },
         "summary": "Recover",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/recovery-codes": {
@@ -3977,11 +4263,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "New Recovery Codes",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/setup": {
@@ -4020,7 +4310,9 @@
           }
         },
         "summary": "Setup",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/status": {
@@ -4040,7 +4332,9 @@
           }
         },
         "summary": "Auth Status",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/auth/unlock": {
@@ -4073,11 +4367,15 @@
         },
         "security": [
           {
-            "vigilSession": ["session"]
+            "vigilSession": [
+              "session"
+            ]
           }
         ],
         "summary": "Unlock",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/cameras": {
@@ -4101,7 +4399,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Cameras"
@@ -4145,7 +4445,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Camera"
@@ -4189,7 +4491,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Detections"
@@ -4237,11 +4541,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Camera Modules",
-        "tags": ["modules"]
+        "tags": [
+          "modules"
+        ]
       }
     },
     "/api/v1/cameras/{camera_id}/snapshot.jpg": {
@@ -4297,7 +4605,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Snapshot"
@@ -4374,7 +4684,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Stream"
@@ -4430,11 +4742,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Zone Status",
-        "tags": ["modules"]
+        "tags": [
+          "modules"
+        ]
       }
     },
     "/api/v1/config/apply": {
@@ -4455,11 +4771,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Apply",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/cameras": {
@@ -4483,11 +4803,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Cameras",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       },
       "post": {
         "operationId": "add_camera_api_v1_config_cameras_post",
@@ -4525,11 +4849,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Add Camera",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/cameras/test": {
@@ -4570,11 +4898,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Test Camera",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/cameras/{camera_id}": {
@@ -4608,11 +4940,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Remove Camera",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       },
       "put": {
         "operationId": "update_camera_api_v1_config_cameras__camera_id__put",
@@ -4661,11 +4997,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Update Camera",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/cameras/{camera_id}/zones": {
@@ -4706,11 +5046,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Get Zones",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       },
       "put": {
         "operationId": "put_zones_api_v1_config_cameras__camera_id__zones_put",
@@ -4759,11 +5103,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Put Zones",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/credentials/{ref}": {
@@ -4797,11 +5145,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Delete Credential",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       },
       "get": {
         "operationId": "credential_status_api_v1_config_credentials__ref__get",
@@ -4840,11 +5192,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Credential Status",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       },
       "put": {
         "operationId": "set_credential_api_v1_config_credentials__ref__put",
@@ -4893,11 +5249,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Set Credential",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/devices": {
@@ -4917,11 +5277,15 @@
         },
         "security": [
           {
-            "vigilSession": ["configure"]
+            "vigilSession": [
+              "configure"
+            ]
           }
         ],
         "summary": "Devices",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/config/pending": {
@@ -4941,11 +5305,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Pending",
-        "tags": ["configuration"]
+        "tags": [
+          "configuration"
+        ]
       }
     },
     "/api/v1/events/candidates": {
@@ -5044,11 +5412,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Rejection Feed",
-        "tags": ["events"]
+        "tags": [
+          "events"
+        ]
       }
     },
     "/api/v1/events/candidates/reasons": {
@@ -5119,11 +5491,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Rejection Reasons",
-        "tags": ["events"]
+        "tags": [
+          "events"
+        ]
       }
     },
     "/api/v1/events/timeline": {
@@ -5201,11 +5577,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Timeline",
-        "tags": ["events"]
+        "tags": [
+          "events"
+        ]
       }
     },
     "/api/v1/incidents": {
@@ -5438,11 +5818,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "List Incidents",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/dismissal-reasons": {
@@ -5470,11 +5854,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Dismissal Reasons",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}": {
@@ -5515,11 +5903,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Incident Detail",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/acknowledge": {
@@ -5580,11 +5972,15 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Acknowledge",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/annotate": {
@@ -5618,11 +6014,15 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Clear Note",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       },
       "post": {
         "operationId": "annotate_api_v1_incidents__incident_id__annotate_post",
@@ -5681,11 +6081,63 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Annotate",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{incident_id}/bundle": {
+      "get": {
+        "description": "The incident and its evidence as one zip, each file marked ok, mismatch or missing.",
+        "operationId": "incident_bundle_api_v1_incidents__incident_id__bundle_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "vigilSession": [
+              "export"
+            ]
+          }
+        ],
+        "summary": "Incident Bundle",
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/dismiss": {
@@ -5746,11 +6198,15 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Dismiss",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/escalate": {
@@ -5811,11 +6267,15 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Escalate",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/evidence": {
@@ -5860,11 +6320,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Incident Evidence",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/evidence/{evidence_id}": {
@@ -5913,11 +6377,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Evidence File",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/incidents/{incident_id}/resolve": {
@@ -5978,11 +6446,15 @@
         },
         "security": [
           {
-            "vigilSession": ["act_on_incidents"]
+            "vigilSession": [
+              "act_on_incidents"
+            ]
           }
         ],
         "summary": "Resolve",
-        "tags": ["incidents"]
+        "tags": [
+          "incidents"
+        ]
       }
     },
     "/api/v1/mutes": {
@@ -6007,11 +6479,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Active Mutes",
-        "tags": ["mutes"]
+        "tags": [
+          "mutes"
+        ]
       },
       "post": {
         "operationId": "create_mute_api_v1_mutes_post",
@@ -6049,11 +6525,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_mutes"]
+            "vigilSession": [
+              "manage_mutes"
+            ]
           }
         ],
         "summary": "Create Mute",
-        "tags": ["mutes"]
+        "tags": [
+          "mutes"
+        ]
       }
     },
     "/api/v1/mutes/history": {
@@ -6100,11 +6580,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Mute History",
-        "tags": ["mutes"]
+        "tags": [
+          "mutes"
+        ]
       }
     },
     "/api/v1/mutes/{mute_id}": {
@@ -6138,11 +6622,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_mutes"]
+            "vigilSession": [
+              "manage_mutes"
+            ]
           }
         ],
         "summary": "Revoke Mute",
-        "tags": ["mutes"]
+        "tags": [
+          "mutes"
+        ]
       }
     },
     "/api/v1/system/channels": {
@@ -6167,11 +6655,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Channels",
-        "tags": ["modules"]
+        "tags": [
+          "modules"
+        ]
       }
     },
     "/api/v1/system/health": {
@@ -6191,7 +6683,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Health"
@@ -6216,7 +6710,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Info"
@@ -6281,11 +6777,15 @@
         },
         "security": [
           {
-            "vigilSession": ["diagnostics"]
+            "vigilSession": [
+              "diagnostics"
+            ]
           }
         ],
         "summary": "Logs",
-        "tags": ["system"]
+        "tags": [
+          "system"
+        ]
       }
     },
     "/api/v1/system/metrics": {
@@ -6305,7 +6805,9 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "System Metrics"
@@ -6328,11 +6830,15 @@
         },
         "security": [
           {
-            "vigilSession": ["view"]
+            "vigilSession": [
+              "view"
+            ]
           }
         ],
         "summary": "Storage",
-        "tags": ["system"]
+        "tags": [
+          "system"
+        ]
       }
     },
     "/api/v1/users": {
@@ -6356,11 +6862,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_users"]
+            "vigilSession": [
+              "manage_users"
+            ]
           }
         ],
         "summary": "Users",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       },
       "post": {
         "operationId": "create_user_api_v1_users_post",
@@ -6398,11 +6908,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_users"]
+            "vigilSession": [
+              "manage_users"
+            ]
           }
         ],
         "summary": "Create User",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/users/{user_id}": {
@@ -6436,11 +6950,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_users"]
+            "vigilSession": [
+              "manage_users"
+            ]
           }
         ],
         "summary": "Delete User",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       },
       "patch": {
         "operationId": "patch_user_api_v1_users__user_id__patch",
@@ -6489,11 +7007,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_users"]
+            "vigilSession": [
+              "manage_users"
+            ]
           }
         ],
         "summary": "Patch User",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     },
     "/api/v1/users/{user_id}/reset-password": {
@@ -6544,11 +7066,15 @@
         },
         "security": [
           {
-            "vigilSession": ["manage_users"]
+            "vigilSession": [
+              "manage_users"
+            ]
           }
         ],
         "summary": "Reset Password",
-        "tags": ["accounts"]
+        "tags": [
+          "accounts"
+        ]
       }
     }
   }

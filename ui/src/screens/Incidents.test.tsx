@@ -273,6 +273,43 @@ describe("the detail", () => {
     expect(screen.queryByText(/closes the incident as over/)).not.toBeInTheDocument();
   });
 
+  it("downloads the incident bundle for an operator, and blocks a viewer with the reason", async () => {
+    const urls = stubObjectUrls();
+    const { calls } = mockFetch(
+      routes({
+        "/api/v1/incidents/01A/bundle": new Response("zip", {
+          headers: { "Content-Type": "application/zip" },
+        }),
+      }),
+    );
+    window.location.hash = "#/incidents/01A";
+    const first = render(<Harness />);
+    await userEvent.click(await screen.findByRole("button", { name: "Download bundle (zip)" }));
+    await waitFor(() => {
+      expect(urls.create).toHaveBeenCalled();
+    });
+    expect(calls.some((c) => c.url === "/api/v1/incidents/01A/bundle")).toBe(true);
+    first.unmount();
+
+    mockFetch(routes());
+    render(<Harness userRole="viewer" />);
+    const blocked = await screen.findByRole("button", { name: "Download bundle (zip)" });
+    expect(blocked).toBeDisabled();
+    expect(blocked).toHaveAccessibleDescription("Exporting needs the operator role.");
+  });
+
+  it("says when the bundle could not be made", async () => {
+    mockFetch(
+      routes({ "/api/v1/incidents/01A/bundle": json({ detail: "disk full" }, { status: 500 }) }),
+    );
+    window.location.hash = "#/incidents/01A";
+    render(<Harness />);
+    await userEvent.click(await screen.findByRole("button", { name: "Download bundle (zip)" }));
+    expect(
+      await screen.findByText(/Could not make the bundle: The engine answered 500\./),
+    ).toBeInTheDocument();
+  });
+
   it("disables an action the lifecycle forbids and says why, instead of enabling it and failing", async () => {
     const closed = detail({
       incident: A,
