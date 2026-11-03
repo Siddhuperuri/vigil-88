@@ -1,0 +1,32 @@
+﻿{
+    "machine":  {
+                    "os":  "Microsoft Windows 11 Pro 26300",
+                    "elevated":  false,
+                    "memory_gb":  15.6,
+                    "dev_tools_found":  [
+                                            "python",
+                                            "node",
+                                            "uv",
+                                            "git",
+                                            "npm"
+                                        ],
+                    "nvidia_driver":  true
+                },
+    "counts_as_a_clean_machine":  false,
+    "checks":  {
+                   "install_exit_code_zero":  true,
+                   "program_installed":  true,
+                   "engine_shipped_inside":  true,
+                   "console_shipped_inside":  true,
+                   "start_menu_entry":  true,
+                   "uninstall_entry":  true,
+                   "application_started_its_engine":  true,
+                   "engine_listens":  true,
+                   "engine_listens_on_loopback_only":  true,
+                   "first_run_reported":  true,
+                   "no_engine_left_after_quit":  true
+               },
+    "installer":  "VIGIL-88-DEV-ONLY-Setup-0.1.0.exe",
+    "measured_utc":  "2026-11-03T09:05:27Z",
+    "verdict":  "Passed, but this machine has development tools or ran elevated: NOT a clean-machine result."
+}

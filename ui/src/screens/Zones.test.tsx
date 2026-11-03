@@ -23,7 +23,7 @@ const square = (id: string) => ({
 });
 const zonesOut = (over: Record<string, unknown> = {}) => ({
   zones_ref: "dock",
-  zones: { version: 1, zones: [square("dock-1")] },
+  zones: { version: 1, zones: [square("dock-1")], lines: [] },
   pending: false,
   editable: true,
   ...over,
@@ -111,6 +111,7 @@ describe("the zone editor", () => {
         zonesOut({
           zones: {
             version: 1,
+            lines: [],
             zones: [
               {
                 ...square("dock-1"),
@@ -187,6 +188,7 @@ describe("the zone editor", () => {
           pending: true,
           zones: {
             version: 1,
+            lines: [],
             zones: [
               {
                 ...square("dock-1"),

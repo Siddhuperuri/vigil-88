@@ -4,6 +4,8 @@ import { useFetch } from "../api/useFetch";
 import { Notice, StateLabel, bytes, readout } from "../components/bits";
 import { useTelemetry } from "../state/telemetry";
 import { StartWithWindows } from "../components/StartWithWindows";
+import { DiagnosticsButton } from "../components/DiagnosticsButton";
+import { WorkersPanel } from "../components/WorkersPanel";
 import { Capabilities } from "./Capabilities";
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -27,6 +29,12 @@ function Health() {
           {uptime === null ? "unavailable" : `${String(Math.round(uptime / 60000))} min`}
         </span>
       </p>
+      {snapshot.degradation !== undefined && snapshot.degradation.step > 0 && (
+        <p>
+          Load shedding: <strong>step {snapshot.degradation.step}</strong> (
+          {snapshot.degradation.label}) — {snapshot.degradation.reason ?? "no reason recorded"}
+        </p>
+      )}
       {health.issues.length > 0 ? (
         <Notice kind={health.level === "failed" ? "error" : "warning"} title="Issues">
           <ul>
@@ -201,7 +209,11 @@ export function System({ role }: { role: Role }) {
       <h2>Starting with Windows</h2>
       <StartWithWindows />
       {role === "administrator" ? (
-        <LogsPanel />
+        <>
+          <WorkersPanel />
+          <LogsPanel />
+          <DiagnosticsButton />
+        </>
       ) : (
         <>
           <h2>Logs</h2>

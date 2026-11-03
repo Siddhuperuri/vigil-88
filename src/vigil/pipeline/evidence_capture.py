@@ -325,12 +325,17 @@ class EvidenceCapture:
             since_ns=capture.first_observed_ns - preroll_ns, until_ns=capture.confirmed_ns
         )
         post = buffer.window(since_ns=capture.confirmed_ns + 1, until_ns=capture.deadline_ns)
+        self._annotate_gaps(session, buffer, capture, pre)
         written = 0
         for kind, filename, frames in (
             (EvidenceKind.CLIP_PRE, CLIP_PRE, pre),
             (EvidenceKind.CLIP_POST, CLIP_POST, post),
         ):
             written += 1
+            no_room = session.has_room(sum(len(f.jpeg) for f in frames))
+            if no_room is not None:
+                session.fail(kind, filename, no_room)
+                continue
             result = mux_clip(
                 frames, session.directory / filename, anchor_ns=capture.first_observed_ns
             )
@@ -339,6 +344,40 @@ class EvidenceCapture:
             else:
                 session.fail(kind, filename, result.reason or "no clip was produced")
         return written
+
+    def _annotate_gaps(
+        self,
+        session: IncidentEvidence,
+        buffer: PreRollBuffer,
+        capture: PendingCapture,
+        pre: tuple[EncodedFrame, ...],
+    ) -> None:
+        """Say so when the clips span a hole, or begin later than they were asked to (07).
+
+        Offsets are milliseconds from the first observation, the same axis as each clip's span, so
+        a viewer can draw the hole on the timeline without converting anything.
+        """
+        wanted_from = capture.first_observed_ns - ms_to_ns(self._config.preroll_seconds * MS_PER_S)
+        gaps = buffer.gaps_in(since_ns=wanted_from, until_ns=capture.deadline_ns)
+        anchor = capture.first_observed_ns
+        session.annotate(
+            "gaps",
+            [
+                {
+                    "kind": g.kind,
+                    "start_ms": round((g.start_ns - anchor) / NS_PER_MS, 1),
+                    "end_ms": round((g.end_ns - anchor) / NS_PER_MS, 1),
+                }
+                for g in gaps
+            ],
+        )
+        session.annotate("stream_interrupted", bool(gaps))
+        # Pre-roll that is shorter than configured is not an error, but it is not what was asked.
+        shortfall_ns = (pre[0].meta.t_monotonic_ns - wanted_from) if pre else None
+        session.annotate(
+            "preroll_shortfall_ms",
+            None if shortfall_ns is None else max(0.0, round(shortfall_ns / NS_PER_MS, 1)),
+        )
 
     # ---------------------------------------------------------------- payloads
 

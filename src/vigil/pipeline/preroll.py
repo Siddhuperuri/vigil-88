@@ -28,8 +28,8 @@ from collections.abc import Callable, Mapping
 from vigil.config.schema.pipeline import EvidenceConfig
 from vigil.core.clock import Clock
 from vigil.core.protocols.logger import LoggerLike
-from vigil.core.units import BYTES_PER_MIB, MS_PER_S, NS_PER_S
-from vigil.ingest.buffers import EncodedFrame, PreRollBuffer
+from vigil.core.units import BYTES_PER_MIB, MS_PER_S, NS_PER_MS, NS_PER_S
+from vigil.ingest.buffers import EncodedFrame, PreRollBuffer, StreamGap
 from vigil.observability.metrics import MetricsRegistry
 from vigil.pipeline.annotate import OverlayOptions, RenderError, render_jpeg
 from vigil.pipeline.results import LatestDetections
@@ -62,7 +62,9 @@ class PreRollSampler:
         "_buffers",
         "_clock",
         "_epochs",
+        "_gap_ns",
         "_interval_s",
+        "_last_ns",
         "_log",
         "_metrics",
         "_quality",
@@ -80,6 +82,7 @@ class PreRollSampler:
         logger: LoggerLike,
         fps: float,
         jpeg_quality: int,
+        gap_threshold_ms: float = 2000.0,
     ) -> None:
         self._buffers = dict(buffers)
         self._results = results
@@ -90,6 +93,8 @@ class PreRollSampler:
         self._quality = jpeg_quality
         self._versions: dict[str, int] = {}
         self._epochs: dict[str, int] = {}
+        self._last_ns: dict[str, int] = {}
+        self._gap_ns = int(gap_threshold_ms * NS_PER_MS)
 
     @property
     def camera_ids(self) -> tuple[str, ...]:
@@ -115,7 +120,13 @@ class PreRollSampler:
                 continue
             self._versions[camera_id] = version
             buffer = self._buffers[camera_id]
-            self._reset_on_epoch_change(camera_id, analysed.frame.meta.stream_epoch, buffer)
+            now_ns = analysed.frame.meta.t_monotonic_ns
+            restarted = self._reset_on_epoch_change(
+                camera_id, analysed.frame.meta.stream_epoch, buffer, now_ns
+            )
+            if not restarted:
+                self._note_frame_gap(camera_id, buffer, now_ns)
+            self._last_ns[camera_id] = now_ns
             try:
                 jpeg = render_jpeg(analysed, RAW, jpeg_quality=self._quality, age_ms=None)
             except RenderError as exc:
@@ -127,18 +138,31 @@ class PreRollSampler:
             self._publish(camera_id, buffer)
         return stored
 
+    def _note_frame_gap(self, camera_id: str, buffer: PreRollBuffer, now_ns: int) -> None:
+        """A silence longer than the threshold on a stream that did not restart is still a hole."""
+        last = self._last_ns.get(camera_id)
+        if last is not None and now_ns - last > self._gap_ns:
+            buffer.note_gap(StreamGap(last, now_ns, "frame_gap"))
+            self._metrics.counter("vigil_preroll_gaps_total", camera=camera_id).inc()
+
     def _reset_on_epoch_change(
-        self, camera_id: str, stream_epoch: int, buffer: PreRollBuffer
-    ) -> None:
+        self, camera_id: str, stream_epoch: int, buffer: PreRollBuffer, now_ns: int
+    ) -> bool:
         """A reconnect may mean a different view, and presenting pre-reconnect frames as this
-        incident's pre-roll would be misleading."""
+        incident's pre-roll would be misleading. The hole is remembered, so the evidence says so.
+        Returns True when the stream restarted."""
         previous = self._epochs.get(camera_id)
         self._epochs[camera_id] = stream_epoch
         if previous is not None and previous != stream_epoch:
+            last = self._last_ns.get(camera_id, now_ns)
+            buffer.note_gap(StreamGap(last, now_ns, "stream_restarted"))
+            self._metrics.counter("vigil_preroll_gaps_total", camera=camera_id).inc()
             buffer.clear()
             self._log.info(
                 "preroll_cleared_on_epoch_change", camera_id=camera_id, stream_epoch=stream_epoch
             )
+            return True
+        return False
 
     def _publish(self, camera_id: str, buffer: PreRollBuffer) -> None:
         self._metrics.gauge("vigil_preroll_bytes", camera=camera_id).set(float(buffer.size_bytes))

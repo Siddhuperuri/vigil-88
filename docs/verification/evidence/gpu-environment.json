@@ -1,0 +1,19 @@
+{
+  "environment": {
+    "card": {
+      "name": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+      "driver": "616.56",
+      "memory_total_mb": "6144",
+      "memory_used_mb": "1289",
+      "temperature_c": "44"
+    },
+    "onnxruntime": "1.26.0",
+    "providers": [
+      "TensorrtExecutionProvider",
+      "CUDAExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "cuda_provider_offered": true,
+    "verdict": "A card is present and onnxruntime offers CUDA."
+  }
+}

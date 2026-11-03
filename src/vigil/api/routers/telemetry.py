@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 
-from vigil.api.schemas import CameraOut, SystemOut
+from vigil.api.schemas import CameraOut, SystemOut, degradation_out
 from vigil.api.schemas_incidents import IncidentSummaryOut
 from vigil.api.session import SESSION_COOKIE, AccountsGuard, Guard, requires_socket
 from vigil.auth.roles import Permission
@@ -50,6 +50,7 @@ def _snapshot(application: Application) -> dict[str, Any]:
         "state": snap.state.value,
         "health": {"level": snap.health.level.value, "issues": list(snap.health.issues)},
         "uptime_ms": snap.uptime_ms,
+        "degradation": degradation_out(snap.degradation).model_dump(mode="json"),
         "cameras": [CameraOut.of(c).model_dump(mode="json") for c in snap.cameras],
         "system": None
         if snap.system is None

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from tests.unit.api.accounts_rig import GOOD, Rig, make_user, set_up, signed_in
-from vigil.api.routers.system_ops import MAX_WALK_ENTRIES, TAIL_BYTES, tail_lines
+from vigil.api.system_info import MAX_WALK_ENTRIES, TAIL_BYTES, tail_lines
 
 # ------------------------------------------------------------------ the tail reader
 

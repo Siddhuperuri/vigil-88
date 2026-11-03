@@ -137,6 +137,24 @@ def populated_scene(
             dwell_ms={"dock": 4000.0},
             first_seen_ms=1000.0,
         )
+        # A tripwire down the middle and a walker who crossed it a moment ago, still heading that
+        # way. It is here for line_crossing, whose observation needs a path, not a position.
+        .with_line("gate", (0.5, 0.1), (0.5, 0.9))
+        .with_track(
+            4,
+            ObjectClass.PERSON,
+            at=(0.58, 0.8),
+            hits=12,
+            age_frames=12,
+            velocity_px_s=(80.0, 0.0),
+            first_seen_ms=3000.0,
+            path=[
+                (0.42, 0.8, 3000.0),
+                (0.48, 0.8, 4000.0),
+                (0.53, 0.8, 4500.0),
+                (0.58, 0.8, 5000.0),
+            ],
+        )
         .with_capabilities(capabilities)
         .with_epoch(epoch)
         .at_time(5000.0, frame_index=50)

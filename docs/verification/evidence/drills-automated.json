@@ -1,0 +1,21 @@
+﻿{
+    "drills":  [
+                   {
+                       "drill":  "app: corrupted config, missing model, unreachable camera",
+                       "passed":  true,
+                       "seconds":  24.8
+                   },
+                   {
+                       "drill":  "engine: disk full, unplug and recovery, gap in footage",
+                       "passed":  true,
+                       "seconds":  5.8
+                   }
+               ],
+    "measured_utc":  "2026-11-03T09:08:40Z",
+    "not_run":  [
+                    "a real full volume",
+                    "a real unplugged camera",
+                    "a GPU driver reset"
+                ],
+    "verdict":  "All automated drills passed."
+}

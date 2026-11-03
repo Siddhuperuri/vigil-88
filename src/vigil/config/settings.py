@@ -12,6 +12,7 @@ from vigil.config.schema.alerts import AlertsConfig
 from vigil.config.schema.api import ApiConfig
 from vigil.config.schema.base import ConfigModel
 from vigil.config.schema.camera import CameraConfig
+from vigil.config.schema.degradation import DegradationConfig
 from vigil.config.schema.modules import (
     ArbitrationConfig,
     ModulesConfig,
@@ -43,6 +44,7 @@ class Settings(ConfigModel):
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     health: HealthConfig = Field(default_factory=HealthConfig)
+    degradation: DegradationConfig = Field(default_factory=DegradationConfig)
     evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)

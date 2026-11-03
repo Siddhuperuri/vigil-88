@@ -1,3 +1,4 @@
+import { EvidenceContinuity } from "../components/EvidenceContinuity";
 import { useEffect, useState } from "react";
 import type { RefObject } from "react";
 import { sendJson } from "../api/client";
@@ -443,6 +444,7 @@ function DetailBody({
 
       <section aria-labelledby="evidence-title">
         <h3 id="evidence-title">Evidence</h3>
+        <EvidenceContinuity notes={detail.evidence_annotations} />
         {detail.evidence.length === 0 ? (
           <p className="muted">No evidence was captured for this incident.</p>
         ) : (

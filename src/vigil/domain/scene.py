@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from vigil.core.capabilities import Capability
-from vigil.core.geometry import Polygon
+from vigil.core.geometry import Point, Polygon
 from vigil.core.ids import validate_camera_id
 from vigil.domain._validate import (
     frozen_mapping,
@@ -16,7 +16,13 @@ from vigil.domain._validate import (
     require_ratio,
     require_utc,
 )
-from vigil.domain.enums import ObjectClass, SceneFact, SpatialRelationKind, ZoneKind
+from vigil.domain.enums import (
+    CrossingDirection,
+    ObjectClass,
+    SceneFact,
+    SpatialRelationKind,
+    ZoneKind,
+)
 from vigil.domain.frame import FrameMeta
 from vigil.domain.track import TrackedObject
 
@@ -84,6 +90,38 @@ class Zone:
 
 
 @dataclass(frozen=True, slots=True)
+class CrossingLine:
+    """A tripwire: a line segment in normalized [0, 1] coordinates and the direction that counts.
+
+    Not a Zone, because a line has no inside. Keeping it apart means occupancy, dwell and every
+    polygon rule stay exactly as they were.
+    """
+
+    line_id: str
+    camera_id: str
+    start: Point
+    end: Point
+    direction: CrossingDirection
+    criticality: int
+    active_schedule: Schedule | None
+    label: str
+
+    def __post_init__(self) -> None:
+        require_non_empty("CrossingLine.line_id", self.line_id)
+        validate_camera_id(self.camera_id)
+        if not 0 <= self.criticality <= MAX_CRITICALITY:
+            raise ValueError(f"criticality must be in [0, {MAX_CRITICALITY}]")
+        for p in (self.start, self.end):
+            if not (0.0 <= p.x <= 1.0 and 0.0 <= p.y <= 1.0):
+                raise ValueError("CrossingLine uses normalized coordinates in [0, 1]")
+        if self.start == self.end:
+            raise ValueError("a crossing line needs two different points")
+
+    def is_active_at(self, wall_utc: datetime) -> bool:
+        return self.active_schedule is None or self.active_schedule.is_active_at(wall_utc)
+
+
+@dataclass(frozen=True, slots=True)
 class ZoneOccupancy:
     zone_id: str
     counts_by_class: Mapping[ObjectClass, int]
@@ -123,11 +161,13 @@ class SceneState:
     stability_ratio: float
     capabilities: frozenset[Capability]
     degraded_facts: frozenset[SceneFact]
+    lines: tuple[CrossingLine, ...] = ()
 
     def __post_init__(self) -> None:
         require_ratio("stability_ratio", self.stability_ratio)
         object.__setattr__(self, "tracks", tuple(self.tracks))
         object.__setattr__(self, "zones", tuple(self.zones))
+        object.__setattr__(self, "lines", tuple(self.lines))
         object.__setattr__(self, "relations", tuple(self.relations))
         object.__setattr__(self, "occupancy", frozen_mapping(self.occupancy))
         object.__setattr__(self, "capabilities", frozenset(self.capabilities))

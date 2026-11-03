@@ -65,6 +65,20 @@ class InferenceScheduler:
         self._global_cap = float(global_burst)
         self._global_tokens = self._global_cap
         self._global_refilled = now
+        # The degradation ladder's two levers (pipeline/degradation.py). Both default to "do
+        # nothing", so a scheduler that is never degraded behaves exactly as it always did.
+        self._rate_scale = 1.0
+        self._suspended: frozenset[str] = frozenset()
+
+    def set_rate_scale(self, scale: float) -> None:
+        """Scale every live camera's refill rate. Lossless (replay) cameras are never scaled."""
+        if not 0.0 < scale <= 1.0:
+            raise ValueError("rate scale must be in (0, 1]")
+        self._rate_scale = scale
+
+    def set_suspended(self, camera_ids: frozenset[str]) -> None:
+        """Cameras that are not served at all. Their frames are overwritten, i.e. skipped."""
+        self._suspended = camera_ids
 
     def _refill(self, now_ns: int) -> None:
         elapsed_g = max(0, now_ns - self._global_refilled) / NS_PER_S
@@ -76,7 +90,8 @@ class InferenceScheduler:
             if plan.lossless:
                 continue
             elapsed = max(0, now_ns - self._refilled[cam]) / NS_PER_S
-            self._tokens[cam] = min(self._burst, self._tokens[cam] + elapsed * plan.rate_fps)
+            rate = plan.rate_fps * self._rate_scale
+            self._tokens[cam] = min(self._burst, self._tokens[cam] + elapsed * rate)
             self._refilled[cam] = now_ns
 
     def order(self) -> list[str]:
@@ -86,7 +101,8 @@ class InferenceScheduler:
         eligible = [
             cam
             for cam, plan in self._plans.items()
-            if plan.lossless or self._tokens[cam] >= _FULL - _EPSILON
+            if cam not in self._suspended
+            and (plan.lossless or self._tokens[cam] >= _FULL - _EPSILON)
         ]
         eligible.sort(key=lambda c: (-self._plans[c].priority, self._last_served[c]))
         return eligible
@@ -114,11 +130,11 @@ class InferenceScheduler:
         self._refill(now)
         waits: list[float] = []
         for cam, plan in self._plans.items():
-            if plan.lossless:
+            if plan.lossless or cam in self._suspended:
                 continue
             missing = _FULL - self._tokens[cam]
             if missing > _EPSILON:
-                waits.append(missing / plan.rate_fps)
+                waits.append(missing / (plan.rate_fps * self._rate_scale))
         if self._global_tokens < _FULL - _EPSILON:
             waits.append((_FULL - self._global_tokens) / self._global_fps)
         return max(min(waits), _MIN_WAIT_S) if waits else math.inf

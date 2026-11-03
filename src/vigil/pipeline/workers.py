@@ -45,12 +45,20 @@ class ThreadWorker:
         self.name = name
         self._target = target
         self._clock = clock
+        self._logger = logger
         self._log = logger.bind(worker=name)
         self._metrics = metrics
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_beat_ns: int | None = None
         self._crash: Exception | None = None
+
+    def fresh(self) -> ThreadWorker:
+        """A new, unstarted worker that runs the same target. For restarting a worker whose
+        target lives on a long-lived object; a thread itself can only ever be started once."""
+        return ThreadWorker(
+            self.name, self._target, clock=self._clock, logger=self._logger, metrics=self._metrics
+        )
 
     def _beat(self) -> None:
         self._last_beat_ns = self._clock.monotonic_ns()

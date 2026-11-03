@@ -9,6 +9,7 @@ from vigil.domain.camera import CameraHealth
 from vigil.domain.detection import DetectionSet, ModelDescriptor
 from vigil.domain.metric import SystemMetric
 from vigil.observability.metrics import HistogramSummary
+from vigil.pipeline.degradation import DegradationState
 
 
 class _Out(BaseModel):
@@ -125,6 +126,17 @@ class CapabilityOut(_Out):
     how_to_provide: str | None
 
 
+class DegradationOut(_Out):
+    """The ladder's state (01 §9). `step` 0 is normal; anything else is the engine shedding load,
+    and the console must say so on every screen that shows a camera, never only on System."""
+
+    step: int
+    label: str
+    reason: str | None
+    since_utc: str | None
+    suspended_cameras: list[str]
+
+
 class HealthOut(_Out):
     state: str
     level: str
@@ -137,6 +149,7 @@ class HealthOut(_Out):
     # good news (08 §8).
     persists_incidents: bool = False
     schema_version: int | None = None
+    degradation: DegradationOut | None = None
 
 
 class LatencyOut(_Out):
@@ -196,3 +209,13 @@ class MetricsOut(_Out):
     end_to_end: dict[str, LatencyOut]
     counters: dict[str, float]
     cameras: list[CameraOut]
+
+
+def degradation_out(state: DegradationState) -> DegradationOut:
+    return DegradationOut(
+        step=state.step,
+        label=state.label,
+        reason=state.reason,
+        since_utc=None if state.since_wall_utc is None else state.since_wall_utc.isoformat(),
+        suspended_cameras=list(state.suspended),
+    )

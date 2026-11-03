@@ -63,6 +63,7 @@ class CaptureWorker:
         rng: random.Random,
         logger: LoggerLike,
         seek: Callable[[float], None] | None = None,
+        starting_epoch: int = 0,
     ) -> None:
         self._camera_id = camera_id
         self._source = source
@@ -75,7 +76,9 @@ class CaptureWorker:
         self._log = logger.bind(camera_id=camera_id, stage="ingest")
         self._seek = seek
 
-        self._epoch = 0
+        # A worker that replaces another carries on from its epoch, so everything downstream that
+        # resets on an epoch change (tracker, pre-roll) sees the replacement as a new stream.
+        self._epoch = starting_epoch
         self._frame_index = 0
         self._dims: tuple[int, int] | None = None
         self._ever_online = False

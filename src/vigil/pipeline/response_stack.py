@@ -156,6 +156,7 @@ def build_response_stack(
         logger=logger,
         fps=settings.evidence.preroll_fps,
         jpeg_quality=settings.evidence.snapshot_quality,
+        gap_threshold_ms=settings.evidence.gap_threshold_ms,
     )
     writer = EvidenceWriter(
         evidence_root=paths.evidence_dir,

@@ -35,7 +35,7 @@ from vigil.core.clock import Clock
 from vigil.core.errors import ConfigError
 from vigil.core.ids import UlidFactory
 from vigil.core.protocols.logger import LoggerLike
-from vigil.domain.scene import Zone
+from vigil.domain.scene import CrossingLine, Zone
 from vigil.events.binding import BindingReport
 from vigil.events.registry import ModuleRegistry
 from vigil.observability.metrics import MetricsRegistry
@@ -61,6 +61,12 @@ STABILITY_PROVIDER = "scene analyzer (luminance grid)"
 class CameraZones:
     zones: tuple[Zone, ...]
     issue: str | None  # why this camera has no zones, when it was asked for some
+    lines: tuple[CrossingLine, ...] = ()
+
+    @property
+    def any(self) -> bool:
+        """Areas or tripwires: either is what the ZONES capability stands for."""
+        return bool(self.zones or self.lines)
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +85,17 @@ class AnalysisAssembly:
     zone_issues: Mapping[str, str]
     calibration_issues: Mapping[str, str]
 
+    def update_zones(
+        self, camera_id: str, zones: tuple[Zone, ...], lines: tuple[CrossingLine, ...]
+    ) -> bool:
+        """Hand a camera's scene analyzer new zones and lines, to be applied on its own thread.
+        False if there is no such camera."""
+        runtime = self.worker.runtime(camera_id)
+        if runtime is None:
+            return False
+        runtime.analyzer.request_swap(zones, lines)
+        return True
+
     def availability(self, camera_id: str) -> tuple[object, ...]:
         report = self.bindings.get(camera_id)
         return () if report is None else report.availability
@@ -93,12 +110,13 @@ def load_camera_zones(config_dir: Path, camera: CameraConfig, *, max_zones: int)
     except ConfigError as exc:
         issues = "; ".join(exc.issues) if exc.issues else ""
         return CameraZones((), f"{exc.message}{f' ({issues})' if issues else ''}")
-    from vigil.scene.zones import zones_from_set
+    from vigil.scene.zones import lines_from_set, zones_from_set
 
     zones = zones_from_set(zone_set, camera.camera_id, max_zones=max_zones)
-    if not zones:
-        return CameraZones((), f"zone file {camera.zones_ref!r} defines no zones")
-    return CameraZones(zones, None)
+    lines = lines_from_set(zone_set, camera.camera_id, max_lines=max_zones)
+    if not zones and not lines:
+        return CameraZones((), f"zone file {camera.zones_ref!r} defines no zones or lines")
+    return CameraZones(zones, None, lines)
 
 
 def load_camera_ground_plane(config_dir: Path, camera: CameraConfig) -> CameraGroundPlane:
@@ -200,7 +218,7 @@ def build_analysis(
         if zones.issue is not None:
             zone_issues[camera.camera_id] = zones.issue
             logger.warning("camera_has_no_zones", camera_id=camera.camera_id, reason=zones.issue)
-        if zones.zones:
+        if zones.any:
             ledger.grant(Capability.ZONES, f"zone file {camera.zones_ref!r}")
         calibration = load_camera_ground_plane(config_dir, camera)
         if calibration.issue is not None:
@@ -215,7 +233,7 @@ def build_analysis(
         granted = camera_capabilities(
             settings=settings,
             detector=detector_capabilities,
-            has_zones=bool(zones.zones),
+            has_zones=zones.any,
             has_stability=probe_available,
             has_ground_plane=calibration.plane is not None,
         )
@@ -244,6 +262,7 @@ def build_analysis(
                 camera_id=camera.camera_id,
                 config=settings.scene,
                 zones=zones.zones,
+                lines=zones.lines,
                 # One probe per camera: it holds that camera's previous frame grid.
                 stability=build_stability_probe(settings),
                 ground_plane=calibration.plane,

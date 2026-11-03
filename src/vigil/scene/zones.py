@@ -17,10 +17,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from vigil.config.schema.modules import SceneConfig
-from vigil.config.schema.zones import ScheduleConfig, ZoneConfig, ZoneSetConfig, parse_clock
+from vigil.config.schema.zones import (
+    LineConfig,
+    ScheduleConfig,
+    ZoneConfig,
+    ZoneSetConfig,
+    parse_clock,
+)
 from vigil.core.geometry import Point, Polygon
-from vigil.domain.enums import ObjectClass, ZoneKind
-from vigil.domain.scene import Schedule, Zone
+from vigil.domain.enums import CrossingDirection, ObjectClass, ZoneKind
+from vigil.domain.scene import CrossingLine, Schedule, Zone
 from vigil.domain.track import TrackedObject
 
 
@@ -45,6 +51,27 @@ def zone_from_config(config: ZoneConfig, camera_id: str) -> Zone:
         ),
         label=config.display_label,
     )
+
+
+def line_from_config(config: LineConfig, camera_id: str) -> CrossingLine:
+    return CrossingLine(
+        line_id=config.line_id,
+        camera_id=camera_id,
+        start=Point(*config.start),
+        end=Point(*config.end),
+        direction=CrossingDirection(config.direction),
+        criticality=config.criticality,
+        active_schedule=(
+            None if config.schedule is None else schedule_from_config(config.schedule)
+        ),
+        label=config.display_label,
+    )
+
+
+def lines_from_set(
+    zone_set: ZoneSetConfig, camera_id: str, *, max_lines: int
+) -> tuple[CrossingLine, ...]:
+    return tuple(line_from_config(ln, camera_id) for ln in zone_set.lines[:max_lines])
 
 
 def zones_from_set(zone_set: ZoneSetConfig, camera_id: str, *, max_zones: int) -> tuple[Zone, ...]:

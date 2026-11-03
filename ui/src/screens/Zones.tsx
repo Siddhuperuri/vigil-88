@@ -1,12 +1,13 @@
 import { useId, useState } from "react";
 import { ApiError, sendJson } from "../api/client";
-import type { AdminCamera, Role, ZoneConfig, ZonesOut } from "../api/types";
+import type { AdminCamera, LineConfig, Role, ZoneConfig, ZonesOut } from "../api/types";
 import { messageOf, useFetch } from "../api/useFetch";
 import { Notice } from "../components/bits";
 import { href, type Route } from "../router";
 import { usePending } from "../state/pending";
 import { MAX_POINTS, type Point, problemWith, tidy } from "../zones/geometry";
 import { ZoneCanvas } from "../zones/ZoneCanvas";
+import { LinesPanel } from "./LinesPanel";
 
 /** `crossing_line` is a line, not a polygon, and nothing evaluates it, so it is not offered. */
 const KINDS: { value: string; label: string }[] = [
@@ -200,6 +201,7 @@ function Editor({
 }) {
   const pending = usePending();
   const [zones, setZones] = useState<ZoneConfig[]>(loaded.zones.zones);
+  const [lines, setLines] = useState<LineConfig[]>(loaded.zones.lines);
   const [selected, setSelected] = useState<string | null>(loaded.zones.zones[0]?.zone_id ?? null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -207,7 +209,9 @@ function Editor({
     null,
   );
   const current = zones.find((z) => z.zone_id === selected) ?? null;
-  const dirty = JSON.stringify(zones) !== JSON.stringify(loaded.zones.zones);
+  const dirty =
+    JSON.stringify(zones) !== JSON.stringify(loaded.zones.zones) ||
+    JSON.stringify(lines) !== JSON.stringify(loaded.zones.lines);
   const problems = new Map(zones.map((z) => [z.zone_id, problemWith(pointsOf(z))]));
   const firstProblem = [...problems.entries()].find(([, p]) => p !== null);
   const editable = loaded.editable;
@@ -225,6 +229,8 @@ function Editor({
       await sendJson("PUT", `/api/v1/config/cameras/${encodeURIComponent(camera)}/zones`, {
         version: loaded.zones.version,
         zones,
+        // Sent back with the zones, or saving a zone would silently erase every crossing line.
+        lines,
       });
       setSaved(true);
       pending.refresh();
@@ -334,6 +340,14 @@ function Editor({
             <p>Nothing was changed. Your edits are still here.</p>
           </Notice>
         )}
+        <LinesPanel
+          lines={lines}
+          editable={editable}
+          onChange={(next) => {
+            setSaved(false);
+            setLines(next);
+          }}
+        />
         {saved && (
           <p role="status" className="state-ok">
             <span aria-hidden="true">●</span> Saved. Takes effect when monitoring restarts.
@@ -361,6 +375,7 @@ function Editor({
               disabled={!dirty || saving}
               onClick={() => {
                 setZones(loaded.zones.zones);
+                setLines(loaded.zones.lines);
                 setSaved(false);
                 setFailure(null);
               }}

@@ -101,7 +101,7 @@ test.describe("failure drills", () => {
       .click();
 
     // The engine is up, the camera is named with a state in words, and nothing says ONLINE.
-    const row = page.getByRole("row", { name: /dead/ });
+    const row = page.getByRole("row", { name: /^dead / });
     await expect(row).toBeVisible({ timeout: 60_000 });
     await expect(row).not.toContainText("ONLINE");
     await expect(row).toContainText(/RECONNECTING|OFFLINE|FAILED|STARTING/);

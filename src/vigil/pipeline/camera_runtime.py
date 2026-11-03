@@ -194,3 +194,46 @@ def build_camera_runtime(
         make_worker(f"capture:{camera.camera_id}", capture.run),
         timing=source.timing,
     )
+
+
+def rebuild_capture_worker(
+    runtime: CameraRuntime,
+    *,
+    settings: Settings,
+    clock: Clock,
+    metrics: MetricsRegistry,
+    logger: LoggerLike,
+    source_factory: SourceFactory,
+    make_worker: Callable[
+        [str, Callable[[threading.Event, Callable[[], None]], None]], ThreadWorker
+    ],
+) -> ThreadWorker:
+    """A fresh capture worker and source for a camera whose worker crashed or stalled.
+
+    It keeps the camera's channel and health tracker, so the rest of the pipeline sees the same
+    camera, and continues the stream epoch so the restart counts as a new stream (07). Only a live
+    source can be rebuilt: a file replay that is restarted is a different, non-reproducible run.
+    """
+    if runtime.channel is None or runtime.worker is None:
+        raise CapabilityError("this camera has no capture path to restart")
+    if runtime.lossless:
+        raise CapabilityError("a replayed file cannot be restarted mid-run")
+    camera = runtime.camera
+    source = source_factory(camera)
+    # A camera that had stopped (OFFLINE, FAILED) cannot go straight to ONLINE: the state machine
+    # requires it to start over, exactly as it did the first time.
+    if runtime.health.state in (CameraState.OFFLINE, CameraState.FAILED):
+        runtime.health.mark_initializing("capture worker restarted")
+    capture = CaptureWorker(
+        camera_id=camera.camera_id,
+        source=source,
+        channel=runtime.channel,
+        health=runtime.health,
+        clock=clock,
+        ingest=settings.ingest,
+        metrics=metrics,
+        rng=seeded_rng(0, f"capture:{camera.camera_id}"),
+        logger=logger,
+        starting_epoch=runtime.health.stream_epoch,
+    )
+    return make_worker(f"capture:{camera.camera_id}", capture.run)

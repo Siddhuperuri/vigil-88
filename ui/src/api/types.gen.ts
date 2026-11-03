@@ -456,6 +456,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config/apply-live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Live
+         * @description Apply what can take effect now (zone and line edits) and report what cannot.
+         */
+        post: operations["apply_live_api_v1_config_apply_live_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/config/cameras": {
         parameters: {
             query?: never;
@@ -507,6 +527,40 @@ export interface paths {
         post?: never;
         /** Remove Camera */
         delete: operations["remove_camera_api_v1_config_cameras__camera_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras/{camera_id}/tuning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tuning */
+        get: operations["get_tuning_api_v1_config_cameras__camera_id__tuning_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/cameras/{camera_id}/tuning/{module_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Tuning */
+        put: operations["put_tuning_api_v1_config_cameras__camera_id__tuning__module_id__put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -896,6 +950,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Alerts */
+        get: operations["get_alerts_api_v1_settings_alerts_get"];
+        /** Put Alerts */
+        put: operations["put_alerts_api_v1_settings_alerts_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Settings */
+        get: operations["export_settings_api_v1_settings_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Settings
+         * @description Check a settings file (the default) or apply it (`dry_run=false`). Never deletes.
+         */
+        post: operations["import_settings_api_v1_settings_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/channels": {
         parameters: {
             query?: never;
@@ -908,6 +1017,27 @@ export interface paths {
          * @description An unavailable channel is named with its reason, never quietly omitted (08 §8).
          */
         get: operations["channels_api_v1_system_channels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Diagnostics
+         * @description A zip an administrator can send to get help: versions, health, redacted
+         *     configuration and logs. Never frames, evidence, accounts or credentials.
+         */
+        get: operations["diagnostics_api_v1_system_diagnostics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1004,6 +1134,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workers
+         * @description Every worker with whether it can be restarted on its own.
+         */
+        get: operations["workers_api_v1_system_workers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/workers/{name}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart Worker
+         * @description Replace one worker. Refused, with the reason, when that would be unsafe.
+         */
+        post: operations["restart_worker_api_v1_system_workers__name__restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -1091,6 +1261,64 @@ export interface components {
             pending: "added" | "changed" | "removed" | null;
             /** State */
             state: string | null;
+        };
+        /**
+         * AlertPolicyDoc
+         * @description The part of the alert settings that is policy. Channels and the webhook are not included.
+         */
+        AlertPolicyDoc: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Min Severity
+             * @default MODERATE
+             * @enum {string}
+             */
+            min_severity: "INFO" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+            /**
+             * Quiet Hours
+             * @default []
+             */
+            quiet_hours: components["schemas"]["QuietHoursConfig"][];
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["AlertRuleConfig"][];
+        };
+        /**
+         * AlertRuleConfig
+         * @description When an incident matches, this rule's threshold and channels apply instead of the default.
+         *
+         *     The first matching rule wins. A rule narrows by camera and event type (an empty list or no
+         *     camera means any); it may raise or lower the severity threshold for what it matches, and may
+         *     send to a subset of the configured channels.
+         */
+        AlertRuleConfig: {
+            /** Camera */
+            camera?: string | null;
+            /** Channels */
+            channels?: ("console" | "jsonl" | "webhook")[] | null;
+            /**
+             * Event Types
+             * @default []
+             */
+            event_types: string[];
+            /** Min Severity */
+            min_severity?: ("INFO" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL") | null;
+            /** Name */
+            name: string;
+        };
+        /** AlertSettingsOut */
+        AlertSettingsOut: {
+            /** Applied Live */
+            applied_live: boolean;
+            /** Channels */
+            channels: string[];
+            policy: components["schemas"]["AlertPolicyDoc"];
         };
         /** AnalyticsSummaryOut */
         AnalyticsSummaryOut: {
@@ -1325,6 +1553,23 @@ export interface components {
             /** Stored */
             stored: boolean;
         };
+        /**
+         * DegradationOut
+         * @description The ladder's state (01 §9). `step` 0 is normal; anything else is the engine shedding load,
+         *     and the console must say so on every screen that shows a camera, never only on System.
+         */
+        DegradationOut: {
+            /** Label */
+            label: string;
+            /** Reason */
+            reason: string | null;
+            /** Since Utc */
+            since_utc: string | null;
+            /** Step */
+            step: number;
+            /** Suspended Cameras */
+            suspended_cameras: string[];
+        };
         /** DetectionOut */
         DetectionOut: {
             bbox: components["schemas"]["BoxOut"];
@@ -1410,6 +1655,27 @@ export interface components {
          * @enum {string}
          */
         EventType: "fire" | "smoke" | "vehicle_collision" | "person_down" | "crowd_anomaly" | "intrusion" | "restricted_area_entry" | "abandoned_object" | "dangerous_motion" | "vehicle_anomaly";
+        /**
+         * EvidenceAnnotationsOut
+         * @description How far the evidence can be trusted to be continuous (07). Absent when no manifest exists.
+         */
+        EvidenceAnnotationsOut: {
+            /** Gaps */
+            gaps: components["schemas"]["EvidenceGapOut"][];
+            /** Preroll Shortfall Ms */
+            preroll_shortfall_ms: number | null;
+            /** Stream Interrupted */
+            stream_interrupted: boolean;
+        };
+        /** EvidenceGapOut */
+        EvidenceGapOut: {
+            /** End Ms */
+            end_ms: number;
+            /** Kind */
+            kind: string;
+            /** Start Ms */
+            start_ms: number;
+        };
         /** EvidenceOut */
         EvidenceOut: {
             /** Bytes */
@@ -1493,6 +1759,7 @@ export interface components {
         HealthOut: {
             /** Capabilities */
             capabilities: components["schemas"]["CapabilityOut"][];
+            degradation?: components["schemas"]["DegradationOut"] | null;
             detector: components["schemas"]["ModelOut"] | null;
             /** Issues */
             issues: string[];
@@ -1510,12 +1777,26 @@ export interface components {
             /** Uptime Ms */
             uptime_ms: number | null;
         };
+        /** ImportOut */
+        ImportOut: {
+            /** Applied */
+            applied: boolean;
+            /** Backup */
+            backup: string | null;
+            /** Changes */
+            changes: components["schemas"]["PlannedChangeOut"][];
+            /** Restart Needed */
+            restart_needed: boolean;
+            /** Warnings */
+            warnings: string[];
+        };
         /** IncidentDetailOut */
         IncidentDetailOut: {
             /** Available Transitions */
             available_transitions: string[];
             /** Evidence */
             evidence: components["schemas"]["EvidenceOut"][];
+            evidence_annotations?: components["schemas"]["EvidenceAnnotationsOut"] | null;
             explanation: components["schemas"]["ExplanationOut"];
             incident: components["schemas"]["IncidentSummaryOut"];
             /** Involved Track Ids */
@@ -1609,6 +1890,56 @@ export interface components {
             p95_ms: number | null;
             /** P99 Ms */
             p99_ms: number | null;
+        };
+        /**
+         * LineConfig
+         * @description A crossing line (tripwire): two points in normalized [0, 1] coordinates.
+         *
+         *     `direction` is which way across counts, as seen walking from `start` to `end`: `to_right`
+         *     is from the line's left to its right. `any` counts both ways.
+         */
+        LineConfig: {
+            /**
+             * Criticality
+             * @default 0
+             */
+            criticality: number;
+            /**
+             * Direction
+             * @default any
+             * @enum {string}
+             */
+            direction: "any" | "to_right" | "to_left";
+            /** End */
+            end: [
+                number,
+                number
+            ];
+            /** Label */
+            label?: string | null;
+            /** Line Id */
+            line_id: string;
+            schedule?: components["schemas"]["ScheduleConfig"] | null;
+            /** Start */
+            start: [
+                number,
+                number
+            ];
+        };
+        /** LiveApplyOut */
+        LiveApplyOut: {
+            /** Applied */
+            applied: string[];
+            /** Needs Restart */
+            needs_restart: components["schemas"]["LiveSkipped"][];
+            pending: components["schemas"]["PendingOut"];
+        };
+        /** LiveSkipped */
+        LiveSkipped: {
+            /** Reason */
+            reason: string;
+            /** Target */
+            target: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -1792,6 +2123,15 @@ export interface components {
             /** Pending */
             pending: boolean;
         };
+        /** PlannedChangeOut */
+        PlannedChangeOut: {
+            /** Change */
+            change: string;
+            /** Kind */
+            kind: string;
+            /** Target */
+            target: string;
+        };
         /** ProbeOut */
         ProbeOut: {
             /** Backend */
@@ -1811,6 +2151,24 @@ export interface components {
             /** Width Px */
             width_px: number | null;
         };
+        /**
+         * QuietHoursConfig
+         * @description A window during which only alerts at or above `let_through_from` interrupt anyone.
+         *
+         *     `let_through_from` defaults to CRITICAL and cannot be set higher, because there is nothing
+         *     higher: CRITICAL always gets through.
+         */
+        QuietHoursConfig: {
+            /**
+             * Let Through From
+             * @default CRITICAL
+             * @enum {string}
+             */
+            let_through_from: "INFO" | "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+            /** Name */
+            name: string;
+            schedule: components["schemas"]["ScheduleConfig"];
+        };
         /** RecoverIn */
         RecoverIn: {
             /** Code */
@@ -1824,6 +2182,13 @@ export interface components {
         ResetIn: {
             /** New Password */
             new_password: string;
+        };
+        /** RestartOut */
+        RestartOut: {
+            /** Detail */
+            detail: string;
+            /** Ok */
+            ok: boolean;
         };
         /**
          * Role
@@ -2033,6 +2398,53 @@ export interface components {
             /** To Status */
             to_status: string;
         };
+        /** TuningIn */
+        TuningIn: {
+            /** Overrides */
+            overrides: {
+                [key: string]: unknown;
+            };
+        };
+        /** TuningModule */
+        TuningModule: {
+            /** Description */
+            description: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Module Id */
+            module_id: string;
+            /** Params */
+            params: components["schemas"]["TuningParam"][];
+            /** Pending */
+            pending: boolean;
+            /** Will Run */
+            will_run: boolean;
+        };
+        /** TuningParam */
+        TuningParam: {
+            /** Default */
+            default: unknown;
+            /** Effective */
+            effective: unknown;
+            /** Exclusive Maximum */
+            exclusive_maximum: boolean;
+            /** Exclusive Minimum */
+            exclusive_minimum: boolean;
+            /** File Value */
+            file_value: unknown | null;
+            /** Has Override */
+            has_override: boolean;
+            /** Kind */
+            kind: string;
+            /** Maximum */
+            maximum: number | null;
+            /** Minimum */
+            minimum: number | null;
+            /** Name */
+            name: string;
+            /** Override */
+            override: unknown | null;
+        };
         /** UnlockIn */
         UnlockIn: {
             /** Password */
@@ -2078,6 +2490,21 @@ export interface components {
             /** Validator Id */
             validator_id: string;
         };
+        /** WorkerOut */
+        WorkerOut: {
+            /** Alive */
+            alive: boolean;
+            /** Crashed */
+            crashed: boolean;
+            /** Error */
+            error: string | null;
+            /** Heartbeat Age Ms */
+            heartbeat_age_ms: number | null;
+            /** Name */
+            name: string;
+            /** Restartable */
+            restartable: boolean;
+        };
         /** ZoneConfig */
         ZoneConfig: {
             /**
@@ -2103,6 +2530,11 @@ export interface components {
         };
         /** ZoneSetConfig */
         ZoneSetConfig: {
+            /**
+             * Lines
+             * @default []
+             */
+            lines: components["schemas"]["LineConfig"][];
             /**
              * Version
              * @default 1
@@ -2862,6 +3294,26 @@ export interface operations {
             };
         };
     };
+    apply_live_api_v1_config_apply_live_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveApplyOut"];
+                };
+            };
+        };
+    };
     cameras_api_v1_config_cameras_get: {
         parameters: {
             query?: never;
@@ -3000,6 +3452,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tuning_api_v1_config_cameras__camera_id__tuning_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningModule"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_tuning_api_v1_config_cameras__camera_id__tuning__module_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+                module_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TuningIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningModule"][];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3831,6 +4350,110 @@ export interface operations {
             };
         };
     };
+    get_alerts_api_v1_settings_alerts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSettingsOut"];
+                };
+            };
+        };
+    };
+    put_alerts_api_v1_settings_alerts_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertPolicyDoc"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_settings_api_v1_settings_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    import_settings_api_v1_settings_import_post: {
+        parameters: {
+            query?: {
+                dry_run?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     channels_api_v1_system_channels_get: {
         parameters: {
             query?: never;
@@ -3847,6 +4470,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChannelStatusOut"][];
+                };
+            };
+        };
+    };
+    diagnostics_api_v1_system_diagnostics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -3961,6 +4604,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageOut"];
+                };
+            };
+        };
+    };
+    workers_api_v1_system_workers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerOut"][];
+                };
+            };
+        };
+    };
+    restart_worker_api_v1_system_workers__name__restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

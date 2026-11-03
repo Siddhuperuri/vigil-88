@@ -1,7 +1,7 @@
 import { act, waitFor } from "@testing-library/react";
 import { expect, vi } from "vitest";
 
-/** A route table for `fetch`: first matching prefix wins; the body is JSON unless a Response. */
+/** A route table for `fetch`: the longest matching prefix wins; the body is JSON unless a Response. */
 export type Handler = (url: string, init: RequestInit | undefined) => unknown;
 export type Routes = Record<string, unknown>;
 
@@ -17,7 +17,10 @@ export function mockFetch(routes: Routes) {
   const fn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     calls.push({ url, init });
-    const key = Object.keys(routes).find((k) => url.startsWith(k));
+    // The most specific prefix wins, so listing order never decides which route answers.
+    const key = Object.keys(routes)
+      .filter((k) => url.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0];
     if (key === undefined)
       return Promise.resolve(json({ detail: `no mock for ${url}` }, { status: 404 }));
     const route = routes[key];

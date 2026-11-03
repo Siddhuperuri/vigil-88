@@ -441,3 +441,73 @@ def test_detector_type_is_only_the_protocol(make_config: MakeConfig) -> None:
     app = app_for(make_config(), detector_factory=lambda ctx: det)
     app.start()
     app.stop()
+
+
+# ------------------------------------------------------------------ restarting a worker
+
+
+def test_a_live_cameras_capture_worker_can_be_restarted_and_starts_a_new_stream(
+    make_config: MakeConfig,
+) -> None:
+    sources: list[ScriptedSource] = []
+
+    def factory(_: Camera) -> FrameSource:
+        src = ScriptedSource([raw_frame() for _ in range(200)], timing=SourceTiming.LIVE)
+        sources.append(src)
+        return src
+
+    app = app_for(
+        make_config(
+            {"cameras": [{"camera_id": "cam-r", "source": {"kind": "webcam", "device_index": 0}}]}
+        ),
+        source_factory=factory,
+    )
+    app.start()
+    try:
+        assert wait_for(lambda: app.snapshot().cameras[0].frames_received >= 3)
+        epoch_before = app.snapshot().cameras[0].stream_epoch
+        result = app.supervisor.restart("capture:cam-r")
+        assert result.ok, result.detail
+        assert wait_for(lambda: len(sources) == 2 and sources[1].read_calls >= 1)
+        assert wait_for(lambda: app.snapshot().cameras[0].stream_epoch > epoch_before)
+        assert sources[0].close_calls >= 1  # the old source was released before the new one opened
+        names = [w.name for w in app.snapshot().workers]
+        assert names.count("capture:cam-r") == 1
+    finally:
+        app.stop()
+
+
+def test_a_replayed_file_is_not_restartable(make_config: MakeConfig) -> None:
+    app = app_for(make_config({"cameras": [SYNTH]}))
+    app.start()
+    try:
+        result = app.supervisor.restart("capture:synth")
+    finally:
+        app.stop()
+    assert not result.ok and "replayed file" in result.detail
+
+
+def test_a_source_that_cannot_be_rebuilt_leaves_the_camera_as_it_was(
+    make_config: MakeConfig,
+) -> None:
+    calls: list[int] = []
+
+    def factory(_: Camera) -> FrameSource:
+        calls.append(1)
+        if len(calls) > 1:
+            raise CapabilityError("the camera driver is gone")
+        return ScriptedSource([raw_frame() for _ in range(200)], timing=SourceTiming.LIVE)
+
+    app = app_for(
+        make_config(
+            {"cameras": [{"camera_id": "cam-x", "source": {"kind": "webcam", "device_index": 0}}]}
+        ),
+        source_factory=factory,
+    )
+    app.start()
+    try:
+        assert wait_for(lambda: app.snapshot().cameras[0].frames_received >= 2)
+        result = app.supervisor.restart("capture:cam-x")
+    finally:
+        app.stop()
+    assert not result.ok and "the camera driver is gone" in result.detail

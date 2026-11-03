@@ -1,0 +1,32 @@
+# Owner decisions that gate distribution (docs/RELEASE.md, plan decisions 1 to 4).
+#
+# Every entry starts "undecided" and stays that way until the owner makes the decision and the
+# evidence it needs exists in the repository. `scripts/release_check.py` reads this file; a build
+# made while any entry is unresolved is named VIGIL-88-DEV-ONLY-* and `package.ps1 -Release`
+# refuses to run. Nothing in this file is a default someone chose for the owner.
+version: 1
+
+# 1. The project licence. "decided" needs the SPDX identifier, a LICENSE file at the repository
+#    root and the same identifier in pyproject.toml.
+licence:
+  status: undecided
+
+# 2. The NVIDIA runtime (about 2.4 GB of CUDA and cuDNN libraries).
+#      not_shipped  the release is CPU only, by decision
+#      download     an explicit, hash-verified download; needs release/gpu-runtime.manifest.json
+#                   with a licence review recorded against every file
+gpu_runtime:
+  status: undecided
+
+# 3. Code signing of the installer.
+#      signed       needs `subject` (the certificate subject the installer must carry); the
+#                   built installer is then verified with Authenticode, not taken on trust
+signing:
+  status: undecided
+
+# 4. Updates.
+#      not_shipped  the release has no updater, by decision
+#      enabled      needs `feed_url` (https) and `public_key_fingerprint` of the update-signing
+#                   key; an updater must refuse an update that does not verify against it
+updater:
+  status: undecided

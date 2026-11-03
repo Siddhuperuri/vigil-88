@@ -17,7 +17,7 @@ opened, so a tampered row cannot become an arbitrary file read (05 §6, 01 §10)
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, TypeVar
@@ -27,6 +27,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from vigil.api.bundle import build_bundle
 from vigil.api.schemas_incidents import (
+    EvidenceAnnotationsOut,
     EvidenceOut,
     ExplanationOut,
     IncidentDetailOut,
@@ -44,6 +45,7 @@ from vigil.core.errors import PersistenceError
 from vigil.domain.dismissal import REASONS as DISMISSAL_REASONS
 from vigil.domain.dismissal import encode as encode_reason
 from vigil.domain.enums import EventType, IncidentStatus, Severity
+from vigil.domain.evidence import Evidence
 from vigil.domain.incident import Incident
 from vigil.persistence.queries import (
     DEFAULT_SORT,
@@ -53,10 +55,10 @@ from vigil.persistence.queries import (
 )
 from vigil.persistence.repositories.evidence import EvidenceRepository
 from vigil.persistence.repositories.incidents import IncidentRepository
-from vigil.response.evidence import verify_file
+from vigil.response.evidence import read_annotations, verify_file
 from vigil.response.incident_manager import TransitionRefused
 from vigil.response.operator_actions import OperatorActions
-from vigil.response.paths import resolve_relative
+from vigil.response.paths import EVIDENCE_MANIFEST, resolve_relative
 
 # PEP 695 generics need 3.12; this project targets 3.11 (D-001).
 _T = TypeVar("_T")
@@ -129,6 +131,17 @@ def build_router(
         if incident is None:
             raise HTTPException(status_code=404, detail=f"unknown incident {incident_id}")
         return incident
+
+    def _annotations(records: Sequence[Evidence]) -> EvidenceAnnotationsOut | None:
+        """What the capture said about its own continuity, read from the manifest it wrote."""
+        if not records:
+            return None
+        try:
+            folder = resolve_relative(evidence_root, records[0].relative_path).parent
+        except PersistenceError:
+            return None
+        found = read_annotations(folder / EVIDENCE_MANIFEST)
+        return None if found is None else EvidenceAnnotationsOut.model_validate(found)
 
     def _summary(incident: Incident) -> IncidentSummaryOut:
         return IncidentSummaryOut.of(
@@ -219,6 +232,7 @@ def build_router(
             system=system_out(incident),
             available_transitions=[s.value for s in actions.available_transitions(incident_id)],
             permissions=permissions_out(actions.permissions(incident_id)),
+            evidence_annotations=_annotations(records),
         )
 
     @router.get("/{incident_id}/evidence", response_model=list[EvidenceOut], dependencies=[_VIEW])

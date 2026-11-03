@@ -5,6 +5,7 @@ import { type User, asSeverity } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useTelemetry } from "../state/telemetry";
 import { readout } from "./bits";
+import { DegradationBanner } from "./DegradationBanner";
 
 export const VIEWS: { label: string; route: Route; adminOnly?: boolean }[] = [
   { label: "Live wall", route: { view: "wall", camera: null } },
@@ -15,6 +16,7 @@ export const VIEWS: { label: string; route: Route; adminOnly?: boolean }[] = [
   { label: "Reports", route: { view: "reports" } },
   { label: "People", route: { view: "people" }, adminOnly: true },
   { label: "Audit log", route: { view: "audit" }, adminOnly: true },
+  { label: "Settings", route: { view: "settings" }, adminOnly: true },
   { label: "System", route: { view: "system" } },
 ];
 
@@ -166,6 +168,7 @@ export function Shell({
         </div>
       </nav>
       <main id="main" className="view" tabIndex={-1}>
+        <DegradationBanner />
         {children}
       </main>
     </div>

@@ -33,8 +33,8 @@ suppression that nothing acted on. All ten are fixed and pinned by tests. ADR 00
 
 **Fire and smoke are still not detected, and now say so out loud.** No model with a compatible
 licence, checkable provenance and a published held-out evaluation could be sourced, so what ships
-is a *declaration* rather than a detector — see below. The degradation ladder and automatic worker
-restart remain unbuilt. The sections below say what else does not.
+is a *declaration* rather than a detector — see below. The degradation ladder and operator-initiated
+worker restart were built in D5 (ADR 0021); *automatic* restart remains unbuilt. The sections below say what else does not.
 
 ## What does not exist
 
@@ -49,7 +49,7 @@ restart remain unbuilt. The sections below say what else does not.
 | Event modules beyond the three shipped | `vehicle_collision`, `crowd_anomaly`, `dangerous_motion` and `vehicle_anomaly` have entries in `EventType` and no code. `EventType` is the taxonomy, not a promise of functionality (05 §3) | on demand |
 | Pose estimation | Not built, and **not declared**. `POSE` is in the capability vocabulary and nothing grants it. `person_down` is bounding-box geometry and says so in its descriptor, its facts and its README; it declares no `POSE` dependency because it uses none, and an optional-but-unused capability would report a degradation that changes nothing (ADR 0014 §A) | when a module needs it |
 | PDF reports without the `reports` extra | Built, behind an optional extra: `uv sync --extra reports` installs `reportlab` and `format=pdf` produces a document. Without it the format answers **503 with the install command**, and the viewer's PDF button ships disabled carrying that reason. A core renderer would cost every headless install a font stack and `pillow` for a report many deployments never ask for (ADR 0014 §C) | installed on demand |
-| Degradation ladder, supervisor/restart | **Still not built.** The scheduler bounds load, but nothing lowers resolution or demotes cameras under overload. A crashed worker is reported, counted and makes the application report FAILED; a worker that is *alive but no longer progressing* is now detected too (`pipeline.worker_stall_timeout_ms`, ADR 0015 §B3) and reported the same way — **detected, not restarted** | when overload is observed in a real deployment |
+| Degradation ladder, supervisor/restart | **Built in D5 (ADR 0021); thresholds unmeasured.** Historical note, true before D5: The scheduler bounds load, but nothing lowers resolution or demotes cameras under overload. A crashed worker is reported, counted and makes the application report FAILED; a worker that is *alive but no longer progressing* is now detected too (`pipeline.worker_stall_timeout_ms`, ADR 0015 §B3) and reported the same way — **detected, not restarted** | when overload is observed in a real deployment |
 | Web operations console | Not built. The **provisional viewer** at `/` now shows the live streams, the metrics, the incident list, an incident's full explanation and evidence, the real operator actions and the mute countdown. It follows the console's honesty rules (a disabled control says why) but it is not the seven-view console of 08 | later |
 | RTSP / IP cameras | Config validates (and rejects inline credentials). Such a camera is reported **FAILED: not implemented** | later |
 | Video-file replay, image input | Not built | later |
@@ -182,10 +182,10 @@ The audit's full findings are in ADR 0015 §B. What matters here is which of the
 
 **Deliberately not built**, recorded as decisions rather than omissions:
 
-- **Pre-roll gap annotation.** 07 §5 keeps the pre-roll buffer across a reconnect and says the
+- **Pre-roll gap annotation** *(built in D5: see "Close-out (D5)")*. 07 §5 keeps the pre-roll buffer across a reconnect and says the
   manifest should mark that the footage has a hole. It does not. An operator reviewing a clip that
   spans a reconnect is not told that frames are missing from it.
-- **`stream_interrupted` on open incidents.** 07 §5 says an incident open across a stream gap
+- **`stream_interrupted` on open incidents** *(the evidence manifest and incident detail carry it as of D5; the incident record does not)*. 07 §5 says an incident open across a stream gap
   should be left open and annotated, so an operator sees that its evidence is incomplete. The
   string exists nowhere in the tree. An epoch reset drops pending verification and resets the
   ledger for that camera; an already-persisted ACTIVE incident is simply no longer extended.
@@ -236,7 +236,7 @@ Everything below was verified against the code, not asserted. Details in ADR 001
 ## Windows installer (D4)
 
 - **The installer is unsigned and must not be distributed.** It is built by `scripts/package.ps1` into
-  `build\installer\VIGIL-88-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
+  `build\installer\VIGIL-88-DEV-ONLY-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
   Windows SmartScreen will warn, and the project has no declared licence (decision 1), so a copy grants
   nobody any rights.
 - **It carries the CPU engine only.** The NVIDIA runtime (about 2.4 GB) is neither bundled nor offered as a
@@ -450,8 +450,8 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
 - **No notification while the console is locked.** Locking closes the live channel (4423), so a new
   incident raises no toast, tone or announcement until it is unlocked. The decision to notify with
   severity and camera only while locked is recorded (ADR 0016) and is **not built**.
-- **Worker restart is not built.** The shell restarts the whole engine with backoff; a stalled or
-  crashed worker inside a running engine is still only reported.
+- **Worker restart** *(built in D5, operator-initiated, ADR 0021)*. The shell restarts the whole engine with
+  backoff; inside a running engine an administrator can restart a crashed or stalled worker where that is safe.
 - **Cameras and zones are managed in the console as of D2**; see "Cameras and zones (D2)" below.
 - **The console follows the operating system's light or dark setting**; there is no manual switch.
 - **Keyboard shortcuts apply on the Incident Desk only.** There is no command palette.
@@ -481,15 +481,14 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
 - **Credentials need the `credentials` extra** (Windows Credential Manager through `keyring`). Without it the
   console says so and cannot store a password; it never falls back to writing one into a file.
 - **Device names need the `capture` extra** (`cv2-enumerate-cameras`); without it a device number is typed.
-- **Zones are polygons only.** `crossing_line` is a line, nothing evaluates it, and the editor does not
-  offer it. A zone schedule is preserved when a zone is saved but is edited in the zone file by hand.
+- **Zones are polygons; crossing lines are separate** *(D5)*. A line lives under `lines:` in the zone file. A zone schedule is preserved when a zone is saved but is edited in the zone file by hand.
 - **Zone drawing has no calibration or snapshot freshness check.** The picture behind the zones is the
   camera's current frame, or nothing if the camera is not running yet; the zones are fractions of the frame
   either way.
 - **Cameras defined by hand in `vigil.yaml` are shown, not edited**, and say so.
-- **Not built in D2:** a diagnostics bundle, settings and configuration import/export, alert rules and quiet
-  hours, the degradation ladder, annotating the pre-roll gap after a reconnect, the full first-run wizard, and
-  engine worker restart.
+- **Not built in D2, all built in D5** (see "Close-out (D5)"): a diagnostics bundle, settings import/export,
+  alert rules and quiet hours, the degradation ladder, the pre-roll gap annotation, the setup guide, and engine
+  worker restart.
 - **People, Audit log and Reports screens** (added after the first D2 cut):
   - The screen refuses to change your own account (role, disable, delete); the engine independently refuses to
     remove the last administrator. A password reset on yourself is allowed.
@@ -506,9 +505,7 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
 - **The dismissal rate is still not a false-positive rate.** Dismissal reasons (ADR 0018) are labels an operator
   chose from a fixed list; nobody checks them against the picture. A dismissal made without a reason counts as
   `not_given`. No rate has been produced from real operator use yet.
-- **Line-crossing zones and the module are not built.** Nothing evaluates a line, so the editor does not offer one.
-- **There is no screen for per-camera thresholds.** `module_params` in a camera file works, and saving a camera
-  from the console keeps it, but the console cannot edit it.
+- **Line-crossing and the per-camera thresholds screen were built in D5** (see "Close-out (D5)").
 - **The console draws no overlays of its own.** The engine draws boxes and labels into the picture, and no
   measurement showed that to be limiting.
 - **The evidence bundle is not signed.** Its manifest shows whether a file still matches the hash recorded at
@@ -518,13 +515,13 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   zoom. It is a list, not a drawn axis.
 - **The command palette is a shortcut, not a second interface.** It lists views and a few actions; every one
   of them also exists as a control on screen.
-- **Windows Hello unlock and evidence encryption are not built and not designed.**
+- **Windows Hello unlock is not built and now has a design question to answer** (ADR 0022). Evidence encryption is not built and not designed.
 
 ## Other
 
-- **No automatic worker restart.** A crashed worker is logged, counted and makes the application
+- **No *automatic* worker restart.** A crashed worker is logged, counted and makes the application
   report FAILED health, and so now is one that is alive but has stopped making progress for
-  `pipeline.worker_stall_timeout_ms`. Neither is restarted; an operator has to.
+  `pipeline.worker_stall_timeout_ms`. Neither restarts itself; an administrator can restart it from System (D5).
 - **Capture-to-inference latency is only reported for live sources.** Replay cameras run on a
   PTS-driven clock that is not comparable to the application clock.
 - **The synthetic source is a test pattern**, not a scene simulator.
@@ -540,3 +537,37 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
 - **`storage.enabled = false` is supported and visibly different.** Events are analysed and
   nothing is stored; `GET /api/v1/system/health` reports `persists_incidents: false` and the
   viewer says so rather than showing an empty incident list as if it were good news.
+
+## Close-out (D5)
+
+What this phase built, and what it did and did not show. Verification status of everything that needs hardware
+or a clean machine is in [verification/](verification/README.md).
+
+**Release.** `release/decisions.yaml` holds the four owner decisions (licence, NVIDIA runtime, signing, updates),
+all **undecided**. `scripts/release_check.py` reads them and the evidence each needs; every installer is named
+`VIGIL-88-DEV-ONLY-Setup-*` and `package.ps1 -Release` is refused while any is open. The NVIDIA download
+script exists and refuses without an approved manifest; it has never fetched a real file. See [RELEASE](RELEASE.md).
+
+**Built and tested, not watched on real footage or hardware:**
+
+- **Pre-roll gap annotation.** A hole in the footage (a reconnect, or a silence longer than
+  `evidence.gap_threshold_ms`) is recorded and written into the evidence manifest and the incident detail, with the
+  pre-roll shortfall. Deviation from 07 §5: a reconnect **still clears** the pre-roll buffer (the footage may be
+  a different view) rather than retaining it; the gap is recorded instead. `stream_interrupted` is on the evidence
+  and the detail, **not** on the incident row, and an already-open incident is not re-annotated afterwards.
+- **Degradation ladder** and **worker restart** (ADR 0021). Thresholds are unmeasured defaults.
+- **Line-crossing** zone kind and `line_crossing` module. Geometry over tracks, synthetic scenes only; direction is
+  from the track's own path; counting is **not** built; event type is `restricted_area_entry`.
+- **Per-camera thresholds.** Limits shown are the module's own. Applied on restart.
+- **Alert rules and quiet hours.** Per camera and per event type; CRITICAL cannot be held; the incident is always
+  recorded. Applied live. Held alerts are counted and logged, but **not shown to the operator per incident**.
+- **Live apply** of zone/line edits and alert policy (ADR 0020). Cameras, thresholds and the rest still restart.
+- **Diagnostics bundle** (redacted, no frames, accounts, credentials or absolute paths) and **settings
+  export/import** (versioned, validated, backed up, reversible, no secrets).
+- **Setup guide.** It links to the existing screens; it does not draw zones itself. It was walked in tests, not by a
+  first-time user.
+- **Uninstall** has a `/REMOVEDATA` switch so the remove branch can be scripted.
+
+**Not built:** Windows Hello (ADR 0022: a security-model decision), automatic worker restart, restart of the
+inference/analysis/response workers, live camera add/remove, line-crossing counts, and an `incident.stream_interrupted`
+column. **Not verified:** everything in the verification README marked *not run*.

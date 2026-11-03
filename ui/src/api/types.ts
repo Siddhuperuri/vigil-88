@@ -37,6 +37,7 @@ export type CameraInput = Partial<Omit<CameraConfig, "source">> &
   Pick<CameraConfig, "camera_id"> & { source: SourceInput };
 export type ZoneConfig = Schemas["ZoneConfig"];
 export type ZoneSet = Schemas["ZoneSetConfig"];
+export type LineConfig = Schemas["LineConfig"];
 export type ZonesOut = Schemas["ZonesOut"];
 export type ProbeResult = Schemas["ProbeOut"];
 export type Devices = Schemas["DevicesOut"];
@@ -59,3 +60,13 @@ export type Timeline = Schemas["TimelineOut"];
 export type HealthEvent = Schemas["HealthEventOut"];
 
 export type ModuleAvailability = Schemas["ModuleAvailabilityOut"];
+
+export type WorkerInfo = Schemas["WorkerOut"];
+export type RestartResult = Schemas["RestartOut"];
+export type AlertSettings = Schemas["AlertSettingsOut"];
+export type AlertPolicy = Schemas["AlertPolicyDoc"];
+export type ImportOutcome = Schemas["ImportOut"];
+export type TuningModule = Schemas["TuningModule"];
+export type TuningParam = Schemas["TuningParam"];
+export type LiveApply = Schemas["LiveApplyOut"];
+export type EvidenceAnnotations = Schemas["EvidenceAnnotationsOut"];

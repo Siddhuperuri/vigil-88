@@ -138,6 +138,7 @@ class IncidentEvidence:
     """One incident's capture session. Created by `EvidenceWriter.open`, closed by `finish`."""
 
     __slots__ = (
+        "_annotations",
         "_clock",
         "_directory",
         "_log",
@@ -170,6 +171,13 @@ class IncidentEvidence:
         self._log = logger.bind(incident_id=incident_id)
         self._metrics = metrics
         self._pending = _Pending()
+        self._annotations: dict[str, object] = {}
+
+    def annotate(self, name: str, value: object) -> None:
+        """Facts about the capture as a whole (a hole in the footage, a short pre-roll), written
+        into the manifest beside the files. They describe how far the evidence can be trusted
+        to be continuous; they are never a reason to drop a file."""
+        self._annotations[name] = value
 
     @property
     def directory(self) -> Path:
@@ -279,6 +287,21 @@ class IncidentEvidence:
         days = int(getattr(self._retention, _RETENTION_FIELD[kind]))
         return self._clock.wall_utc() + timedelta(days=days)
 
+    def has_room(self, needed: int) -> str | None:
+        """None if `needed` more bytes fit above the free-space floor, otherwise why they do not.
+
+        For callers that write a file themselves (a video muxer) and so cannot go through
+        `write()`: without this, a clip would be written however full the volume was, while every
+        snapshot beside it was refused, and the clip could be what filled it.
+        """
+        try:
+            self._ensure_space(needed)
+        except PersistenceError as exc:
+            return exc.message
+        except OSError as exc:
+            return f"cannot read the free space on the evidence volume: {exc}"
+        return None
+
     def _ensure_space(self, needed: int) -> None:
         usage = shutil.disk_usage(self._directory)
         if usage.free - needed < MIN_FREE_BYTES:
@@ -353,6 +376,7 @@ class IncidentEvidence:
             "missing": [
                 {"kind": f.kind.value, "file": f.filename, "reason": f.reason} for f in failures
             ],
+            "annotations": self._annotations,
         }
         target = self._directory / EVIDENCE_MANIFEST
         temp = target.with_name(target.name + PART_SUFFIX)
@@ -432,3 +456,29 @@ class EvidenceWriter:
             logger=self._log,
             metrics=self._metrics,
         )
+
+
+def read_annotations(manifest_path: Path) -> dict[str, object] | None:
+    """The `annotations` block of a manifest, or None if there is no readable manifest.
+
+    The manifest is a file on disk and is treated as input: only the keys this application writes
+    are returned, with their types checked, and anything else is ignored.
+    """
+    try:
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    block = raw.get("annotations") if isinstance(raw, dict) else None
+    if not isinstance(block, dict):
+        return None
+    gaps = [
+        {"kind": str(g["kind"]), "start_ms": float(g["start_ms"]), "end_ms": float(g["end_ms"])}
+        for g in block.get("gaps", [])
+        if isinstance(g, dict) and {"kind", "start_ms", "end_ms"} <= g.keys()
+    ]
+    shortfall = block.get("preroll_shortfall_ms")
+    return {
+        "stream_interrupted": bool(block.get("stream_interrupted", False)),
+        "gaps": gaps,
+        "preroll_shortfall_ms": float(shortfall) if isinstance(shortfall, int | float) else None,
+    }
