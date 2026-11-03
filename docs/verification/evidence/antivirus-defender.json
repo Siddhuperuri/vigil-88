@@ -1,0 +1,16 @@
+﻿{
+    "engine":  "Microsoft Defender 4.18.26100.4",
+    "real_time_protection":  true,
+    "signatures":  "1.463.101.0 from 2026-11-02",
+    "scanned_folders_excluded":  false,
+    "scanned":  [
+                    "installer-d5\\ (the installer and the unpacked application)"
+                ],
+    "detections_during_scan":  0,
+    "application_ran_for_seconds":  30,
+    "detections_total":  0,
+    "installer_signature":  "NotSigned",
+    "smartscreen_note":  "An unsigned installer is expected to trigger a SmartScreen warning when downloaded; this script cannot show that.",
+    "measured_utc":  "2026-11-03T09:03:47Z",
+    "verdict":  "No detection by Microsoft Defender on this computer. Other products were not tried."
+}

@@ -129,7 +129,8 @@ test.describe("whole-application soak", () => {
           health_level: health,
           health_ms: health === null ? null : Date.now() - probe,
           live: await page
-            .getByText("LIVE", { exact: true })
+            .getByRole("banner")
+            .getByText("LIVE")
             .first()
             .isVisible()
             .catch(() => false),

@@ -1,0 +1,11 @@
+{
+    "keep_exit_code":  0,
+    "keep_program_removed":  true,
+    "keep_data_preserved":  true,
+    "remove_exit_code":  0,
+    "remove_program_removed":  true,
+    "remove_data_removed":  true,
+    "installer":  "VIGIL-88-DEV-ONLY-Setup-0.1.0.exe",
+    "measured_utc":  "2026-11-03T09:02:41Z",
+    "verdict":  "Both branches behaved: /S kept the data, /REMOVEDATA removed it."
+}

@@ -67,7 +67,7 @@ try {
 $ok = $results["keep_program_removed"] -and $results["keep_data_preserved"] -and
       $results["remove_program_removed"] -and $results["remove_data_removed"]
 $results["installer"] = Split-Path $Installer -Leaf
-$results["measured_utc"] = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$results["measured_utc"] = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
 $results["verdict"] = if ($ok) { "Both branches behaved: /S kept the data, /REMOVEDATA removed it." } else { "FAILED: see the fields above." }
 $json = $results | ConvertTo-Json
 $json

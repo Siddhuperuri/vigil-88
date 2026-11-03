@@ -15,6 +15,7 @@ Set-Location (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 
 function Run([string]$Name, [scriptblock]$Body) {
     $began = Get-Date
+    $ErrorActionPreference = "Continue"  # a native tool's warning on stderr is not a failure; its exit code is
     & $Body *> $null
     [ordered]@{ drill = $Name; passed = ($LASTEXITCODE -eq 0); seconds = [math]::Round(((Get-Date) - $began).TotalSeconds, 1) }
 }
@@ -26,7 +27,7 @@ $rows += Run "engine: disk full, unplug and recovery, gap in footage" { uv run p
 
 $result = [ordered]@{
     drills       = $rows
-    measured_utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    measured_utc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
     not_run      = @("a real full volume", "a real unplugged camera", "a GPU driver reset")
     verdict      = if (($rows | Where-Object { -not $_.passed }).Count -eq 0) { "All automated drills passed." } else { "FAILED: see drills." }
 }

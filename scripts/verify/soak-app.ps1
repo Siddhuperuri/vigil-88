@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 
-$stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+$stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ", [Globalization.CultureInfo]::InvariantCulture)
 $dir = Join-Path "build\soak" $stamp
 New-Item -ItemType Directory -Force $dir | Out-Null
 $abs = (Resolve-Path $dir).Path

@@ -46,12 +46,14 @@ try {
     }
     $checks["application_started_its_engine"] = [bool]$engine
     if ($engine) {
-        Start-Sleep -Seconds 3
-        $port = (Get-NetTCPConnection -OwningProcess $engine.Id -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1).LocalPort
-        $checks["engine_listens_on_loopback_only"] = [bool]$port -and (
-            (Get-NetTCPConnection -OwningProcess $engine.Id -State Listen | ForEach-Object { $_.LocalAddress }) -notcontains "0.0.0.0")
-        if ($port) {
-            $status = Invoke-RestMethod "http://127.0.0.1:$port/api/v1/auth/status" -Headers @{ "X-Vigil-Request" = "1" }
+        Start-Sleep -Seconds 5
+        # A frozen engine is a launcher process and the program it starts; either may own the socket.
+        $ids = @(Get-Process -Name "vigil-engine" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+        $listening = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess })
+        $checks["engine_listens"] = $listening.Count -gt 0
+        $checks["engine_listens_on_loopback_only"] = $listening.Count -gt 0 -and -not ($listening | Where-Object { $_.LocalAddress -notin @("127.0.0.1", "::1") })
+        if ($listening.Count -gt 0) {
+            $status = Invoke-RestMethod "http://127.0.0.1:$($listening[0].LocalPort)/api/v1/auth/status" -Headers @{ "X-Vigil-Request" = "1" }
             $checks["first_run_reported"] = [bool]$status.setup_required
         }
     }
@@ -68,7 +70,7 @@ $result = [ordered]@{
     counts_as_a_clean_machine = $clean
     checks         = $checks
     installer      = Split-Path $Installer -Leaf
-    measured_utc   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    measured_utc   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
     verdict        = if (-not $ok) { "FAILED: see checks." } elseif ($clean) { "Passed on a machine with no development tools." } else { "Passed, but this machine has development tools or ran elevated: NOT a clean-machine result." }
 }
 $json = $result | ConvertTo-Json -Depth 4
