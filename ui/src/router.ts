@@ -7,6 +7,7 @@ export type Route =
   | { view: "incidents"; id: string | null }
   | { view: "cameras"; id: string | null }
   | { view: "zones"; camera: string | null }
+  | { view: "activity"; tab: "timeline" | "candidates" }
   | { view: "reports" }
   | { view: "people" }
   | { view: "audit" }
@@ -30,6 +31,8 @@ export function parse(hash: string): Route {
       return { view: "cameras", id: parts[1] ?? null };
     case "zones":
       return { view: "zones", camera: parts[1] ?? null };
+    case "activity":
+      return { view: "activity", tab: parts[1] === "candidates" ? "candidates" : "timeline" };
     case "reports":
       return { view: "reports" };
     case "people":
@@ -53,6 +56,8 @@ export function href(route: Route): string {
       return route.id === null ? "#/cameras" : `#/cameras/${encodeURIComponent(route.id)}`;
     case "zones":
       return route.camera === null ? "#/zones" : `#/zones/${encodeURIComponent(route.camera)}`;
+    case "activity":
+      return route.tab === "candidates" ? "#/activity/candidates" : "#/activity";
     case "reports":
       return "#/reports";
     case "people":

@@ -11,6 +11,7 @@ export const VIEWS: { label: string; route: Route; adminOnly?: boolean }[] = [
   { label: "Incident desk", route: { view: "incidents", id: null } },
   { label: "Cameras", route: { view: "cameras", id: null } },
   { label: "Zones", route: { view: "zones", camera: null } },
+  { label: "Activity", route: { view: "activity", tab: "timeline" } },
   { label: "Reports", route: { view: "reports" } },
   { label: "People", route: { view: "people" }, adminOnly: true },
   { label: "Audit log", route: { view: "audit" }, adminOnly: true },

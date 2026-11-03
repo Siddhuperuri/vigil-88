@@ -53,3 +53,7 @@ export interface ChainReport {
   rows: number;
   first_bad_seq: number | null;
 }
+
+export type Candidate = Schemas["CandidateOut"];
+export type Timeline = Schemas["TimelineOut"];
+export type HealthEvent = Schemas["HealthEventOut"];

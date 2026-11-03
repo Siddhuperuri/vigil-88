@@ -6,6 +6,7 @@ import { Announcer, Shell, VIEWS } from "./components/Shell";
 import { Notice } from "./components/bits";
 import { href, useRoute } from "./router";
 import { Login, Lock, Setup } from "./screens/Gate";
+import { Activity } from "./screens/Activity";
 import { Audit } from "./screens/Audit";
 import { Cameras } from "./screens/Cameras";
 import { Incidents } from "./screens/Incidents";
@@ -194,6 +195,7 @@ function Signed({
           )}
           {route.view === "cameras" && <Cameras route={route} role={role} go={go} />}
           {route.view === "zones" && <Zones route={route} role={role} />}
+          {route.view === "activity" && <Activity route={route} />}
           {route.view === "reports" && <Reports userRole={role} />}
           {route.view === "people" &&
             (role === "administrator" ? <People me={username} /> : <AdminOnly />)}

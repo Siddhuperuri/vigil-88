@@ -82,7 +82,7 @@ describe("the signed-in shell", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Live wall", "Incident desk", "Cameras", "Zones", "Reports", "System"]);
+    ).toEqual(["Live wall", "Incident desk", "Cameras", "Zones", "Activity", "Reports", "System"]);
     expect(within(nav).getByRole("link", { name: "Live wall" })).toHaveAttribute(
       "aria-current",
       "page",
