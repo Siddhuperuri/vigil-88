@@ -222,11 +222,16 @@ class ResponseWorker:
             self._incidents.set_evidence_status(incident_id, EvidenceStatus.UNAVAILABLE)
 
     def _dispatch(self, outcome: IncidentOutcome) -> None:
-        result = self._alerts.dispatch(outcome.incident_id, outcome.severity)
+        result = self._alerts.dispatch(
+            outcome.incident_id,
+            outcome.severity,
+            camera_id=outcome.camera_id,
+            event_type=outcome.event_type.value,
+        )
         if result.dispatched:
             self.stats.alerts_dispatched += 1
         elif result.suppressed_reason:
-            self._log.debug(
+            self._log.info(
                 "alert_not_dispatched",
                 incident_id=outcome.incident_id,
                 reason=result.suppressed_reason,

@@ -27,6 +27,7 @@ from vigil.core.protocols.logger import LoggerLike
 from vigil.domain.alert import Alert, AlertDelivery
 from vigil.domain.enums import Severity
 from vigil.observability.metrics import MetricsRegistry
+from vigil.response.alert_policy import AlertPolicy
 from vigil.response.channels.base import Channel, ChannelStatus
 from vigil.response.channels.console import ConsoleChannel
 from vigil.response.channels.jsonl import JsonlChannel
@@ -71,7 +72,7 @@ def build_channels(
 class AlertDispatcher:
     """Sends one alert to every available channel. Holds no state beyond the channel set."""
 
-    __slots__ = ("_channels", "_clock", "_config", "_log", "_metrics", "_threshold", "_ulids")
+    __slots__ = ("_channels", "_clock", "_config", "_log", "_metrics", "_policy", "_ulids")
 
     def __init__(
         self,
@@ -89,7 +90,17 @@ class AlertDispatcher:
         self._ulids = ulids
         self._log = logger.bind(component="alerts")
         self._metrics = metrics
-        self._threshold = Severity[config.min_severity]
+        self._policy = AlertPolicy(config)
+
+    def reconfigure(self, config: AlertsConfig) -> None:
+        """Apply new rules, quiet hours and threshold without a restart.
+
+        The channel set is not rebuilt: adding or removing a channel (or changing a webhook URL)
+        needs a restart, and the caller is told so. Swapping one reference is atomic, so a
+        dispatch in flight sees either the old policy or the new one, never half of each.
+        """
+        self._policy = AlertPolicy(config)
+        self._config = config
 
     @property
     def channel_ids(self) -> tuple[str, ...]:
@@ -116,16 +127,30 @@ class AlertDispatcher:
         )
         return tuple(statuses)
 
-    def dispatch(self, incident_id: str, severity: Severity) -> DispatchResult:
+    def dispatch(
+        self,
+        incident_id: str,
+        severity: Severity,
+        *,
+        camera_id: str | None = None,
+        event_type: str | None = None,
+    ) -> DispatchResult:
         """Send an alert for one incident, or say why it was not sent."""
-        if not self._config.enabled:
-            return DispatchResult(None, "alerting is disabled in configuration")
-        if severity < self._threshold:
-            return DispatchResult(
-                None,
-                f"severity {severity.name} is below alerts.min_severity ({self._threshold.name})",
-            )
-        available = [c for c in self._channels if c.is_available()]
+        decision = self._policy.decide(
+            camera_id=camera_id,
+            event_type=event_type,
+            severity=severity,
+            wall_utc=self._clock.wall_utc(),
+        )
+        if not decision.send:
+            if decision.reason is not None and "quiet hours" in decision.reason:
+                self._metrics.counter("vigil_alerts_held_total", reason="quiet_hours").inc()
+            return DispatchResult(None, decision.reason)
+        available = [
+            c
+            for c in self._channels
+            if c.is_available() and (decision.channels is None or c.channel_id in decision.channels)
+        ]
         if not available:
             return DispatchResult(None, "no alert channel is available")
 

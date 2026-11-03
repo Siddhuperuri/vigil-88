@@ -282,6 +282,17 @@ Unknown keys are errors. Strings may use `${env:NAME}`, `${env:NAME:-default}` o
 | `alerts.enabled` | bool | `True` |  |
 | `alerts.channels` | tuple[Literal['console', 'jsonl', 'webhook'], ...] | `('console',)` |  |
 | `alerts.min_severity` | one of 'INFO', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL' | `'MODERATE'` |  |
+| `alerts.rules[].name` | str | `PydanticUndefined` | min_length=1, max_length=64 |
+| `alerts.rules[].camera` | str | NoneType | `None` |  |
+| `alerts.rules[].event_types` | tuple[str, ...] | `()` |  |
+| `alerts.rules[].min_severity` | one of 'INFO', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL' | NoneType | `None` |  |
+| `alerts.rules[].channels` | tuple[Literal['console', 'jsonl', 'webhook'], ...] | NoneType | `None` |  |
+| `alerts.quiet_hours[].name` | str | `PydanticUndefined` | min_length=1, max_length=64 |
+| `alerts.quiet_hours[].schedule.start` | str | `PydanticUndefined` |  |
+| `alerts.quiet_hours[].schedule.end` | str | `PydanticUndefined` |  |
+| `alerts.quiet_hours[].schedule.utc_offset_minutes` | int | `0` | ge=-840, le=840 |
+| `alerts.quiet_hours[].schedule.weekdays` | tuple[int, ...] | `()` |  |
+| `alerts.quiet_hours[].let_through_from` | one of 'INFO', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL' | `'CRITICAL'` |  |
 | `alerts.jsonl_file` | Path | NoneType | `None` |  |
 | `alerts.webhook_url` | str | NoneType | `None` |  |
 | `alerts.webhook_timeout_ms` | int | `3000` | ge=100, le=30000 |
