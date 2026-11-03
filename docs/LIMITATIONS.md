@@ -229,9 +229,36 @@ Everything below was verified against the code, not asserted. Details in ADR 001
   operator runs *because* something is missing, down with it. The two modules on that chain now
   import cv2 and numpy lazily and refuse at their entry points naming the extra to install.
   Verified in a clean virtual environment.
-- **No Docker image and no installer.** 10-roadmap §10 declines Docker for GPU-passthrough
-  friction on Windows. Deployment is `uv sync` in a checkout, or `pip install` of the wheel plus
-  the extras the deployment needs.
+- **No Docker image.** 10-roadmap §10 declines Docker for GPU-passthrough friction on Windows.
+  Deployment is `uv sync` in a checkout, `pip install` of the wheel plus the extras the deployment
+  needs, or (D4) the Windows installer below.
+
+## Windows installer (D4)
+
+- **The installer is unsigned and must not be distributed.** It is built by `scripts/package.ps1` into
+  `build\installer\VIGIL-88-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
+  Windows SmartScreen will warn, and the project has no declared licence (decision 1), so a copy grants
+  nobody any rights.
+- **It carries the CPU engine only.** The NVIDIA runtime (about 2.4 GB) is neither bundled nor offered as a
+  download (decision 2). An installed engine does not use the GPU.
+- **There is no update mechanism**, signed or otherwise (decisions 3 and 4). A tampered update therefore
+  cannot be shown to be refused, because there is nothing to refuse it.
+- **Installation was tested only on the machine that built it.** There was no clean machine or virtual machine,
+  so "installs on a computer with no development tools" is not demonstrated, and antivirus behaviour on the
+  frozen engine was not measured.
+- **The interactive "remove my data too?" prompt was not driven.** A silent uninstall (which always keeps the
+  data) was verified to remove the program, the Start-menu entry and the uninstall entry and leave user data
+  in place. The Yes branch is NSIS script that has not been run.
+- **Start with Windows is off until the person turns it on**, then registers a per-user login item that starts
+  the app hidden in the tray. It was toggled on and off in the real app, and the registry was checked clean
+  afterwards. A real sign-in with it on was not performed.
+- **A second launch brings the running app forward** (single-instance lock); it does not start a second
+  engine.
+- **The soak is not the plan's 8 hours** and covers the engine alone; see the D4 report.
+- **Of the five failure drills, three were run** (corrupted configuration, missing model, unreachable
+  camera). Disk full, a camera unplugged mid-stream with recovery, and a GPU driver reset were **not**: the
+  first needs a volume to fill, the second needs hardware to unplug, and the third needs the GPU runtime this
+  installer does not carry.
 
 ## The P5 modules: what they claim and what they do not
 
