@@ -11,6 +11,7 @@ import math
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 SIZE = 256
 BACKGROUND = (10, 11, 13)
@@ -21,9 +22,11 @@ CORE = (230, 233, 239)
 def pixel(x: int, y: int) -> tuple[int, int, int, int]:
     cx = cy = (SIZE - 1) / 2
     d = math.hypot(x - cx, y - cy)
-    corner = max(abs(x - cx), abs(y - cy)) > SIZE / 2 - 18 and math.hypot(
-        max(abs(x - cx) - (SIZE / 2 - 34), 0), max(abs(y - cy) - (SIZE / 2 - 34), 0)
-    ) > 16
+    corner = (
+        max(abs(x - cx), abs(y - cy)) > SIZE / 2 - 18
+        and math.hypot(max(abs(x - cx) - (SIZE / 2 - 34), 0), max(abs(y - cy) - (SIZE / 2 - 34), 0))
+        > 16
+    )
     if corner:
         return (0, 0, 0, 0)  # transparent rounded corners
     if 78 <= d <= 104:
@@ -51,5 +54,4 @@ def png() -> bytes:
 
 
 if __name__ == "__main__":
-    with open(sys.argv[1], "wb") as handle:
-        handle.write(png())
+    Path(sys.argv[1]).write_bytes(png())
