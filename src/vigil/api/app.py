@@ -248,11 +248,12 @@ def create_app(
 
     api.include_router(system)
     _mount_incident_routes(api, application)
-    from vigil.api.routers import config_admin, system_ops
+    from vigil.api.routers import config_admin, system_ops, tuning
     from vigil.api.routers import telemetry as telemetry_router
 
     api.include_router(system_ops.build_router(paths=application.paths, application=application))
     api.include_router(config_admin.build_router(application=application, restart=restart))
+    api.include_router(tuning.build_router(application=application))
 
     response = application.response
     api.include_router(
