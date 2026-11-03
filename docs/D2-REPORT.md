@@ -59,10 +59,21 @@ AA with colour contrast is clean on the add form and the zone editor.
 - Dialogs: a native `<dialog>` focuses its first control, so the safe choice ("Keep it", "Not now") is first
   in the DOM. `autoFocus` is forbidden by the accessibility lint and was not used.
 
+## Added after the first cut
+
+Three screens over APIs that already existed: **People** (list, change role, disable and enable, reset a password,
+delete behind a confirmation, add; own account locked from this screen; administrators only), **Audit log**
+(newest first, filter by action, page back, verify the hash chain, export CSV or JSON; administrators only) and
+**Reports** (7, 30 or 90 days: counts, durations that read "unavailable" when nothing was measured, dismissal rates,
+camera availability, caveats, a warning when records do not cover the period, definitions of every number, and
+exports that are disabled with the reason when a format or the role does not allow them). 15 component tests and
+the real-app first-run test, which now visits all three with axe at WCAG 2.2 AA including contrast. A viewer or
+operator who types the address of People or Audit log is told it needs the administrator role; the engine
+refuses the data either way.
+
 ## Not built, and said so on screen or in LIMITATIONS
 
-Users and roles screens, the audit log screen, the analytics and report screen (all three have working
-APIs), the diagnostics bundle, settings and configuration import/export, alert rules and quiet hours, the
+The diagnostics bundle, settings and configuration import/export, alert rules and quiet hours, the
 degradation ladder, annotating the pre-roll gap after a reconnect, the full first-run wizard, engine worker
 restart. This was a deliberate cut under "finish quickly", not an oversight.
 

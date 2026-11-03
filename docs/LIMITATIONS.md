@@ -460,10 +460,19 @@ needs `temporal.l_activate` crossed while `min_observations`, `min_support_ratio
   camera's current frame, or nothing if the camera is not running yet; the zones are fractions of the frame
   either way.
 - **Cameras defined by hand in `vigil.yaml` are shown, not edited**, and say so.
-- **Not built in D2:** users and roles screens (the API exists), the audit log screen (the API exists), an
-  analytics and report screen (the API exists), a diagnostics bundle, settings and configuration
-  import/export, alert rules and quiet hours, the degradation ladder, annotating the pre-roll gap after a
-  reconnect, the full first-run wizard, and engine worker restart.
+- **Not built in D2:** a diagnostics bundle, settings and configuration import/export, alert rules and quiet
+  hours, the degradation ladder, annotating the pre-roll gap after a reconnect, the full first-run wizard, and
+  engine worker restart.
+- **People, Audit log and Reports screens** (added after the first D2 cut):
+  - The screen refuses to change your own account (role, disable, delete); the engine independently refuses to
+    remove the last administrator. A password reset on yourself is allowed.
+  - The audit log export holds the newest 1,000 rows, and the chain check proves the rows were not altered after
+    they were written, not that the log is complete: someone with file access could delete the whole tail.
+  - Reports show a 7, 30 or 90 day period only, with no custom range, no per-camera or per-type filter in the
+    screen (the API has them), and no charts beyond proportional bars beside the numbers. The PDF format appears
+    only when its extra is installed, otherwise disabled with the install command.
+  - A dismissal rate is a signal about noise, not a false-positive rate; nothing here is labelled ground truth.
+  - People has no "sign this person out now" or session list; a role change or password reset ends their sessions.
 
 ## Other
 
