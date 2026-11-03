@@ -20,6 +20,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
+from vigil.config import writer
 from vigil.config.schema.alerts import AlertsConfig
 from vigil.config.zones import zone_file_path
 from vigil.core.capabilities import Capability
@@ -84,6 +85,17 @@ def apply_zone_edits(
         applied.append(ref)
     for ref in done_refs:
         baseline[ref] = file_hash(zone_file_path(config_dir, ref))
+    # Zone files that changed but that no running camera points at yet (a camera that has just been
+    # given its first zones): they cannot be swapped into anything, and silence here would read as
+    # "nothing to apply".
+    reported = done_refs | {s.target for s in skipped}
+    for ref in sorted(set(baseline) | set(writer.zone_refs(config_dir))):
+        if ref not in reported and file_hash(zone_file_path(config_dir, ref)) != baseline.get(ref):
+            skipped.append(
+                Skipped(
+                    ref, "no running camera uses this zone file yet; it applies after a restart"
+                )
+            )
     return LiveOutcome(tuple(applied), tuple(skipped))
 
 

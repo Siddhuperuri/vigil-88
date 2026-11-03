@@ -287,6 +287,21 @@ class IncidentEvidence:
         days = int(getattr(self._retention, _RETENTION_FIELD[kind]))
         return self._clock.wall_utc() + timedelta(days=days)
 
+    def has_room(self, needed: int) -> str | None:
+        """None if `needed` more bytes fit above the free-space floor, otherwise why they do not.
+
+        For callers that write a file themselves (a video muxer) and so cannot go through
+        `write()`: without this, a clip would be written however full the volume was, while every
+        snapshot beside it was refused, and the clip could be what filled it.
+        """
+        try:
+            self._ensure_space(needed)
+        except PersistenceError as exc:
+            return exc.message
+        except OSError as exc:
+            return f"cannot read the free space on the evidence volume: {exc}"
+        return None
+
     def _ensure_space(self, needed: int) -> None:
         usage = shutil.disk_usage(self._directory)
         if usage.free - needed < MIN_FREE_BYTES:

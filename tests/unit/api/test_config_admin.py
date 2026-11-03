@@ -481,3 +481,20 @@ def test_an_operator_may_not_apply_configuration(with_zones: Rig) -> None:
     make_user(with_zones, "oscar", "operator")
     with signed_in(with_zones, "oscar", GOOD + "?") as o:
         assert o.post("/api/v1/config/apply-live").status_code == 403
+
+
+def test_zones_for_a_camera_that_had_none_are_reported_as_waiting_not_as_nothing(
+    started: Rig,
+) -> None:
+    """A camera given its first zones is not being analysed with a zone file yet, so there is
+    nothing to swap; the answer must say so, not 'nothing needed applying'."""
+    from vigil.config import writer
+
+    writer.write_camera(started.config_dir, writer.validate_camera({**SYNTH}))
+    set_up(started)
+    with signed_in(started, "alice") as a:
+        assert a.put("/api/v1/config/cameras/bench/zones", json=ZONES).status_code == 200
+        out = a.post("/api/v1/config/apply-live").json()
+    assert out["applied"] == []
+    assert "no running camera uses this zone file yet" in out["needs_restart"][0]["reason"]
+    assert out["pending"]["pending"] is True

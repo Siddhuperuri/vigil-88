@@ -218,9 +218,13 @@ def test_an_unplugged_camera_is_shown_as_not_working_then_comes_back_by_itself(
         # The interruption is on the record, on the same axis as incidents (08 §3).
         response = app.response
         assert response is not None
-        events = [e.state for e in response.health_events.recent(limit=200)]
-        assert CameraState.RECONNECTING in events or CameraState.FAILED in events
-        assert events.count(CameraState.ONLINE) >= 2
+
+        def recorded() -> list[CameraState]:
+            return [e.state for e in response.health_events.recent(limit=200)]
+
+        # The record is written by an event handler just after the state changes, so wait for it.
+        assert wait_for(lambda: recorded().count(CameraState.ONLINE) >= 2)
+        assert CameraState.RECONNECTING in recorded() or CameraState.FAILED in recorded()
 
         # And the ladder did not mistake a missing camera for overload.
         assert app.degradation is not None and app.degradation.state.step == 0

@@ -332,6 +332,10 @@ class EvidenceCapture:
             (EvidenceKind.CLIP_POST, CLIP_POST, post),
         ):
             written += 1
+            no_room = session.has_room(sum(len(f.jpeg) for f in frames))
+            if no_room is not None:
+                session.fail(kind, filename, no_room)
+                continue
             result = mux_clip(
                 frames, session.directory / filename, anchor_ns=capture.first_observed_ns
             )

@@ -83,3 +83,35 @@ def test_hostile_entries_are_dropped_and_unknown_keys_ignored(tmp_path: Path) ->
         "gaps": [{"kind": "frame_gap", "start_ms": 1.0, "end_ms": 2.0}],
         "preroll_shortfall_ms": None,
     }
+
+
+# room for a file written elsewhere
+
+
+def test_has_room_says_none_when_there_is_space(tmp_path: Path) -> None:
+    assert session(tmp_path).has_room(1024) is None
+
+
+def test_has_room_gives_the_reason_when_the_volume_is_nearly_full(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections import namedtuple
+
+    usage = namedtuple("usage", "total used free")
+    s = session(tmp_path)
+    monkeypatch.setattr(
+        "vigil.response.evidence.shutil.disk_usage", lambda _p: usage(100, 99, 1024)
+    )
+    assert "nearly full" in (s.has_room(10) or "")
+
+
+def test_has_room_reports_a_volume_it_cannot_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    s = session(tmp_path)
+
+    def broken(_path: object) -> None:
+        raise OSError("device not ready")
+
+    monkeypatch.setattr("vigil.response.evidence.shutil.disk_usage", broken)
+    assert "device not ready" in (s.has_room(10) or "")
