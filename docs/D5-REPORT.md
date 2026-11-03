@@ -56,7 +56,12 @@ and uninstall entries read *(development build)*.
 
 ## 3. Verification
 
-GATE-LINE
+**The full gate** (`scripts/check.ps1`) was run in two parts, and the report says so rather than claiming one clean
+run. The first run passed every stage through the console build and the generated-types check (ruff, mypy,
+import-linter, repository gates, **2,400 engine tests**, coverage floors, 215 console tests, contrast) and stopped at
+the desktop formatting check on one new file. After formatting it, the remaining stages were run by hand: desktop
+install, typecheck, lint, format, unit tests (100% coverage), build, `vigil doctor`, the self-test, and the real-app
+end-to-end suite: **19 passed, 2 skipped** (the installed-app test and the soak, which are opt-in).
 
 Run on this machine, with the evidence kept in [verification/evidence](verification/evidence/):
 
