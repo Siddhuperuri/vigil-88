@@ -236,7 +236,7 @@ Everything below was verified against the code, not asserted. Details in ADR 001
 ## Windows installer (D4)
 
 - **The installer is unsigned and must not be distributed.** It is built by `scripts/package.ps1` into
-  `build\installer\VIGIL-88-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
+  `build\installer\VIGIL-88-DEV-ONLY-Setup-<version>.exe`. There is no code-signing certificate (plan decision 3), so
   Windows SmartScreen will warn, and the project has no declared licence (decision 1), so a copy grants
   nobody any rights.
 - **It carries the CPU engine only.** The NVIDIA runtime (about 2.4 GB) is neither bundled nor offered as a

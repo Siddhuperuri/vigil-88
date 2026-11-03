@@ -32,4 +32,4 @@ nsis:
   shortcutName: VIGIL-88
   deleteAppDataOnUninstall: false # the prompt below decides; silent uninstalls keep the data
   include: installer/uninstall-data.nsh
-  artifactName: VIGIL-88-Setup-${version}.${ext}
+  artifactName: VIGIL-88-DEV-ONLY-Setup-${version}.${ext}
