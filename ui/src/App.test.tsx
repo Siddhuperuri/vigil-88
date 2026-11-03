@@ -73,7 +73,7 @@ describe("the signed-in shell", () => {
       "/api/v1/cameras/": new Response("", { status: 200 }),
     });
 
-  it("lands on the live wall and offers the three views", async () => {
+  it("lands on the live wall and offers the views an operator may use", async () => {
     signedIn();
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Live wall" })).toBeInTheDocument();
@@ -82,11 +82,32 @@ describe("the signed-in shell", () => {
       within(nav)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Live wall", "Incident desk", "Cameras", "Zones", "System"]);
+    ).toEqual(["Live wall", "Incident desk", "Cameras", "Zones", "Reports", "System"]);
     expect(within(nav).getByRole("link", { name: "Live wall" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+  });
+
+  it("offers People and the audit log to an administrator only, and refuses them by address to others", async () => {
+    mockFetch({
+      "/api/v1/auth/status": authStatus({
+        user: { ...authStatus().user, role: "administrator" },
+      }),
+      "/api/v1/users": [],
+      "/api/v1/audit": [],
+    });
+    const admin = render(<App />);
+    const nav = await screen.findByRole("navigation", { name: "Main" });
+    expect(within(nav).getByRole("link", { name: "People" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Audit log" })).toBeInTheDocument();
+    admin.unmount();
+
+    signedIn();
+    window.location.hash = "#/people";
+    render(<App />);
+    expect(await screen.findByText("Administrators only")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "People" })).not.toBeInTheDocument();
   });
 
   it("shows engine state, cameras and load in the strip once the live link delivers them, and says unavailable before", async () => {

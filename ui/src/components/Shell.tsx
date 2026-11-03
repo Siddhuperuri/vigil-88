@@ -6,11 +6,14 @@ import { useAuth } from "../state/auth";
 import { useTelemetry } from "../state/telemetry";
 import { readout } from "./bits";
 
-const NAV: { label: string; route: Route }[] = [
+const NAV: { label: string; route: Route; adminOnly?: boolean }[] = [
   { label: "Live wall", route: { view: "wall", camera: null } },
   { label: "Incident desk", route: { view: "incidents", id: null } },
   { label: "Cameras", route: { view: "cameras", id: null } },
   { label: "Zones", route: { view: "zones", camera: null } },
+  { label: "Reports", route: { view: "reports" } },
+  { label: "People", route: { view: "people" }, adminOnly: true },
+  { label: "Audit log", route: { view: "audit" }, adminOnly: true },
   { label: "System", route: { view: "system" } },
 ];
 
@@ -118,16 +121,18 @@ export function Shell({
       <StatusStrip />
       <nav className="rail" aria-label="Main">
         <ul>
-          {NAV.map((item) => (
-            <li key={item.label}>
-              <a
-                href={href(item.route)}
-                aria-current={route.view === item.route.view ? "page" : undefined}
-              >
-                {item.label}
-              </a>
-            </li>
-          ))}
+          {NAV.filter((item) => item.adminOnly !== true || user.role === "administrator").map(
+            (item) => (
+              <li key={item.label}>
+                <a
+                  href={href(item.route)}
+                  aria-current={route.view === item.route.view ? "page" : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ),
+          )}
         </ul>
         <div className="rail-foot">
           <p className="muted">

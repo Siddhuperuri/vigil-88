@@ -42,3 +42,14 @@ export type ProbeResult = Schemas["ProbeOut"];
 export type Devices = Schemas["DevicesOut"];
 export type Pending = Schemas["PendingOut"];
 export type PendingChange = Schemas["PendingChange"];
+
+export type AuditEntry = Schemas["AuditOut"];
+export type Summary = Schemas["AnalyticsSummaryOut"];
+export type DurationStat = Schemas["DurationOut"];
+export type ExportFormat = Schemas["ExportFormatOut"];
+export type NewUser = Schemas["NewUserIn"];
+export interface ChainReport {
+  ok: boolean;
+  rows: number;
+  first_bad_seq: number | null;
+}

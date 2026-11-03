@@ -5,8 +5,11 @@ import { Announcer, Shell } from "./components/Shell";
 import { Notice } from "./components/bits";
 import { href, useRoute } from "./router";
 import { Login, Lock, Setup } from "./screens/Gate";
+import { Audit } from "./screens/Audit";
 import { Cameras } from "./screens/Cameras";
 import { Incidents } from "./screens/Incidents";
+import { People } from "./screens/People";
+import { Reports } from "./screens/Reports";
 import { System } from "./screens/System";
 import { Wall } from "./screens/Wall";
 import { Zones } from "./screens/Zones";
@@ -74,6 +77,14 @@ function Shortcuts({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+function AdminOnly() {
+  return (
+    <Notice kind="info" title="Administrators only">
+      <p>This screen needs the administrator role.</p>
+    </Notice>
+  );
+}
+
 function Signed({
   username,
   role,
@@ -132,6 +143,10 @@ function Signed({
           )}
           {route.view === "cameras" && <Cameras route={route} role={role} go={go} />}
           {route.view === "zones" && <Zones route={route} role={role} />}
+          {route.view === "reports" && <Reports userRole={role} />}
+          {route.view === "people" &&
+            (role === "administrator" ? <People me={username} /> : <AdminOnly />)}
+          {route.view === "audit" && (role === "administrator" ? <Audit /> : <AdminOnly />)}
           {route.view === "system" && <System role={role} />}
         </Shell>
         <Shortcuts open={shortcuts} onClose={close} />

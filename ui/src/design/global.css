@@ -651,3 +651,16 @@ a.button.primary {
   gap: 0.4rem;
   padding: 0;
 }
+
+/* ---- D2 follow-up: reports ---------------------------------------------------------------- */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0 1.5rem;
+}
+.bar {
+  display: block;
+  height: 0.6rem;
+  min-width: 2px;
+  background: var(--vg-signal);
+}

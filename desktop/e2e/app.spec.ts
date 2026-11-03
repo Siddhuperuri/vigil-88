@@ -172,6 +172,27 @@ test.describe("the real app", () => {
     await expect(page.getByText("No open incidents.")).toBeVisible();
     expect(await violations(page)).toEqual([]);
 
+    // The administrator screens: people (the account just made, marked as me), the audit log with
+    // its chain intact, and reports that say so when there is nothing to report.
+    await page.getByRole("link", { name: "People" }).click();
+    await expect(page.getByRole("rowheader", { name: /alice/ })).toContainText("(you)");
+    await expect(page.getByLabel("Role for alice")).toBeDisabled();
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole("link", { name: "Audit log" }).click();
+    await expect(
+      page.getByText("setup.completed").or(page.getByText("user.created")),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Verify the chain" }).click();
+    await expect(page.getByText(/Intact: \d+ rows, none altered\./)).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole("link", { name: "Reports" }).click();
+    await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+    await expect(page.getByRole("term").filter({ hasText: "Incidents" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "CSV" })).toBeEnabled();
+    expect(await violations(page)).toEqual([]);
+
     await page.getByRole("link", { name: "System" }).click();
     await expect(page.getByRole("heading", { name: "System" })).toBeVisible();
     await expect(page.getByText("No cameras are configured.")).toBeVisible();
@@ -186,6 +207,8 @@ test.describe("the real app", () => {
 
     // The keyboard sheet opens with ? from anywhere outside a field.
     await page.getByRole("link", { name: "Incident desk" }).click();
+    // The shortcut is registered by the desk itself, so wait for the desk before pressing the key.
+    await expect(page.getByRole("heading", { name: "Incident desk" })).toBeVisible();
     await page.keyboard.press("?");
     await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
     await page.keyboard.press("Escape");

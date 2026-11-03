@@ -7,6 +7,9 @@ export type Route =
   | { view: "incidents"; id: string | null }
   | { view: "cameras"; id: string | null }
   | { view: "zones"; camera: string | null }
+  | { view: "reports" }
+  | { view: "people" }
+  | { view: "audit" }
   | { view: "system" };
 
 /** A malformed escape in a hand-edited URL must not take the console down. */
@@ -27,6 +30,12 @@ export function parse(hash: string): Route {
       return { view: "cameras", id: parts[1] ?? null };
     case "zones":
       return { view: "zones", camera: parts[1] ?? null };
+    case "reports":
+      return { view: "reports" };
+    case "people":
+      return { view: "people" };
+    case "audit":
+      return { view: "audit" };
     case "system":
       return { view: "system" };
     default:
@@ -44,6 +53,12 @@ export function href(route: Route): string {
       return route.id === null ? "#/cameras" : `#/cameras/${encodeURIComponent(route.id)}`;
     case "zones":
       return route.camera === null ? "#/zones" : `#/zones/${encodeURIComponent(route.camera)}`;
+    case "reports":
+      return "#/reports";
+    case "people":
+      return "#/people";
+    case "audit":
+      return "#/audit";
     case "system":
       return "#/system";
   }
